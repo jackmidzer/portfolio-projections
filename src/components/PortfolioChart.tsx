@@ -11,7 +11,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { PortfolioResults } from '../types';
+import { PortfolioResults, AccountType } from '../types';
 import { combineYearlyData } from '../utils/calculations';
 import { formatCompactCurrency } from '../utils/formatters';
 
@@ -22,8 +22,18 @@ interface PortfolioChartProps {
 const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
   const [chartType, setChartType] = useState<'line' | 'area'>('area');
   const [showTotal, setShowTotal] = useState<boolean>(true);
+  const [selectedAccount, setSelectedAccount] = useState<AccountType | 'All'>('All');
 
-  const data = combineYearlyData(results.accountResults);
+  const allData = combineYearlyData(results.accountResults);
+  
+  // Filter data based on selected account
+  const data = selectedAccount === 'All' 
+    ? allData
+    : allData.map((entry) => ({
+        age: entry.age,
+        [selectedAccount]: entry[selectedAccount as keyof typeof entry],
+      }));
+  
   const isFirstYearProRated = results.monthsUntilNextBirthday < 12;
 
   const colors = {
@@ -63,7 +73,9 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
       margin: { top: 10, right: 30, left: 0, bottom: 0 },
     };
 
-    const accountNames = results.accountResults.map((r) => r.accountName);
+    const accountNames = selectedAccount === 'All' 
+      ? results.accountResults.map((r) => r.accountName)
+      : [selectedAccount];
 
     if (chartType === 'area') {
       return (
@@ -86,7 +98,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
                 key={name}
                 type="monotone"
                 dataKey={name}
-                stackId="1"
+                stackId={selectedAccount === 'All' ? '1' : undefined}
                 stroke={colors[name]}
                 fill={colors[name]}
                 fillOpacity={0.6}
@@ -112,7 +124,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend />
-          {showTotal && (
+          {showTotal && selectedAccount === 'All' && (
             <Line
               type="monotone"
               dataKey="Total"
@@ -141,27 +153,42 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Portfolio Growth</h2>
         
-        <div className="flex gap-2">
-          <button
-            onClick={() => setChartType('line')}
-            className={`px-4 py-2 rounded-md font-medium transition ${
-              chartType === 'line'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+          <select
+            value={selectedAccount}
+            onChange={(e) => setSelectedAccount(e.target.value as AccountType | 'All')}
+            className="px-3 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           >
-            Line Chart
-          </button>
-          <button
-            onClick={() => setChartType('area')}
-            className={`px-4 py-2 rounded-md font-medium transition ${
-              chartType === 'area'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Area Chart
-          </button>
+            <option value="All">All Accounts</option>
+            {results.accountResults.map((result) => (
+              <option key={result.accountName} value={result.accountName}>
+                {result.accountName}
+              </option>
+            ))}
+          </select>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setChartType('line')}
+              className={`px-4 py-2 rounded-md font-medium transition ${
+                chartType === 'line'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Line Chart
+            </button>
+            <button
+              onClick={() => setChartType('area')}
+              className={`px-4 py-2 rounded-md font-medium transition ${
+                chartType === 'area'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Area Chart
+            </button>
+          </div>
         </div>
       </div>
 

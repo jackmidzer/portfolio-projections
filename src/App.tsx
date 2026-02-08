@@ -10,7 +10,7 @@ function App() {
   const [results, setResults] = useState<PortfolioResults | null>(null);
 
   const handleCalculate = (inputs: PortfolioInputs) => {
-    const timeHorizon = inputs.targetAge - inputs.currentAge;
+    const timeHorizon = inputs.targetAge - inputs.currentAge + 1;
     const calculatedResults = calculatePortfolioGrowth(
       inputs.accounts,
       timeHorizon,

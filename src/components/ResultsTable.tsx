@@ -8,7 +8,7 @@ interface ResultsTableProps {
 
 const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
   const [selectedAccount, setSelectedAccount] = useState<AccountType | 'All'>(
-    results.accountResults[0].accountName
+    'All'
   );
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
 
