@@ -1,4 +1,4 @@
-import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions } from '../types';
+import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown } from '../types';
 
 /**
  * Get the contribution percentage for a given age from age bracket contributions
@@ -21,7 +21,8 @@ export function calculateAccountGrowth(
   currentAge: number,
   currentSalary?: number,
   annualSalaryIncrease?: number,
-  monthsUntilNextBirthday?: number
+  monthsUntilNextBirthday?: number,
+  dateOfBirth?: Date
 ): AccountResults {
   const yearlyData: YearlyBreakdown[] = [];
   let currentBalance = account.currentBalance;
@@ -57,11 +58,50 @@ export function calculateAccountGrowth(
 
     // Calculate month by month for accurate compound interest
     // First year may be pro-rated based on months until next birthday
+    const monthlyData: MonthlyBreakdown[] = [];
     const monthsInYear = year === 0 ? firstYearMonths : 12;
+    
+    // Calculate starting month/year for this year
+    let monthDate = dateOfBirth ? new Date(dateOfBirth) : new Date();
+    if (dateOfBirth) {
+      // Set to current date and advance by the actual number of months that have elapsed
+      // Year 0 may be pro-rated, so subsequent years start at different months
+      const now = new Date();
+      monthDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      // Calculate cumulative months elapsed before this year
+      let monthsElapsed = 0;
+      if (year === 0) {
+        monthsElapsed = 0; // First year starts at current month
+      } else {
+        // Add months from year 0 (which may be pro-rated) and all subsequent full years
+        monthsElapsed = firstYearMonths + (year - 1) * 12;
+      }
+      // Advance the month/year by the elapsed months
+      for (let i = 0; i < monthsElapsed; i++) {
+        monthDate.setMonth(monthDate.getMonth() + 1);
+      }
+    }
+    
     for (let month = 1; month <= monthsInYear; month++) {
-      const monthInterest = currentBalance * monthlyRate;
+      const monthStartBalance = currentBalance;
+      const monthInterest = monthStartBalance * monthlyRate;
       yearInterest += monthInterest;
       currentBalance += monthInterest + monthlyContribution;
+      
+      // Format month/year as 'FEB 2026'
+      const monthLabel = monthDate.toLocaleString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
+      
+      monthlyData.push({
+        month,
+        monthYear: monthLabel,
+        startingBalance: monthStartBalance,
+        contribution: monthlyContribution,
+        interest: monthInterest,
+        endingBalance: currentBalance,
+      });
+      
+      // Advance to next month
+      monthDate.setMonth(monthDate.getMonth() + 1);
     }
 
     yearContributions = monthlyContribution * monthsInYear;
@@ -74,6 +114,7 @@ export function calculateAccountGrowth(
       contributions: yearContributions,
       interestEarned: yearInterest,
       endingBalance,
+      monthlyData,
     });
   }
 
@@ -98,10 +139,11 @@ export function calculatePortfolioGrowth(
   currentAge: number,
   currentSalary?: number,
   annualSalaryIncrease?: number,
-  monthsUntilNextBirthday?: number
+  monthsUntilNextBirthday?: number,
+  dateOfBirth?: Date
 ): PortfolioResults {
   const accountResults = accounts.map((account) =>
-    calculateAccountGrowth(account, timeHorizon, currentAge, currentSalary, annualSalaryIncrease, monthsUntilNextBirthday)
+    calculateAccountGrowth(account, timeHorizon, currentAge, currentSalary, annualSalaryIncrease, monthsUntilNextBirthday, dateOfBirth)
   );
 
   const totalFinalBalance = accountResults.reduce(

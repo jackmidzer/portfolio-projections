@@ -19,6 +19,15 @@ export interface AccountInput {
   employerContributionPercent?: number; // for Pension: employer contribution as % of salary
 }
 
+export interface MonthlyBreakdown {
+  month: number;
+  monthYear: string; // formatted as 'FEB 2026'
+  startingBalance: number;
+  contribution: number;
+  interest: number;
+  endingBalance: number;
+}
+
 export interface YearlyBreakdown {
   year: number;
   age: number;
@@ -26,6 +35,7 @@ export interface YearlyBreakdown {
   contributions: number;
   interestEarned: number;
   endingBalance: number;
+  monthlyData: MonthlyBreakdown[];
 }
 
 export interface AccountResults {

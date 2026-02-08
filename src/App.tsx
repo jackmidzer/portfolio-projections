@@ -17,7 +17,8 @@ function App() {
       inputs.currentAge,
       inputs.currentSalary,
       inputs.annualSalaryIncrease,
-      inputs.monthsUntilNextBirthday
+      inputs.monthsUntilNextBirthday,
+      inputs.dateOfBirth
     );
     setResults(calculatedResults);
     
