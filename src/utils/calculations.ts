@@ -1,4 +1,16 @@
-import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults } from '../types';
+import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions } from '../types';
+
+/**
+ * Get the contribution percentage for a given age from age bracket contributions
+ */
+function getAgeBracketPercentage(age: number, brackets: AgeBracketContributions): number {
+  if (age < 30) return brackets.under30;
+  if (age < 40) return brackets.age30to39;
+  if (age < 50) return brackets.age40to49;
+  if (age < 55) return brackets.age50to54;
+  if (age < 60) return brackets.age55to59;
+  return brackets.age60plus;
+}
 
 /**
  * Calculate year-by-year breakdown for a single account with compound interest and monthly contributions
@@ -6,37 +18,56 @@ import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults } from 
 export function calculateAccountGrowth(
   account: AccountInput,
   timeHorizon: number,
-  currentAge: number
+  currentAge: number,
+  currentSalary?: number,
+  annualSalaryIncrease?: number
 ): AccountResults {
   const yearlyData: YearlyBreakdown[] = [];
   let currentBalance = account.currentBalance;
   const monthlyRate = account.expectedReturn / 100 / 12;
-  const annualContributions = account.monthlyContribution * 12;
 
   for (let year = 1; year <= timeHorizon; year++) {
     const startingBalance = currentBalance;
     let yearInterest = 0;
+    let yearContributions = 0;
+
+    // Calculate monthly contribution (may be salary-based for pension with age brackets)
+    let monthlyContribution = account.monthlyContribution;
+    if (account.isSalaryPercentage && currentSalary && annualSalaryIncrease !== undefined) {
+      // For Pension with age brackets, use the appropriate bracket percentage
+      let contributionPercentage = account.monthlyContribution;
+      if (account.ageBracketContributions) {
+        const ageAtYear = currentAge + year;
+        contributionPercentage = getAgeBracketPercentage(ageAtYear, account.ageBracketContributions);
+      }
+      
+      // Calculate salary at this year
+      const salaryAtYear = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, year);
+      // Monthly contribution is percentage of monthly salary
+      monthlyContribution = (salaryAtYear / 12) * (contributionPercentage / 100);
+    }
 
     // Calculate month by month for accurate compound interest
     for (let month = 1; month <= 12; month++) {
       const monthInterest = currentBalance * monthlyRate;
       yearInterest += monthInterest;
-      currentBalance += monthInterest + account.monthlyContribution;
+      currentBalance += monthInterest + monthlyContribution;
     }
 
+    yearContributions = monthlyContribution * 12;
     const endingBalance = currentBalance;
 
     yearlyData.push({
       year,
       age: currentAge + year,
       startingBalance,
-      contributions: annualContributions,
+      contributions: yearContributions,
       interestEarned: yearInterest,
       endingBalance,
     });
   }
 
-  const totalContributions = annualContributions * timeHorizon;
+  const totalContributions = yearlyData.reduce((sum, yd) => sum + yd.contributions, 0);
   const totalInterest = currentBalance - account.currentBalance - totalContributions;
 
   return {
@@ -54,10 +85,12 @@ export function calculateAccountGrowth(
 export function calculatePortfolioGrowth(
   accounts: AccountInput[],
   timeHorizon: number,
-  currentAge: number
+  currentAge: number,
+  currentSalary?: number,
+  annualSalaryIncrease?: number
 ): PortfolioResults {
   const accountResults = accounts.map((account) =>
-    calculateAccountGrowth(account, timeHorizon, currentAge)
+    calculateAccountGrowth(account, timeHorizon, currentAge, currentSalary, annualSalaryIncrease)
   );
 
   const totalFinalBalance = accountResults.reduce(
@@ -75,11 +108,18 @@ export function calculatePortfolioGrowth(
     0
   );
 
+  // Calculate final salary
+  let finalSalary = currentSalary || 0;
+  if (currentSalary && annualSalaryIncrease !== undefined) {
+    finalSalary = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, timeHorizon);
+  }
+
   return {
     accountResults,
     totalFinalBalance,
     totalContributions,
     totalInterest,
+    finalSalary,
   };
 }
 

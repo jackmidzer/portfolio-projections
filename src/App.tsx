@@ -11,7 +11,13 @@ function App() {
 
   const handleCalculate = (inputs: PortfolioInputs) => {
     const timeHorizon = inputs.futureAge - inputs.currentAge;
-    const calculatedResults = calculatePortfolioGrowth(inputs.accounts, timeHorizon, inputs.currentAge);
+    const calculatedResults = calculatePortfolioGrowth(
+      inputs.accounts,
+      timeHorizon,
+      inputs.currentAge,
+      inputs.currentSalary,
+      inputs.annualSalaryIncrease
+    );
     setResults(calculatedResults);
     
     // Scroll to results

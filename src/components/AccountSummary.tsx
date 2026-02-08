@@ -29,7 +29,7 @@ const AccountSummary: React.FC<AccountSummaryProps> = ({ results }) => {
         )}
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg">
           <p className="text-sm font-medium text-blue-800 mb-1">Initial Balance</p>
           <p className="text-2xl font-bold text-blue-900">{formatCurrency(initialBalance)}</p>
@@ -48,6 +48,11 @@ const AccountSummary: React.FC<AccountSummaryProps> = ({ results }) => {
         <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 rounded-lg">
           <p className="text-sm font-medium text-indigo-800 mb-1">Final Balance</p>
           <p className="text-2xl font-bold text-indigo-900">{formatCurrency(results.totalFinalBalance)}</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-lg">
+          <p className="text-sm font-medium text-orange-800 mb-1">Final Salary</p>
+          <p className="text-2xl font-bold text-orange-900">{formatCurrency(results.finalSalary)}</p>
         </div>
       </div>
 
