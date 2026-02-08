@@ -29,9 +29,13 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   ]);
 
   const [dateOfBirth, setDateOfBirth] = useState<string>('1997-10-03'); // Default to my date of birth
-  const [targetAge, setTargetAge] = useState<number | ''>(65);
+  const [targetAge, setTargetAge] = useState<number | ''>(80);
   const [currentSalary, setCurrentSalary] = useState<number | ''>(70000);
   const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(2);
+  const [pensionAge, setPensionAge] = useState<number | ''>(65);
+  const [withdrawalRate, setWithdrawalRate] = useState<number | ''>(4);
+  const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(50);
+  const [salaryReplacementRate, setSalaryReplacementRate] = useState<number | ''>(80);
   const [errors, setErrors] = useState<string[]>([]);
 
   // Helper function to calculate current age from date of birth
@@ -72,7 +76,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
   const isFormValid = (): boolean => {
     // Check if any field is empty
-    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '') {
+    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '' || pensionAge === '' || withdrawalRate === '' || earlyRetirementAge === '' || salaryReplacementRate === '') {
       return false;
     }
 
@@ -81,9 +85,13 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const future = typeof targetAge === 'number' ? targetAge : parseInt(targetAge);
     const salary = typeof currentSalary === 'number' ? currentSalary : parseInt(currentSalary);
     const increase = typeof annualSalaryIncrease === 'number' ? annualSalaryIncrease : parseInt(annualSalaryIncrease);
+    const pension = typeof pensionAge === 'number' ? pensionAge : parseInt(pensionAge as string);
+    const withdrawal = typeof withdrawalRate === 'number' ? withdrawalRate : parseFloat(withdrawalRate as string);
+    const earlyRetirement = typeof earlyRetirementAge === 'number' ? earlyRetirementAge : parseInt(earlyRetirementAge as string);
+    const replacement = typeof salaryReplacementRate === 'number' ? salaryReplacementRate : parseFloat(salaryReplacementRate as string);
 
     // Check for NaN
-    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase)) {
+    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase) || isNaN(pension) || isNaN(withdrawal) || isNaN(earlyRetirement) || isNaN(replacement)) {
       return false;
     }
 
@@ -92,6 +100,10 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     if (future <= age || future > 150) return false;
     if (salary <= 0) return false;
     if (increase < 0 || increase > 20) return false;
+    if (pension < 18 || pension > 100) return false;
+    if (withdrawal <= 0 || withdrawal > 20) return false;
+    if (earlyRetirement < 18 || earlyRetirement > 100) return false;
+    if (replacement <= 0 || replacement > 100) return false;
 
     return true;
   };
@@ -105,6 +117,10 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const future = typeof targetAge === 'number' ? targetAge : parseInt(targetAge);
     const salary = typeof currentSalary === 'number' ? currentSalary : parseInt(currentSalary);
     const increase = typeof annualSalaryIncrease === 'number' ? annualSalaryIncrease : parseInt(annualSalaryIncrease);
+    const pension = typeof pensionAge === 'number' ? pensionAge : parseInt(pensionAge as string);
+    const withdrawal = typeof withdrawalRate === 'number' ? withdrawalRate : parseFloat(withdrawalRate as string);
+    const earlyRetirement = typeof earlyRetirementAge === 'number' ? earlyRetirementAge : parseInt(earlyRetirementAge as string);
+    const replacement = typeof salaryReplacementRate === 'number' ? salaryReplacementRate : parseFloat(salaryReplacementRate as string);
 
     // Validation
     if (!dateOfBirth) {
@@ -125,11 +141,23 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     if (increase < 0 || increase > 20) {
       newErrors.push('Annual salary increase must be between 0% and 20%');
     }
+    if (pension < 18 || pension > 100) {
+      newErrors.push('Pension age must be between 18 and 100');
+    }
+    if (withdrawal <= 0 || withdrawal > 20) {
+      newErrors.push('Withdrawal rate must be between 0% and 20%');
+    }
+    if (earlyRetirement < 18 || earlyRetirement > 100) {
+      newErrors.push('Early retirement age must be between 18 and 100');
+    }
+    if (replacement <= 0 || replacement > 100) {
+      newErrors.push('Salary replacement rate must be between 0% and 100%');
+    }
 
     setErrors(newErrors);
 
     if (newErrors.length === 0) {
-      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday });
+      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday, pensionAge: pension, withdrawalRate: withdrawal, earlyRetirementAge: earlyRetirement, salaryReplacementRate: replacement });
     }
   };
 
@@ -237,11 +265,91 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               min="19"
               max="150"
               value={targetAge}
-              onChange={(e) => setTargetAge(e.target.value === '' ? '' : parseInt(e.target.value) || 65)}
+              onChange={(e) => setTargetAge(e.target.value === '' ? '' : parseInt(e.target.value) || 80)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="80"
+            />
+            <p className="mt-1 text-xs text-gray-500">Greater than current age</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label htmlFor="pensionAge" className="block text-xs font-medium text-gray-600 mb-2">
+              Pension Age
+            </label>
+            <input
+              type="number"
+              id="pensionAge"
+              min="18"
+              max="100"
+              value={pensionAge}
+              onChange={(e) => setPensionAge(e.target.value === '' ? '' : parseInt(e.target.value) || 65)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="65"
             />
-            <p className="mt-1 text-xs text-gray-500">Greater than current age</p>
+            <p className="mt-1 text-xs text-gray-500">Age when you can withdraw from pension</p>
+          </div>
+
+          <div>
+            <label htmlFor="withdrawalRate" className="block text-xs font-medium text-gray-600 mb-2">
+              Annual Withdrawal Rate
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                id="withdrawalRate"
+                min="0"
+                max="20"
+                step="0.1"
+                value={withdrawalRate}
+                onChange={(e) => setWithdrawalRate(e.target.value === '' ? '' : parseFloat(e.target.value) || 4)}
+                className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="4"
+              />
+              <span className="absolute right-3 top-2.5 text-gray-500">%</span>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Annual withdrawal percentage from pension account</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label htmlFor="earlyRetirementAge" className="block text-xs font-medium text-gray-600 mb-2">
+              Early Retirement Age
+            </label>
+            <input
+              type="number"
+              id="earlyRetirementAge"
+              min="18"
+              max="100"
+              value={earlyRetirementAge}
+              onChange={(e) => setEarlyRetirementAge(e.target.value === '' ? '' : parseInt(e.target.value) || 50)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="50"
+            />
+            <p className="mt-1 text-xs text-gray-500">Age when you can start withdrawing from brokerage account</p>
+          </div>
+
+          <div>
+            <label htmlFor="salaryReplacementRate" className="block text-xs font-medium text-gray-600 mb-2">
+              Salary Replacement Rate
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                id="salaryReplacementRate"
+                min="0"
+                max="100"
+                step="0.1"
+                value={salaryReplacementRate}
+                onChange={(e) => setSalaryReplacementRate(e.target.value === '' ? '' : parseFloat(e.target.value) || 80)}
+                className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="80"
+              />
+              <span className="absolute right-3 top-2.5 text-gray-500">%</span>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Percentage of final salary to withdraw annually during early retirement</p>
           </div>
         </div>
 

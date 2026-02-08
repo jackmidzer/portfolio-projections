@@ -22,21 +22,47 @@ export function calculateAccountGrowth(
   currentSalary?: number,
   annualSalaryIncrease?: number,
   monthsUntilNextBirthday?: number,
-  dateOfBirth?: Date
+  dateOfBirth?: Date,
+  pensionAge?: number,
+  withdrawalRate?: number,
+  earlyRetirementAge?: number,
+  salaryReplacementAmount?: number
 ): AccountResults {
   const yearlyData: YearlyBreakdown[] = [];
   let currentBalance = account.currentBalance;
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
+  const isPensionAccount = account.name === 'Pension';
+  const isBrokerageAccount = account.name === 'Brokerage';
+  const pensionAgeValue = pensionAge ?? 65;
+  const withdrawalRateValue = withdrawalRate ?? 4;
+  const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
+  const replacementAmount = salaryReplacementAmount ?? 0;
 
   for (let year = 0; year < timeHorizon; year++) {
     const startingBalance = currentBalance;
+    let yearWithdrawal = 0;
     let yearInterest = 0;
     let yearContributions = 0;
 
+    // Calculate withdrawals at the start of the year (before growth)
+    // Pension: starts at pensionAge, continues indefinitely
+    // Brokerage: starts at earlyRetirementAge, ends when pensionAge is reached
+    if (isPensionAccount && currentAge + year >= pensionAgeValue) {
+      yearWithdrawal = startingBalance * (withdrawalRateValue / 100);
+      currentBalance -= yearWithdrawal;
+    } else if (isBrokerageAccount && currentAge + year >= earlyRetirementAgeValue && currentAge + year < pensionAgeValue) {
+      yearWithdrawal = replacementAmount;
+      currentBalance -= yearWithdrawal;
+    }
+
     // Calculate monthly contribution (may be salary-based for pension with age brackets)
     let monthlyContribution = account.monthlyContribution;
-    if (account.isSalaryPercentage && currentSalary && annualSalaryIncrease !== undefined) {
+    
+    // Stop all contributions once early retirement age is reached
+    if (currentAge + year >= earlyRetirementAgeValue) {
+      monthlyContribution = 0;
+    } else if (account.isSalaryPercentage && currentSalary && annualSalaryIncrease !== undefined) {
       // For Pension with age brackets, use the appropriate bracket percentage
       let contributionPercentage = account.monthlyContribution;
       if (account.ageBracketContributions) {
@@ -115,11 +141,13 @@ export function calculateAccountGrowth(
       interestEarned: yearInterest,
       endingBalance,
       monthlyData,
+      withdrawal: yearWithdrawal,
     });
   }
 
   const totalContributions = yearlyData.reduce((sum, yd) => sum + yd.contributions, 0);
-  const totalInterest = currentBalance - account.currentBalance - totalContributions;
+  const totalWithdrawals = yearlyData.reduce((sum, yd) => sum + yd.withdrawal, 0);
+  const totalInterest = currentBalance - account.currentBalance - totalContributions + totalWithdrawals;
 
   return {
     accountName: account.name,
@@ -140,10 +168,27 @@ export function calculatePortfolioGrowth(
   currentSalary?: number,
   annualSalaryIncrease?: number,
   monthsUntilNextBirthday?: number,
-  dateOfBirth?: Date
+  dateOfBirth?: Date,
+  pensionAge?: number,
+  withdrawalRate?: number,
+  earlyRetirementAge?: number,
+  salaryReplacementRate?: number
 ): PortfolioResults {
+  const pensionAgeValue = pensionAge ?? 65;
+  const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
+  // Calculate final salary (stops at early retirement age)
+  let finalSalary = currentSalary || 0;
+  if (currentSalary && annualSalaryIncrease !== undefined) {
+    const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
+    const yearsToRetirement = Math.max(0, earlyRetirementAgeValue - currentAge);
+    finalSalary = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, yearsToRetirement);
+  }
+
+  // Calculate salary replacement amount (fixed withdrawal amount during early retirement)
+  const salaryReplacementAmount = finalSalary * ((salaryReplacementRate ?? 80) / 100);
+
   const accountResults = accounts.map((account) =>
-    calculateAccountGrowth(account, timeHorizon, currentAge, currentSalary, annualSalaryIncrease, monthsUntilNextBirthday, dateOfBirth)
+    calculateAccountGrowth(account, timeHorizon, currentAge, currentSalary, annualSalaryIncrease, monthsUntilNextBirthday, dateOfBirth, pensionAge, withdrawalRate, earlyRetirementAge, salaryReplacementAmount)
   );
 
   const totalFinalBalance = accountResults.reduce(
@@ -161,12 +206,6 @@ export function calculatePortfolioGrowth(
     0
   );
 
-  // Calculate final salary
-  let finalSalary = currentSalary || 0;
-  if (currentSalary && annualSalaryIncrease !== undefined) {
-    finalSalary = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, timeHorizon);
-  }
-
   return {
     accountResults,
     totalFinalBalance,
@@ -174,6 +213,8 @@ export function calculatePortfolioGrowth(
     totalInterest,
     finalSalary,
     monthsUntilNextBirthday: monthsUntilNextBirthday || 12,
+    earlyRetirementAge: earlyRetirementAgeValue,
+    pensionAge: pensionAgeValue,
   };
 }
 

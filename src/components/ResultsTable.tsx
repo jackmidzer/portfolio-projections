@@ -24,42 +24,45 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           let startingBalance = 0;
           let contributions = 0;
           let interestEarned = 0;
-          let endingBalance = 0;
-          const age = results.accountResults[0].yearlyData[index].age;
-          const monthlyData = results.accountResults[0].yearlyData[index].monthlyData.map((m) => {
-            const combinedMonth = { ...m };
-            results.accountResults.slice(1).forEach((account) => {
-              const monthData = account.yearlyData[index].monthlyData[m.month - 1];
-              combinedMonth.startingBalance += monthData.startingBalance;
-              combinedMonth.contribution += monthData.contribution;
-              combinedMonth.interest += monthData.interest;
-              combinedMonth.endingBalance += monthData.endingBalance;
+            let withdrawal = 0;
+            let endingBalance = 0;
+            const age = results.accountResults[0].yearlyData[index].age;
+            const monthlyData = results.accountResults[0].yearlyData[index].monthlyData.map((m) => {
+              const combinedMonth = { ...m };
+              results.accountResults.slice(1).forEach((account) => {
+                const monthData = account.yearlyData[index].monthlyData[m.month - 1];
+                combinedMonth.startingBalance += monthData.startingBalance;
+                combinedMonth.contribution += monthData.contribution;
+                combinedMonth.interest += monthData.interest;
+                combinedMonth.endingBalance += monthData.endingBalance;
+              });
+              return combinedMonth;
             });
-            return combinedMonth;
-          });
 
-          results.accountResults.forEach((account) => {
-            const yearData = account.yearlyData[index];
-            startingBalance += yearData.startingBalance;
-            contributions += yearData.contributions;
-            interestEarned += yearData.interestEarned;
-            endingBalance += yearData.endingBalance;
-          });
+            results.accountResults.forEach((account) => {
+              const yearData = account.yearlyData[index];
+              startingBalance += yearData.startingBalance;
+              contributions += yearData.contributions;
+              interestEarned += yearData.interestEarned;
+              withdrawal += yearData.withdrawal;
+              endingBalance += yearData.endingBalance;
+            });
 
-          return {
+            return {
+              year: index,
+              age,
+              startingBalance,
+              contributions,
+              interestEarned,
+              withdrawal,
+              endingBalance,
+              monthlyData,
+            };
+          })
+        : accountResult?.yearlyData.map((row, index) => ({
+            ...row,
             year: index,
-            age,
-            startingBalance,
-            contributions,
-            interestEarned,
-            endingBalance,
-            monthlyData,
-          };
-        })
-      : accountResult?.yearlyData.map((row, index) => ({
-          ...row,
-          year: index,
-        })) || [];
+          })) || [];
 
   const toggleExpanded = (year: number) => {
     // If the same year is clicked, close it. Otherwise, open the new year (closing any previous one)
@@ -103,6 +106,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                 Interest Earned
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Withdrawals
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Ending Balance
               </th>
             </tr>
@@ -110,10 +116,21 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           <tbody className="bg-white">
             {combinedData.map((row) => {
               const isFirstYearProRated = results.monthsUntilNextBirthday < 12 && row.year === 0;
+              const isEarlyRetirementPhase = row.age >= results.earlyRetirementAge && row.age < results.pensionAge;
+              const isPensionPhase = row.age >= results.pensionAge;
               const isExpanded = expandedYear === row.year;
+              
+              let rowBgClass = 'border-b border-gray-200 hover:bg-gray-50';
+              if (isFirstYearProRated) {
+                rowBgClass = 'bg-orange-50 hover:bg-orange-100';
+              } else if (isPensionPhase) {
+                rowBgClass = 'bg-indigo-50 hover:bg-indigo-100';
+              } else if (isEarlyRetirementPhase) {
+                rowBgClass = 'bg-emerald-50 hover:bg-emerald-100';
+              }
               return (
                 <React.Fragment key={row.year}>
-                  <tr className={isFirstYearProRated ? 'bg-orange-50 hover:bg-orange-100' : 'border-b border-gray-200 hover:bg-gray-50'}>
+                  <tr className={rowBgClass}>
                     <td className="px-2 py-4 text-center">
                       <button
                         onClick={() => toggleExpanded(row.year)}
@@ -132,6 +149,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                           Pro-rated ({results.monthsUntilNextBirthday}m)
                         </span>
                       )}
+                      {isPensionPhase && (
+                        <span className="ml-2 text-xs font-normal text-indigo-600 bg-white px-2 py-1 rounded border border-indigo-200">
+                          Pension Withdrawals
+                        </span>
+                      )}
+                      {isEarlyRetirementPhase && (
+                        <span className="ml-2 text-xs font-normal text-emerald-600 bg-white px-2 py-1 rounded border border-emerald-200">
+                          Early Retirement
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
                       {formatCurrency(row.startingBalance)}
@@ -142,13 +169,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-purple-600">
                       {formatCurrency(row.interestEarned)}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
+                      {formatCurrency(row.withdrawal)}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
                       {formatCurrency(row.endingBalance)}
                     </td>
                   </tr>
                   {isExpanded && (
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <td colSpan={6} className="px-6 py-4">
+                      <td colSpan={7} className="px-6 py-4">
                         <div className="text-xs font-semibold text-gray-600 mb-3">Monthly Breakdown for Age {row.age}</div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs">

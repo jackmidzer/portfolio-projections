@@ -36,6 +36,7 @@ export interface YearlyBreakdown {
   interestEarned: number;
   endingBalance: number;
   monthlyData: MonthlyBreakdown[];
+  withdrawal: number; // amount withdrawn from pension at start of year
 }
 
 export interface AccountResults {
@@ -54,6 +55,10 @@ export interface PortfolioInputs {
   currentSalary: number;
   annualSalaryIncrease: number; // as percentage (e.g., 3 for 3%)
   monthsUntilNextBirthday: number; // for pro-rating first year
+  pensionAge: number; // age when pension withdrawals can start (default 65)
+  withdrawalRate: number; // annual withdrawal percent for pension (default 4)
+  earlyRetirementAge: number; // age when early retirement withdrawals can start (default 50)
+  salaryReplacementRate: number; // replacement rate for salary during early retirement (default 80)
 }
 
 export interface PortfolioResults {
@@ -63,4 +68,6 @@ export interface PortfolioResults {
   totalInterest: number;
   finalSalary: number; // projected salary at future age
   monthsUntilNextBirthday: number; // for identifying pro-rated first year
+  earlyRetirementAge: number; // age when early retirement withdrawals begin
+  pensionAge: number; // age when pension withdrawals begin
 }

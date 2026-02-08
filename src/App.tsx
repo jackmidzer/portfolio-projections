@@ -18,7 +18,11 @@ function App() {
       inputs.currentSalary,
       inputs.annualSalaryIncrease,
       inputs.monthsUntilNextBirthday,
-      inputs.dateOfBirth
+      inputs.dateOfBirth,
+      inputs.pensionAge,
+      inputs.withdrawalRate,
+      inputs.earlyRetirementAge,
+      inputs.salaryReplacementRate
     );
     setResults(calculatedResults);
     
