@@ -8,10 +8,10 @@ interface InputFormProps {
 
 const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [accounts, setAccounts] = useState<AccountInputType[]>([
-    { name: 'Savings', currentBalance: 10000, monthlyContribution: 500, expectedReturn: 3, isSalaryPercentage: false },
+    { name: 'Savings', currentBalance: 10000, monthlyContribution: 500, expectedReturn: 2, isSalaryPercentage: false },
     { 
       name: 'Pension', 
-      currentBalance: 50000, 
+      currentBalance: 25000, 
       monthlyContribution: 0, // will be determined by age bracket
       expectedReturn: 7, 
       isSalaryPercentage: true,
@@ -24,13 +24,13 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         age60plus: 40,
       }
     },
-    { name: 'Brokerage', currentBalance: 25000, monthlyContribution: 750, expectedReturn: 8, isSalaryPercentage: false },
+    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 1250, expectedReturn: 8, isSalaryPercentage: false },
   ]);
 
-  const [currentAge, setCurrentAge] = useState<number>(35);
-  const [futureAge, setFutureAge] = useState<number>(65);
-  const [currentSalary, setCurrentSalary] = useState<number>(60000);
-  const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number>(3);
+  const [currentAge, setCurrentAge] = useState<number | ''>(28);
+  const [targetAge, setTargetAge] = useState<number | ''>(65);
+  const [currentSalary, setCurrentSalary] = useState<number | ''>(70000);
+  const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(2);
   const [errors, setErrors] = useState<string[]>([]);
 
   const handleAccountChange = (index: number, updatedAccount: AccountInputType) => {
@@ -39,31 +39,63 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     setAccounts(newAccounts);
   };
 
+  const isFormValid = (): boolean => {
+    // Check if any field is empty
+    if (currentAge === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '') {
+      return false;
+    }
+
+    // Convert to numbers for validation
+    const age = typeof currentAge === 'number' ? currentAge : parseInt(currentAge);
+    const future = typeof targetAge === 'number' ? targetAge : parseInt(targetAge);
+    const salary = typeof currentSalary === 'number' ? currentSalary : parseInt(currentSalary);
+    const increase = typeof annualSalaryIncrease === 'number' ? annualSalaryIncrease : parseInt(annualSalaryIncrease);
+
+    // Check for NaN
+    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase)) {
+      return false;
+    }
+
+    // Check all validation conditions
+    if (age < 18 || age > 100) return false;
+    if (future <= age || future > 150) return false;
+    if (salary <= 0) return false;
+    if (increase < 0 || increase > 20) return false;
+
+    return true;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: string[] = [];
 
+    // Convert to numbers for validation
+    const age = typeof currentAge === 'number' ? currentAge : parseInt(currentAge);
+    const future = typeof targetAge === 'number' ? targetAge : parseInt(targetAge);
+    const salary = typeof currentSalary === 'number' ? currentSalary : parseInt(currentSalary);
+    const increase = typeof annualSalaryIncrease === 'number' ? annualSalaryIncrease : parseInt(annualSalaryIncrease);
+
     // Validation
-    if (currentAge < 18 || currentAge > 100) {
+    if (age < 18 || age > 100) {
       newErrors.push('Current age must be between 18 and 100');
     }
-    if (futureAge <= currentAge) {
-      newErrors.push('Future age must be greater than current age');
+    if (future <= age) {
+      newErrors.push('Target age must be greater than current age');
     }
-    if (futureAge > 150) {
-      newErrors.push('Future age cannot exceed 150');
+    if (future > 150) {
+      newErrors.push('Target age cannot exceed 150');
     }
-    if (currentSalary <= 0) {
+    if (salary <= 0) {
       newErrors.push('Current salary must be greater than 0');
     }
-    if (annualSalaryIncrease < 0 || annualSalaryIncrease > 20) {
+    if (increase < 0 || increase > 20) {
       newErrors.push('Annual salary increase must be between 0% and 20%');
     }
 
     setErrors(newErrors);
 
     if (newErrors.length === 0) {
-      onCalculate({ accounts, currentAge, futureAge, currentSalary, annualSalaryIncrease });
+      onCalculate({ accounts, currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase });
     }
   };
 
@@ -87,16 +119,16 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               Current Annual Salary
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+              <span className="absolute left-3 top-2.5 text-gray-500">€</span>
               <input
                 type="number"
                 id="currentSalary"
                 min="0"
                 step="1000"
                 value={currentSalary}
-                onChange={(e) => setCurrentSalary(parseInt(e.target.value) || 0)}
+                onChange={(e) => setCurrentSalary(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
                 className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="60000"
+                placeholder="70000"
               />
             </div>
             <p className="mt-1 text-xs text-gray-500">Used for pension contribution calculations</p>
@@ -114,9 +146,9 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                 max="20"
                 step="0.1"
                 value={annualSalaryIncrease}
-                onChange={(e) => setAnnualSalaryIncrease(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setAnnualSalaryIncrease(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                 className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="3"
+                placeholder="1.5"
               />
               <span className="absolute right-3 top-2.5 text-gray-500">%</span>
             </div>
@@ -151,24 +183,24 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               min="18"
               max="100"
               value={currentAge}
-              onChange={(e) => setCurrentAge(parseInt(e.target.value) || 18)}
+              onChange={(e) => setCurrentAge(e.target.value === '' ? '' : parseInt(e.target.value) || 18)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="35"
+              placeholder="28"
             />
             <p className="mt-1 text-xs text-gray-500">Between 18 and 100</p>
           </div>
           
           <div>
-            <label htmlFor="futureAge" className="block text-xs font-medium text-gray-600 mb-2">
-              Future Age
+            <label htmlFor="targetAge" className="block text-xs font-medium text-gray-600 mb-2">
+              Target Age
             </label>
             <input
               type="number"
-              id="futureAge"
+              id="targetAge"
               min="19"
               max="150"
-              value={futureAge}
-              onChange={(e) => setFutureAge(parseInt(e.target.value) || 65)}
+              value={targetAge}
+              onChange={(e) => setTargetAge(e.target.value === '' ? '' : parseInt(e.target.value) || 65)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="65"
             />
@@ -176,9 +208,9 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
           </div>
         </div>
 
-        {futureAge > currentAge && (
+        {typeof targetAge === 'number' && typeof currentAge === 'number' && targetAge > currentAge && (
           <div className="mb-4 p-3 bg-blue-50 rounded text-sm text-blue-900">
-            Time horizon: <strong>{futureAge - currentAge} years</strong>
+            Time horizon: <strong>{targetAge - currentAge} years</strong>
           </div>
         )}
 
@@ -195,7 +227,8 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
       <button
         type="submit"
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
+        disabled={!isFormValid()}
+        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 shadow-md hover:shadow-lg"
       >
         Calculate Portfolio Growth
       </button>

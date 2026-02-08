@@ -38,7 +38,7 @@ export interface AccountResults {
 export interface PortfolioInputs {
   accounts: AccountInput[];
   currentAge: number;
-  futureAge: number;
+  targetAge: number;
   currentSalary: number;
   annualSalaryIncrease: number; // as percentage (e.g., 3 for 3%)
 }

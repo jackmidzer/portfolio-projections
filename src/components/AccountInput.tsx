@@ -57,7 +57,7 @@ const AccountInput: React.FC<AccountInputProps> = ({ account, onChange }) => {
             Current Balance
           </label>
           <div className="relative">
-            <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+            <span className="absolute left-3 top-2.5 text-gray-500">€</span>
             <input
               type="number"
               min="0"
@@ -76,7 +76,7 @@ const AccountInput: React.FC<AccountInputProps> = ({ account, onChange }) => {
               {account.isSalaryPercentage ? 'Contribution % of Salary' : 'Monthly Contribution'}
             </label>
             <div className="relative">
-              {!account.isSalaryPercentage && <span className="absolute left-3 top-2.5 text-gray-500">$</span>}
+              {!account.isSalaryPercentage && <span className="absolute left-3 top-2.5 text-gray-500">€</span>}
               <input
                 type="number"
                 min="0"
