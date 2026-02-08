@@ -16,7 +16,8 @@ function App() {
       timeHorizon,
       inputs.currentAge,
       inputs.currentSalary,
-      inputs.annualSalaryIncrease
+      inputs.annualSalaryIncrease,
+      inputs.monthsUntilNextBirthday
     );
     setResults(calculatedResults);
     

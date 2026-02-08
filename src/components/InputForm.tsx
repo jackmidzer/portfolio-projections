@@ -15,6 +15,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
       monthlyContribution: 0, // will be determined by age bracket
       expectedReturn: 7, 
       isSalaryPercentage: true,
+      employerContributionPercent: 8,
       ageBracketContributions: {
         under30: 15,
         age30to39: 20,
@@ -27,11 +28,41 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 1250, expectedReturn: 8, isSalaryPercentage: false },
   ]);
 
-  const [currentAge, setCurrentAge] = useState<number | ''>(28);
+  const [dateOfBirth, setDateOfBirth] = useState<string>('1997-10-03'); // Default to my date of birth
   const [targetAge, setTargetAge] = useState<number | ''>(65);
   const [currentSalary, setCurrentSalary] = useState<number | ''>(70000);
   const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(2);
   const [errors, setErrors] = useState<string[]>([]);
+
+  // Helper function to calculate current age from date of birth
+  const calculateAgeFromDOB = (dob: string): number => {
+    const today = new Date();
+    const birthDate = new Date(dob);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // Helper function to calculate months remaining until next birthday
+  const calculateMonthsUntilBirthday = (dob: string): number => {
+    const today = new Date();
+    const birthDate = new Date(dob);
+    const nextBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+    
+    if (nextBirthday < today) {
+      nextBirthday.setFullYear(nextBirthday.getFullYear() + 1);
+    }
+    
+    const monthsLeft = (nextBirthday.getFullYear() - today.getFullYear()) * 12 + (nextBirthday.getMonth() - today.getMonth());
+    return monthsLeft;
+  };
+
+  const currentAge = dateOfBirth ? calculateAgeFromDOB(dateOfBirth) : '';
+  const monthsUntilBirthday = dateOfBirth ? calculateMonthsUntilBirthday(dateOfBirth) : 0;
 
   const handleAccountChange = (index: number, updatedAccount: AccountInputType) => {
     const newAccounts = [...accounts];
@@ -41,12 +72,12 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
   const isFormValid = (): boolean => {
     // Check if any field is empty
-    if (currentAge === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '') {
+    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '') {
       return false;
     }
 
     // Convert to numbers for validation
-    const age = typeof currentAge === 'number' ? currentAge : parseInt(currentAge);
+    const age = typeof currentAge === 'number' ? currentAge : parseInt(currentAge as string);
     const future = typeof targetAge === 'number' ? targetAge : parseInt(targetAge);
     const salary = typeof currentSalary === 'number' ? currentSalary : parseInt(currentSalary);
     const increase = typeof annualSalaryIncrease === 'number' ? annualSalaryIncrease : parseInt(annualSalaryIncrease);
@@ -70,12 +101,15 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const newErrors: string[] = [];
 
     // Convert to numbers for validation
-    const age = typeof currentAge === 'number' ? currentAge : parseInt(currentAge);
+    const age = typeof currentAge === 'number' ? currentAge : parseInt(currentAge as string);
     const future = typeof targetAge === 'number' ? targetAge : parseInt(targetAge);
     const salary = typeof currentSalary === 'number' ? currentSalary : parseInt(currentSalary);
     const increase = typeof annualSalaryIncrease === 'number' ? annualSalaryIncrease : parseInt(annualSalaryIncrease);
 
     // Validation
+    if (!dateOfBirth) {
+      newErrors.push('Date of birth is required');
+    }
     if (age < 18 || age > 100) {
       newErrors.push('Current age must be between 18 and 100');
     }
@@ -95,7 +129,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     setErrors(newErrors);
 
     if (newErrors.length === 0) {
-      onCalculate({ accounts, currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase });
+      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday });
     }
   };
 
@@ -174,20 +208,23 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label htmlFor="currentAge" className="block text-xs font-medium text-gray-600 mb-2">
-              Current Age
+            <label htmlFor="dateOfBirth" className="block text-xs font-medium text-gray-600 mb-2">
+              Date of Birth
             </label>
             <input
-              type="number"
-              id="currentAge"
-              min="18"
-              max="100"
-              value={currentAge}
-              onChange={(e) => setCurrentAge(e.target.value === '' ? '' : parseInt(e.target.value) || 18)}
+              type="date"
+              id="dateOfBirth"
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="28"
+              max={new Date().toISOString().split('T')[0]}
             />
-            <p className="mt-1 text-xs text-gray-500">Between 18 and 100</p>
+            {dateOfBirth && typeof currentAge === 'number' && (
+              <p className="mt-2 text-sm font-medium text-blue-600">Current Age: {currentAge} years</p>
+            )}
+            {dateOfBirth && monthsUntilBirthday > 0 && (
+              <p className="mt-1 text-xs text-gray-500">Next birthday in {monthsUntilBirthday} months</p>
+            )}
           </div>
           
           <div>

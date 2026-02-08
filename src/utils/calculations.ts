@@ -20,13 +20,15 @@ export function calculateAccountGrowth(
   timeHorizon: number,
   currentAge: number,
   currentSalary?: number,
-  annualSalaryIncrease?: number
+  annualSalaryIncrease?: number,
+  monthsUntilNextBirthday?: number
 ): AccountResults {
   const yearlyData: YearlyBreakdown[] = [];
   let currentBalance = account.currentBalance;
   const monthlyRate = account.expectedReturn / 100 / 12;
+  const firstYearMonths = monthsUntilNextBirthday || 12;
 
-  for (let year = 1; year <= timeHorizon; year++) {
+  for (let year = 0; year < timeHorizon; year++) {
     const startingBalance = currentBalance;
     let yearInterest = 0;
     let yearContributions = 0;
@@ -45,16 +47,24 @@ export function calculateAccountGrowth(
       const salaryAtYear = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, year);
       // Monthly contribution is percentage of monthly salary
       monthlyContribution = (salaryAtYear / 12) * (contributionPercentage / 100);
+      
+      // Add employer contribution if present (for pension accounts)
+      if (account.employerContributionPercent !== undefined && account.employerContributionPercent > 0) {
+        const employerMonthlyContribution = (salaryAtYear / 12) * (account.employerContributionPercent / 100);
+        monthlyContribution += employerMonthlyContribution;
+      }
     }
 
     // Calculate month by month for accurate compound interest
-    for (let month = 1; month <= 12; month++) {
+    // First year may be pro-rated based on months until next birthday
+    const monthsInYear = year === 0 ? firstYearMonths : 12;
+    for (let month = 1; month <= monthsInYear; month++) {
       const monthInterest = currentBalance * monthlyRate;
       yearInterest += monthInterest;
       currentBalance += monthInterest + monthlyContribution;
     }
 
-    yearContributions = monthlyContribution * 12;
+    yearContributions = monthlyContribution * monthsInYear;
     const endingBalance = currentBalance;
 
     yearlyData.push({
@@ -87,10 +97,11 @@ export function calculatePortfolioGrowth(
   timeHorizon: number,
   currentAge: number,
   currentSalary?: number,
-  annualSalaryIncrease?: number
+  annualSalaryIncrease?: number,
+  monthsUntilNextBirthday?: number
 ): PortfolioResults {
   const accountResults = accounts.map((account) =>
-    calculateAccountGrowth(account, timeHorizon, currentAge, currentSalary, annualSalaryIncrease)
+    calculateAccountGrowth(account, timeHorizon, currentAge, currentSalary, annualSalaryIncrease, monthsUntilNextBirthday)
   );
 
   const totalFinalBalance = accountResults.reduce(
@@ -120,6 +131,7 @@ export function calculatePortfolioGrowth(
     totalContributions,
     totalInterest,
     finalSalary,
+    monthsUntilNextBirthday: monthsUntilNextBirthday || 12,
   };
 }
 
@@ -130,30 +142,18 @@ export function combineYearlyData(accountResults: AccountResults[]) {
   const timeHorizon = accountResults[0]?.yearlyData.length || 0;
   const combined = [];
 
-  for (let year = 0; year <= timeHorizon; year++) {
+  for (let year = 0; year < timeHorizon; year++) {
     const dataPoint: any = { year };
 
-    if (year === 0) {
-      // Starting year with initial balances
-      const age = accountResults[0]?.yearlyData[0]?.age;
-      if (age) {
-        dataPoint.age = age - 1; // Age at beginning of projection
-      }
-      accountResults.forEach((result) => {
-        const accountName = result.accountName;
-        dataPoint[accountName] = result.yearlyData[0]?.startingBalance || 0;
-      });
-    } else {
-      // Subsequent years with ending balances
-      const age = accountResults[0]?.yearlyData[year - 1]?.age;
-      if (age) {
-        dataPoint.age = age;
-      }
-      accountResults.forEach((result) => {
-        const accountName = result.accountName;
-        dataPoint[accountName] = result.yearlyData[year - 1]?.endingBalance || 0;
-      });
+    // Use yearlyData directly since it now starts at year=0
+    const age = accountResults[0]?.yearlyData[year]?.age;
+    if (age) {
+      dataPoint.age = age;
     }
+    accountResults.forEach((result) => {
+      const accountName = result.accountName;
+      dataPoint[accountName] = result.yearlyData[year]?.endingBalance || 0;
+    });
 
     // Calculate total
     dataPoint.Total = Object.keys(dataPoint)

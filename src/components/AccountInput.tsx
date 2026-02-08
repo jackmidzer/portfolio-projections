@@ -135,6 +135,25 @@ const AccountInput: React.FC<AccountInputProps> = ({ account, onChange }) => {
                     </div>
                   </div>
                 ))}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Employer Contribution
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={account.employerContributionPercent || ''}
+                      onChange={(e) => handleChange('employerContributionPercent', e.target.value)}
+                      className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      placeholder="8"
+                    />
+                    <span className="absolute right-3 top-2.5 text-gray-500">%</span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">Employer contribution as % of monthly salary</p>
+                </div>
               </div>
             )}
           </div>

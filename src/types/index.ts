@@ -16,6 +16,7 @@ export interface AccountInput {
   expectedReturn: number; // as percentage (e.g., 7 for 7%)
   isSalaryPercentage?: boolean; // if true, monthlyContribution is treated as % of monthly salary
   ageBracketContributions?: AgeBracketContributions; // for Pension: contribution % by age bracket
+  employerContributionPercent?: number; // for Pension: employer contribution as % of salary
 }
 
 export interface YearlyBreakdown {
@@ -37,10 +38,12 @@ export interface AccountResults {
 
 export interface PortfolioInputs {
   accounts: AccountInput[];
+  dateOfBirth: Date;
   currentAge: number;
   targetAge: number;
   currentSalary: number;
   annualSalaryIncrease: number; // as percentage (e.g., 3 for 3%)
+  monthsUntilNextBirthday: number; // for pro-rating first year
 }
 
 export interface PortfolioResults {
@@ -49,4 +52,5 @@ export interface PortfolioResults {
   totalContributions: number;
   totalInterest: number;
   finalSalary: number; // projected salary at future age
+  monthsUntilNextBirthday: number; // for identifying pro-rated first year
 }

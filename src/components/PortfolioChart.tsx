@@ -24,6 +24,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
   const [showTotal, setShowTotal] = useState<boolean>(true);
 
   const data = combineYearlyData(results.accountResults);
+  const isFirstYearProRated = results.monthsUntilNextBirthday < 12;
 
   const colors = {
     Savings: '#3b82f6',
@@ -34,9 +35,16 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      // Determine if this is the first data point (year 0) and it's pro-rated
+      const isProRatedDataPoint = isFirstYearProRated && data[0]?.age === label;
+      
       return (
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-semibold text-gray-800 mb-2">Age {label}</p>
+          <p className="font-semibold text-gray-800 mb-2">Age {label}
+            {isProRatedDataPoint && (
+              <span className="ml-2 text-xs font-normal text-orange-600 bg-orange-50 px-2 py-1 rounded">Pro-rated ({results.monthsUntilNextBirthday} months)</span>
+            )}
+          </p>
           {payload.map((entry: any) => (
             <div key={entry.name} className="flex justify-between items-center gap-4 text-sm">
               <span style={{ color: entry.color }}>{entry.name}:</span>

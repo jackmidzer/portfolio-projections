@@ -86,10 +86,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {combinedData.map((row) => (
-              <tr key={row.year} className="hover:bg-gray-50">
+            {combinedData.map((row, index) => {
+              const isFirstYearProRated = results.monthsUntilNextBirthday < 12 && row.year === 0;
+              return (
+              <tr key={row.year} className={isFirstYearProRated ? 'hover:bg-orange-50 bg-orange-50' : 'hover:bg-gray-50'}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {row.age}
+                  {isFirstYearProRated && (
+                    <span className="ml-2 text-xs font-normal text-orange-600 bg-white px-2 py-1 rounded border border-orange-200">
+                      Pro-rated ({results.monthsUntilNextBirthday}m)
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
                   {formatCurrency(row.startingBalance)}
@@ -104,7 +111,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                   {formatCurrency(row.endingBalance)}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
