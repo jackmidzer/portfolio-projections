@@ -1,4 +1,4 @@
-# Portfolio Predictor
+# Portfolio Projections
 
 A React-based financial planning tool that calculates compound interest projections across multiple account types (Savings, Pension, and Brokerage).
 
@@ -56,7 +56,7 @@ npm run preview
 ## Project Structure
 
 ```
-portfolio-predictor/
+portfolio-projections/
 ├── src/
 │   ├── components/
 │   │   ├── AccountInput.tsx       # Input fields for a single account

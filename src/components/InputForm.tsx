@@ -135,12 +135,12 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
+      {/* <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Portfolio Inputs</h2>
         <p className="text-gray-600">
           Enter your current balances, monthly contributions, and expected returns for each account.
         </p>
-      </div>
+      </div> */}
 
       <div className="bg-white p-6 rounded-lg shadow-sm">
         <label className="block text-sm font-medium text-gray-700 mb-4">

@@ -1,10 +1,10 @@
-# Portfolio Predictor - Quick Start Guide
+# Portfolio Projections - Quick Start Guide
 
 ## 🚀 Get Started in 3 Steps
 
 ### 1. Install Dependencies
 ```bash
-cd portfolio-predictor
+cd portfolio-projections
 npm install
 ```
 
