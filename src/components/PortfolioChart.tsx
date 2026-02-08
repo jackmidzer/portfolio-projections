@@ -36,7 +36,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
-          <p className="font-semibold text-gray-800 mb-2">Year {label}</p>
+          <p className="font-semibold text-gray-800 mb-2">Age {label}</p>
           {payload.map((entry: any) => (
             <div key={entry.name} className="flex justify-between items-center gap-4 text-sm">
               <span style={{ color: entry.color }}>{entry.name}:</span>
@@ -63,8 +63,8 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
           <AreaChart {...commonProps}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
-              dataKey="year"
-              label={{ value: 'Years', position: 'insideBottom', offset: -5 }}
+              dataKey="age"
+              label={{ value: 'Age', position: 'insideBottom', offset: -5 }}
               stroke="#6b7280"
             />
             <YAxis
@@ -94,8 +94,8 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
         <LineChart {...commonProps}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
-            dataKey="year"
-            label={{ value: 'Years', position: 'insideBottom', offset: -5 }}
+            dataKey="age"
+            label={{ value: 'Age', position: 'insideBottom', offset: -5 }}
             stroke="#6b7280"
           />
           <YAxis

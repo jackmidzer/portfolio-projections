@@ -9,6 +9,7 @@ export interface AccountInput {
 
 export interface YearlyBreakdown {
   year: number;
+  age: number;
   startingBalance: number;
   contributions: number;
   interestEarned: number;
@@ -25,7 +26,8 @@ export interface AccountResults {
 
 export interface PortfolioInputs {
   accounts: AccountInput[];
-  timeHorizon: number; // in years
+  currentAge: number;
+  futureAge: number;
 }
 
 export interface PortfolioResults {

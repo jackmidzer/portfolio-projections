@@ -24,6 +24,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           let contributions = 0;
           let interestEarned = 0;
           let endingBalance = 0;
+          const age = results.accountResults[0].yearlyData[index].age;
 
           results.accountResults.forEach((account) => {
             const yearData = account.yearlyData[index];
@@ -35,6 +36,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
 
           return {
             year: index + 1,
+            age,
             startingBalance,
             contributions,
             interestEarned,
@@ -67,7 +69,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Year
+                Age
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Starting Balance
@@ -87,7 +89,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             {combinedData.map((row) => (
               <tr key={row.year} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {row.year}
+                  {row.age}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
                   {formatCurrency(row.startingBalance)}

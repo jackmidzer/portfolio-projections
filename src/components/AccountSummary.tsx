@@ -12,9 +12,22 @@ const AccountSummary: React.FC<AccountSummaryProps> = ({ results }) => {
     0
   );
 
+  // Extract age range from the first account's yearly data
+  const startAge = results.accountResults[0]?.yearlyData[0]?.age
+    ? results.accountResults[0].yearlyData[0].age - 1
+    : undefined;
+  const endAge = results.accountResults[0]?.yearlyData.slice(-1)[0]?.age;
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Portfolio Summary</h2>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
+        <h2 className="text-2xl font-bold text-gray-800">Portfolio Summary</h2>
+        {startAge && endAge && (
+          <div className="text-sm text-gray-600">
+            Age projection: <strong>{startAge} → {endAge}</strong>
+          </div>
+        )}
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg">

@@ -5,7 +5,8 @@ import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults } from 
  */
 export function calculateAccountGrowth(
   account: AccountInput,
-  timeHorizon: number
+  timeHorizon: number,
+  currentAge: number
 ): AccountResults {
   const yearlyData: YearlyBreakdown[] = [];
   let currentBalance = account.currentBalance;
@@ -27,6 +28,7 @@ export function calculateAccountGrowth(
 
     yearlyData.push({
       year,
+      age: currentAge + year,
       startingBalance,
       contributions: annualContributions,
       interestEarned: yearInterest,
@@ -51,10 +53,11 @@ export function calculateAccountGrowth(
  */
 export function calculatePortfolioGrowth(
   accounts: AccountInput[],
-  timeHorizon: number
+  timeHorizon: number,
+  currentAge: number
 ): PortfolioResults {
   const accountResults = accounts.map((account) =>
-    calculateAccountGrowth(account, timeHorizon)
+    calculateAccountGrowth(account, timeHorizon, currentAge)
   );
 
   const totalFinalBalance = accountResults.reduce(
@@ -92,12 +95,20 @@ export function combineYearlyData(accountResults: AccountResults[]) {
 
     if (year === 0) {
       // Starting year with initial balances
+      const age = accountResults[0]?.yearlyData[0]?.age;
+      if (age) {
+        dataPoint.age = age - 1; // Age at beginning of projection
+      }
       accountResults.forEach((result) => {
         const accountName = result.accountName;
         dataPoint[accountName] = result.yearlyData[0]?.startingBalance || 0;
       });
     } else {
       // Subsequent years with ending balances
+      const age = accountResults[0]?.yearlyData[year - 1]?.age;
+      if (age) {
+        dataPoint.age = age;
+      }
       accountResults.forEach((result) => {
         const accountName = result.accountName;
         dataPoint[accountName] = result.yearlyData[year - 1]?.endingBalance || 0;
@@ -106,7 +117,7 @@ export function combineYearlyData(accountResults: AccountResults[]) {
 
     // Calculate total
     dataPoint.Total = Object.keys(dataPoint)
-      .filter((key) => key !== 'year')
+      .filter((key) => !['year', 'age'].includes(key))
       .reduce((sum, key) => sum + dataPoint[key], 0);
 
     combined.push(dataPoint);
