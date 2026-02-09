@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import InputForm from './components/InputForm';
 import AccountSummary from './components/AccountSummary';
 import PortfolioChart from './components/PortfolioChart';
