@@ -100,13 +100,13 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                 Starting Balance
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Withdrawals
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Contributions
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Interest Earned
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Withdrawals
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Ending Balance
@@ -124,9 +124,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
               if (isFirstYearProRated) {
                 rowBgClass = 'bg-orange-50 hover:bg-orange-100';
               } else if (isPensionPhase) {
-                rowBgClass = 'bg-indigo-50 hover:bg-indigo-100';
-              } else if (isEarlyRetirementPhase) {
                 rowBgClass = 'bg-emerald-50 hover:bg-emerald-100';
+              } else if (isEarlyRetirementPhase) {
+                rowBgClass = 'bg-indigo-50 hover:bg-indigo-100';
               }
               return (
                 <React.Fragment key={row.year}>
@@ -150,12 +150,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                         </span>
                       )}
                       {isPensionPhase && (
-                        <span className="ml-2 text-xs font-normal text-indigo-600 bg-white px-2 py-1 rounded border border-indigo-200">
+                        <span className="ml-2 text-xs font-normal text-emerald-600 bg-white px-2 py-1 rounded border border-emerald-200">
                           Pension Withdrawals
                         </span>
                       )}
                       {isEarlyRetirementPhase && (
-                        <span className="ml-2 text-xs font-normal text-emerald-600 bg-white px-2 py-1 rounded border border-emerald-200">
+                        <span className="ml-2 text-xs font-normal text-indigo-600 bg-white px-2 py-1 rounded border border-indigo-200">
                           Early Retirement
                         </span>
                       )}
@@ -163,14 +163,14 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
                       {formatCurrency(row.startingBalance)}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
+                      {formatCurrency(row.withdrawal)}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
                       {formatCurrency(row.contributions)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-purple-600">
                       {formatCurrency(row.interestEarned)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                      {formatCurrency(row.withdrawal)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
                       {formatCurrency(row.endingBalance)}

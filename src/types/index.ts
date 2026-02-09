@@ -55,7 +55,7 @@ export interface PortfolioInputs {
   currentSalary: number;
   annualSalaryIncrease: number; // as percentage (e.g., 3 for 3%)
   monthsUntilNextBirthday: number; // for pro-rating first year
-  pensionAge: number; // age when pension withdrawals can start (default 65)
+  pensionAge: number; // age when pension withdrawals can start (default 66)
   withdrawalRate: number; // annual withdrawal percent for pension (default 4)
   earlyRetirementAge: number; // age when early retirement withdrawals can start (default 50)
   salaryReplacementRate: number; // replacement rate for salary during early retirement (default 80)

@@ -14,7 +14,7 @@ const AccountSummary: React.FC<AccountSummaryProps> = ({ results }) => {
 
   // Extract age range from the first account's yearly data
   const startAge = results.accountResults[0]?.yearlyData[0]?.age
-    ? results.accountResults[0].yearlyData[0].age - 1
+    ? results.accountResults[0].yearlyData[0].age
     : undefined;
   const endAge = results.accountResults[0]?.yearlyData.slice(-1)[0]?.age;
 

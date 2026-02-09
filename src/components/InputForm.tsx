@@ -32,7 +32,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [targetAge, setTargetAge] = useState<number | ''>(80);
   const [currentSalary, setCurrentSalary] = useState<number | ''>(70000);
   const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(2);
-  const [pensionAge, setPensionAge] = useState<number | ''>(65);
+  const [pensionAge, setPensionAge] = useState<number | ''>(66);
   const [withdrawalRate, setWithdrawalRate] = useState<number | ''>(4);
   const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(50);
   const [salaryReplacementRate, setSalaryReplacementRate] = useState<number | ''>(80);
@@ -284,9 +284,9 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               min="18"
               max="100"
               value={pensionAge}
-              onChange={(e) => setPensionAge(e.target.value === '' ? '' : parseInt(e.target.value) || 65)}
+              onChange={(e) => setPensionAge(e.target.value === '' ? '' : parseInt(e.target.value) || 66)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="65"
+              placeholder="66"
             />
             <p className="mt-1 text-xs text-gray-500">Age when you can withdraw from pension</p>
           </div>

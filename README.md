@@ -113,7 +113,7 @@ Since this is an MVP, here are some features you might consider adding:
 - [ ] Withdrawal scenarios (retirement planning)
 - [ ] Variable contribution schedules
 - [ ] Multiple portfolios/scenarios side-by-side comparison
-- [ ] Goal tracking (e.g., "Save $1M by age 65")
+- [ ] Goal tracking (e.g., "Save $1M by age 66")
 
 ### UI/UX Improvements
 - [ ] Dark mode
