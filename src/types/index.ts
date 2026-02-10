@@ -17,11 +17,13 @@ export interface AccountInput {
   isSalaryPercentage?: boolean; // if true, monthlyContribution is treated as % of monthly salary
   ageBracketContributions?: AgeBracketContributions; // for Pension: contribution % by age bracket
   employerContributionPercent?: number; // for Pension: employer contribution as % of salary
+  bonusContributionPercent?: number; // optional: contribution percent from bonus salary
 }
 
 export interface MonthlyBreakdown {
   month: number;
   monthYear: string; // formatted as 'FEB 2026'
+  salary: number; // salary at this month
   startingBalance: number;
   contribution: number;
   interest: number;
@@ -32,6 +34,7 @@ export interface MonthlyBreakdown {
 export interface YearlyBreakdown {
   year: number;
   age: number;
+  salary: number; // salary at the start of the year
   startingBalance: number;
   contributions: number;
   interestEarned: number;
@@ -56,6 +59,7 @@ export interface PortfolioInputs {
   currentSalary: number;
   annualSalaryIncrease: number; // as percentage (e.g., 3 for 3%)
   monthsUntilNextBirthday: number; // for pro-rating first year
+  bonusPercent: number; // bonus as percentage of salary (e.g., 15 for 15%)
   pensionAge: number; // age when pension withdrawals can start (default 66)
   withdrawalRate: number; // annual withdrawal percent for pension (default 4)
   earlyRetirementAge: number; // age when early retirement withdrawals can start (default 50)
@@ -71,6 +75,7 @@ export interface PortfolioResults {
   totalContributions: number;
   totalInterest: number;
   finalSalary: number; // projected salary at future age
+  bonusSalary: number; // projected bonus salary at future age
   monthsUntilNextBirthday: number; // for identifying pro-rated first year
   earlyRetirementAge: number; // age when early retirement withdrawals begin
   pensionAge: number; // age when pension withdrawals begin

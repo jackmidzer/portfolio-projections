@@ -185,6 +185,40 @@ const AccountInput: React.FC<AccountInputProps> = ({ account, onChange }) => {
             <span className="absolute right-3 top-2.5 text-gray-500">%</span>
           </div>
         </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Bonus Contribution <span className="text-gray-500">(optional)</span>
+          </label>
+          {isPensionWithBrackets ? (
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={account.bonusContributionPercent !== 0}
+                onChange={(e) => handleChange('bonusContributionPercent', e.target.checked ? '-1' : '0')}
+                className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+              />
+              <span className="text-sm text-gray-700">Contribute bonus using age bracket percentages</span>
+            </label>
+          ) : (
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                value={account.bonusContributionPercent || ''}
+                onChange={(e) => handleChange('bonusContributionPercent', e.target.value)}
+                className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="0"
+              />
+              <span className="absolute right-3 top-2.5 text-gray-500">%</span>
+            </div>
+          )}
+          {!isPensionWithBrackets && (
+            <p className="mt-1 text-xs text-gray-500">Percentage of bonus to contribute to this account</p>
+          )}
+        </div>
       </div>
     </div>
   );

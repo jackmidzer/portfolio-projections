@@ -30,7 +30,8 @@ export function calculateAccountGrowth(
   salaryReplacementRate?: number,
   pensionLumpSumAge?: number,
   pensionLumpSumAmount?: number,
-  useSalaryReplacementForPension?: boolean
+  useSalaryReplacementForPension?: boolean,
+  bonusPercent?: number
 ): AccountResults {
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
@@ -140,6 +141,24 @@ export function calculateAccountGrowth(
         // Fixed monthly contribution
         monthlyContribution = account.monthlyContribution;
       }
+      
+      // Add bonus contribution from bonus salary (December only)
+      const isDecember = monthIndexInYear === 11;
+      if (isDecember && bonusPercent !== undefined && bonusPercent > 0 && account.bonusContributionPercent !== undefined) {
+        const annualBonus = salaryAtMonth * (bonusPercent / 100);
+        let bonusContributionPercent = account.bonusContributionPercent;
+        
+        // Handle pension bonus checkbox: -1 means enabled, use age bracket percentage
+        if (account.bonusContributionPercent === -1 && account.ageBracketContributions) {
+          bonusContributionPercent = getAgeBracketPercentage(ageAtMonth, account.ageBracketContributions);
+        }
+        
+        // Only add bonus contribution if percentage is positive
+        if (bonusContributionPercent > 0) {
+          const bonusContribution = annualBonus * (bonusContributionPercent / 100);
+          monthlyContribution += bonusContribution;
+        }
+      }
     }
 
     // Add lump sum allocation to contributions
@@ -155,6 +174,7 @@ export function calculateAccountGrowth(
     allMonthlyData.push({
       month: month + 1,
       monthYear: monthLabel,
+      salary: salaryAtMonth,
       startingBalance: monthStartBalance,
       contribution: monthlyContribution,
       interest: monthInterest,
@@ -187,6 +207,7 @@ export function calculateAccountGrowth(
     const yearContributions = yearMonthlyData.reduce((sum, m) => sum + m.contribution, 0);
     const yearInterest = yearMonthlyData.reduce((sum, m) => sum + m.interest, 0);
     const yearWithdrawal = yearMonthlyData.reduce((sum, m) => sum + m.withdrawal, 0);
+    const yearSalary = yearMonthlyData[0]?.salary ?? 0; // Salary at start of year
     
     // Calculate age at the start of this year using the same logic as the monthly loop
     const birthdays = yearStartMonthIndex >= firstYearMonths 
@@ -197,6 +218,7 @@ export function calculateAccountGrowth(
     yearlyData.push({
       year,
       age: yearAge,
+      salary: yearSalary,
       startingBalance: yearStartingBalance,
       contributions: yearContributions,
       interestEarned: yearInterest,
@@ -239,7 +261,8 @@ export function calculatePortfolioGrowth(
   salaryReplacementRate?: number,
   pensionLumpSumAge?: number,
   lumpSumToBrokerageRate?: number,
-  useSalaryReplacementForPension?: boolean
+  useSalaryReplacementForPension?: boolean,
+  bonusPercent?: number
 ): PortfolioResults {
   const pensionAgeValue = pensionAge ?? 65;
   const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
@@ -264,7 +287,8 @@ export function calculatePortfolioGrowth(
       salaryReplacementRate,
       pensionLumpSumAgeValue,
       undefined,
-      useSalaryReplacementForPension
+      useSalaryReplacementForPension,
+      bonusPercent
     );
     
     // Find the lump sum amount from the pension monthly data
@@ -325,7 +349,8 @@ export function calculatePortfolioGrowth(
       salaryReplacementRate,
       pensionLumpSumAgeValue,
       lumpSumAllocation,
-      useSalaryReplacementForPension
+      useSalaryReplacementForPension,
+      bonusPercent
     );
   });
 
@@ -344,8 +369,13 @@ export function calculatePortfolioGrowth(
     0
   );
 
-  // Calculate final salary at pension age (if user had continued working)
-  const finalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, pensionAgeValue - currentAge) : 0;
+  // Calculate final salary as the minimum of target age salary and early retirement age salary
+  const salaryAtTargetAge = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, timeHorizon) : 0;
+  const salaryAtEarlyRetirement = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, earlyRetirementAgeValue - currentAge) : 0;
+  const finalSalary = Math.min(salaryAtTargetAge, salaryAtEarlyRetirement);
+  
+  // Calculate bonus salary at the same milestone
+  const bonusSalary = bonusPercent !== undefined && bonusPercent > 0 ? finalSalary * (bonusPercent / 100) : 0;
 
   return {
     accountResults,
@@ -353,6 +383,7 @@ export function calculatePortfolioGrowth(
     totalContributions,
     totalInterest,
     finalSalary,
+    bonusSalary,
     monthsUntilNextBirthday: monthsUntilNextBirthday || 12,
     earlyRetirementAge: earlyRetirementAgeValue,
     pensionAge: pensionAgeValue,

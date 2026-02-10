@@ -8,7 +8,7 @@ interface InputFormProps {
 
 const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [accounts, setAccounts] = useState<AccountInputType[]>([
-    { name: 'Savings', currentBalance: 10000, monthlyContribution: 8.5, expectedReturn: 2, isSalaryPercentage: true },
+    { name: 'Savings', currentBalance: 10000, monthlyContribution: 8.5, expectedReturn: 2, isSalaryPercentage: true, bonusContributionPercent: 10 },
     { 
       name: 'Pension', 
       currentBalance: 25000, 
@@ -16,6 +16,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
       expectedReturn: 7, 
       isSalaryPercentage: true,
       employerContributionPercent: 8,
+      bonusContributionPercent: -1, // Special flag: -1 means checkbox enabled (use age bracket percentages)
       ageBracketContributions: {
         under30: 15,
         age30to39: 20,
@@ -25,13 +26,14 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         age60plus: 40,
       }
     },
-    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 21.5, expectedReturn: 8, isSalaryPercentage: true },
+    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 21.5, expectedReturn: 8, isSalaryPercentage: true, bonusContributionPercent: 40 },
   ]);
 
   const [dateOfBirth, setDateOfBirth] = useState<string>('1997-10-03'); // Default to my date of birth
   const [targetAge, setTargetAge] = useState<number | ''>(80);
   const [currentSalary, setCurrentSalary] = useState<number | ''>(70000);
   const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(2);
+  const [bonusPercent, setBonusPercent] = useState<number | ''>(15);
   const [pensionAge, setPensionAge] = useState<number | ''>(66);
   const [withdrawalRate, setWithdrawalRate] = useState<number | ''>(4);
   const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(50);
@@ -124,6 +126,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const future = typeof targetAge === 'number' ? targetAge : parseInt(targetAge);
     const salary = typeof currentSalary === 'number' ? currentSalary : parseInt(currentSalary);
     const increase = typeof annualSalaryIncrease === 'number' ? annualSalaryIncrease : parseInt(annualSalaryIncrease);
+    const bonus = typeof bonusPercent === 'number' ? bonusPercent : parseFloat(bonusPercent as string);
     const pension = typeof pensionAge === 'number' ? pensionAge : parseInt(pensionAge as string);
     const withdrawal = typeof withdrawalRate === 'number' ? withdrawalRate : parseFloat(withdrawalRate as string);
     const earlyRetirement = typeof earlyRetirementAge === 'number' ? earlyRetirementAge : parseInt(earlyRetirementAge as string);
@@ -172,7 +175,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     setErrors(newErrors);
 
     if (newErrors.length === 0) {
-      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday, pensionAge: pension, withdrawalRate: withdrawal, earlyRetirementAge: earlyRetirement, salaryReplacementRate: replacement, pensionLumpSumAge: lumpSumAge, lumpSumToBrokerageRate: brokerageRate, useSalaryReplacementForPension: useSalaryReplacementForPension });
+      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday, bonusPercent: bonus, pensionAge: pension, withdrawalRate: withdrawal, earlyRetirementAge: earlyRetirement, salaryReplacementRate: replacement, pensionLumpSumAge: lumpSumAge, lumpSumToBrokerageRate: brokerageRate, useSalaryReplacementForPension: useSalaryReplacementForPension });
     }
   };
 
@@ -230,6 +233,27 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               <span className="absolute right-3 top-2.5 text-gray-500">%</span>
             </div>
             <p className="mt-1 text-xs text-gray-500">Annual salary growth rate</p>
+          </div>
+
+          <div>
+            <label htmlFor="bonusPercent" className="block text-xs font-medium text-gray-600 mb-2">
+              Bonus <span className="text-gray-500">(optional)</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                id="bonusPercent"
+                min="0"
+                max="100"
+                step="0.1"
+                value={bonusPercent}
+                onChange={(e) => setBonusPercent(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="15"
+              />
+              <span className="absolute right-3 top-2.5 text-gray-500">%</span>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Bonus as % of salary</p>
           </div>
         </div>
       </div>

@@ -25,7 +25,8 @@ function App() {
       inputs.salaryReplacementRate,
       inputs.pensionLumpSumAge,
       inputs.lumpSumToBrokerageRate,
-      inputs.useSalaryReplacementForPension
+      inputs.useSalaryReplacementForPension,
+      inputs.bonusPercent
     );
     setResults(calculatedResults);
     

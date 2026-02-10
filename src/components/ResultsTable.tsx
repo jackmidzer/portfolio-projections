@@ -27,6 +27,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             let withdrawal = 0;
             let endingBalance = 0;
             const age = results.accountResults[0].yearlyData[index].age;
+            const salary = results.accountResults[0].yearlyData[index].salary;
             const monthlyData = results.accountResults[0].yearlyData[index].monthlyData.map((m) => {
               const combinedMonth = { ...m, withdrawal: 0 };
               results.accountResults.slice(1).forEach((account) => {
@@ -52,6 +53,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             return {
               year: index,
               age,
+              salary,
               startingBalance,
               contributions,
               interestEarned,
@@ -96,6 +98,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
               <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8"></th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Age
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Annual Salary
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Starting Balance
@@ -161,6 +166,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                         </span>
                       )}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
+                      {formatCurrency(row.salary)}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
                       {formatCurrency(row.startingBalance)}
                     </td>
@@ -179,13 +187,14 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                   </tr>
                   {isExpanded && (
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <td colSpan={7} className="px-6 py-4">
+                      <td colSpan={8} className="px-6 py-4">
                         <div className="text-xs font-semibold text-gray-600 mb-3">Monthly Breakdown for Age {row.age}</div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="text-gray-600 border-b border-gray-300">
                                 <th className="text-left py-2 pl-4 font-medium">Month / Year</th>
+                                <th className="text-right py-2 pr-4 font-medium">Salary</th>
                                 <th className="text-right py-2 pr-4 font-medium">Starting</th>
                                 <th className="text-right py-2 pr-4 font-medium">Withdrawal</th>
                                 <th className="text-right py-2 pr-4 font-medium">Contribution</th>
@@ -197,6 +206,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                               {row.monthlyData.map((month) => (
                                 <tr key={month.month} className="border-b border-gray-200 hover:bg-gray-100">
                                   <td className="text-left py-2 pl-4 text-gray-700">{month.monthYear}</td>
+                                  <td className="text-right py-2 pr-4 text-blue-600">{formatCurrency(month.salary)}</td>
                                   <td className="text-right py-2 pr-4 text-gray-600">{formatCurrency(month.startingBalance)}</td>
                                   <td className="text-right py-2 pr-4 text-red-600">{formatCurrency(month.withdrawal)}</td>
                                   <td className="text-right py-2 pr-4 text-green-600">{formatCurrency(month.contribution)}</td>
