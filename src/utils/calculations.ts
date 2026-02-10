@@ -31,7 +31,11 @@ export function calculateAccountGrowth(
   pensionLumpSumAge?: number,
   pensionLumpSumAmount?: number,
   useSalaryReplacementForPension?: boolean,
-  bonusPercent?: number
+  bonusPercent?: number,
+  houseWithdrawalAge?: number,
+  enableHouseWithdrawal?: boolean,
+  houseDepositPercent?: number,
+  houseDepositFromBrokerageRate?: number
 ): AccountResults {
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
@@ -73,20 +77,27 @@ export function calculateAccountGrowth(
   const monthsToNextJanuary = retirementCalendarMonth === 0 ? 12 : (12 - retirementCalendarMonth);
   const earlyRetirementYearStartMonth = monthReachEarlyRetirement + monthsToNextJanuary;
 
+  // Track January-based salary growth
+  let januarysSeen = monthDate.getMonth() === 0 ? 1 : 0;
+
   // Main monthly loop - iterate through all months in the time horizon
   for (let month = 0; month < totalMonths; month++) {
+    
+    // Increment January counter if we've entered a new January since last month
+    if (month > 0 && monthDate.getMonth() === 0) {
+      januarysSeen++;
+    }
     
     // Calculate current age based on number of full birthdays passed
     // Birthdays occur every 12 months starting after the pro-rated first year
     const birthdays = month >= firstYearMonths ? 1 + Math.floor((month - firstYearMonths) / 12) : 0;
     const ageAtMonth = currentAge + birthdays;
     
-    // Calculate salary at this point - it increases annually on the birthday/anniversary
+    // Calculate salary at this point - it increases each January
     let salaryAtMonth = currentSalary || 0;
     if (currentSalary && annualSalaryIncrease !== undefined) {
-      // Salary increases at each birthday (every 12 months, starting after the initial monthsUntilNextBirthday)
-      const yearsOfSalaryGrowth = month >= firstYearMonths ? 1 + Math.floor((month - firstYearMonths) / 12) : 0;
-      salaryAtMonth = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, yearsOfSalaryGrowth);
+      // Salary increases each January
+      salaryAtMonth = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, januarysSeen);
     }
 
     // Determine if we should apply withdrawals (only in January, before interest and contributions)
@@ -106,9 +117,8 @@ export function calculateAccountGrowth(
       // Pension regular withdrawal: starts at pensionAge, continues indefinitely
       else if (isPensionAccount && ageAtMonth >= pensionAgeValue) {
         if (useSalaryReplacementForPension) {
-          // Use salary replacement approach (continues to grow with salary increases)
-          const yearsOfContinuedWork = ageAtMonth - currentAge;
-          const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, yearsOfContinuedWork) : 0;
+          // Use salary replacement approach (continues to grow with January salary increases)
+          const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januarysSeen) : 0;
           monthWithdrawal = hypotheticalSalary * ((salaryReplacementRate ?? 80) / 100);
         } else {
           // Use withdrawal rate approach (4% rule)
@@ -119,10 +129,26 @@ export function calculateAccountGrowth(
       // Brokerage: starts in the January following early retirement age, ends when pensionAge is reached
       else if (isBrokerageAccount && month >= earlyRetirementYearStartMonth && ageAtMonth < pensionAgeValue) {
         // Calculate hypothetical salary if user had continued to work
-        const yearsOfContinuedWork = ageAtMonth - currentAge;
-        const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, yearsOfContinuedWork) : 0;
+        const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januarysSeen) : 0;
         monthWithdrawal = hypotheticalSalary * (salaryReplacementRateValue / 100);
         currentBalance -= monthWithdrawal;
+      }
+      // House deposit withdrawal from Savings/Brokerage in January following houseWithdrawalAge
+      else if (enableHouseWithdrawal && houseWithdrawalAge !== undefined && ageAtMonth >= houseWithdrawalAge && ageAtMonth < (houseWithdrawalAge + 1)) {
+        const projectedSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januarysSeen) : 0;
+        const projectedBonus = projectedSalary * ((bonusPercent ?? 0) / 100);
+        const totalHouseDeposit = (projectedSalary * 4 + projectedBonus * 2) * ((houseDepositPercent ?? 15) / 100);
+        const brokerageRate = houseDepositFromBrokerageRate ?? 50;
+        
+        if (isBrokerageAccount) {
+          // Withdraw from Brokerage
+          monthWithdrawal = totalHouseDeposit * (brokerageRate / 100);
+          currentBalance -= monthWithdrawal;
+        } else if (account.name === 'Savings') {
+          // Withdraw from Savings
+          monthWithdrawal = totalHouseDeposit * ((100 - brokerageRate) / 100);
+          currentBalance -= monthWithdrawal;
+        }
       }
       
       // Savings/Brokerage: receive lump sum allocation at lumpSumAge (add to contributions) - only in January
@@ -287,7 +313,11 @@ export function calculatePortfolioGrowth(
   pensionLumpSumAge?: number,
   lumpSumToBrokerageRate?: number,
   useSalaryReplacementForPension?: boolean,
-  bonusPercent?: number
+  bonusPercent?: number,
+  houseWithdrawalAge?: number,
+  enableHouseWithdrawal?: boolean,
+  houseDepositPercent?: number,
+  houseDepositFromBrokerageRate?: number
 ): PortfolioResults {
   const pensionAgeValue = pensionAge ?? 65;
   const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
@@ -313,7 +343,11 @@ export function calculatePortfolioGrowth(
       pensionLumpSumAgeValue,
       undefined,
       useSalaryReplacementForPension,
-      bonusPercent
+      bonusPercent,
+      houseWithdrawalAge,
+      enableHouseWithdrawal,
+      houseDepositPercent,
+      houseDepositFromBrokerageRate
     );
     
     // Find the lump sum amount from the pension monthly data
@@ -375,7 +409,11 @@ export function calculatePortfolioGrowth(
       pensionLumpSumAgeValue,
       lumpSumAllocation,
       useSalaryReplacementForPension,
-      bonusPercent
+      bonusPercent,
+      houseWithdrawalAge,
+      enableHouseWithdrawal,
+      houseDepositPercent,
+      houseDepositFromBrokerageRate
     );
   });
 
@@ -395,8 +433,14 @@ export function calculatePortfolioGrowth(
   );
 
   // Calculate final salary as the minimum of target age salary and early retirement age salary
-  const salaryAtTargetAge = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, timeHorizon) : 0;
-  const salaryAtEarlyRetirement = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, earlyRetirementAgeValue - currentAge) : 0;
+  // Count Januaries: salary grows each January starting from the first one (including starting month if it's January)
+  const monthDate = dateOfBirth ? new Date(new Date().getFullYear(), new Date().getMonth(), 1) : new Date();
+  const startingMonthIsJanuary = monthDate.getMonth() === 0;
+  const januariesToTargetAge = startingMonthIsJanuary ? timeHorizon + 1 : timeHorizon;
+  const januariesToEarlyRetirement = startingMonthIsJanuary ? (earlyRetirementAgeValue - currentAge) + 1 : (earlyRetirementAgeValue - currentAge);
+  
+  const salaryAtTargetAge = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januariesToTargetAge) : 0;
+  const salaryAtEarlyRetirement = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januariesToEarlyRetirement) : 0;
   const finalSalary = Math.min(salaryAtTargetAge, salaryAtEarlyRetirement);
   
   // Calculate bonus salary at the same milestone
@@ -412,6 +456,9 @@ export function calculatePortfolioGrowth(
     monthsUntilNextBirthday: monthsUntilNextBirthday || 12,
     earlyRetirementAge: earlyRetirementAgeValue,
     pensionAge: pensionAgeValue,
+    pensionLumpSumAge: pensionLumpSumAgeValue,
+    houseWithdrawalAge,
+    enableHouseWithdrawal,
   };
 }
 

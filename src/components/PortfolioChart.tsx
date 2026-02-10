@@ -137,6 +137,20 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
               strokeDasharray="5 5"
               label={{ value: `Pension Age (${results.pensionAge})`, position: 'top', fill: '#f59e0b', fontSize: 12 }}
             />
+            <ReferenceLine
+              x={results.pensionLumpSumAge}
+              stroke="#f59e0b"
+              strokeDasharray="5 5"
+              label={{ value: `Lump Sum (${results.pensionLumpSumAge})`, position: 'top', fill: '#f59e0b', fontSize: 12 }}
+            />
+            {results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined && (
+              <ReferenceLine
+                x={results.houseWithdrawalAge}
+                stroke="#f59e0b"
+                strokeDasharray="5 5"
+                label={{ value: `House Purchase (${results.houseWithdrawalAge})`, position: 'top', fill: '#f59e0b', fontSize: 12 }}
+              />
+            )}
             {showPrincipalInterest ? (
               <>
                 <Area
@@ -201,6 +215,20 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
             strokeDasharray="5 5"
             label={{ value: `Pension Age (${results.pensionAge})`, position: 'top', fill: '#f59e0b', fontSize: 12 }}
           />
+          <ReferenceLine
+            x={results.pensionLumpSumAge}
+            stroke="#06b6d4"
+            strokeDasharray="5 5"
+            label={{ value: `Lump Sum (${results.pensionLumpSumAge})`, position: 'top', fill: '#0891b2', fontSize: 12 }}
+          />
+          {results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined && (
+            <ReferenceLine
+              x={results.houseWithdrawalAge}
+              stroke="#ec4899"
+              strokeDasharray="5 5"
+              label={{ value: `House Purchase (${results.houseWithdrawalAge})`, position: 'top', fill: '#ec4899', fontSize: 12 }}
+            />
+          )}
           {showTotal && selectedAccount === 'All' && !showPrincipalInterest && (
             <Line
               type="monotone"

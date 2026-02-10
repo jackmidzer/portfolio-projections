@@ -36,11 +36,15 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [bonusPercent, setBonusPercent] = useState<number | ''>(15);
   const [pensionAge, setPensionAge] = useState<number | ''>(66);
   const [withdrawalRate, setWithdrawalRate] = useState<number | ''>(4);
-  const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(50);
+  const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(48);
   const [salaryReplacementRate, setSalaryReplacementRate] = useState<number | ''>(80);
   const [pensionLumpSumAge, setPensionLumpSumAge] = useState<number | ''>(50);
   const [lumpSumToBrokerageRate, setLumpSumToBrokerageRate] = useState<number | ''>(80);
   const [useSalaryReplacementForPension, setUseSalaryReplacementForPension] = useState<boolean>(true);
+  const [houseWithdrawalAge, setHouseWithdrawalAge] = useState<number | ''>(34);
+  const [enableHouseWithdrawal, setEnableHouseWithdrawal] = useState<boolean>(true);
+  const [houseDepositPercent, setHouseDepositPercent] = useState<number | ''>(15);
+  const [houseDepositFromBrokerageRate, setHouseDepositFromBrokerageRate] = useState<number | ''>(50);
   const [errors, setErrors] = useState<string[]>([]);
 
   // Helper function to calculate current age from date of birth
@@ -81,7 +85,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
   const isFormValid = (): boolean => {
     // Check if any field is empty
-    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '' || pensionAge === '' || withdrawalRate === '' || earlyRetirementAge === '' || salaryReplacementRate === '' || pensionLumpSumAge === '' || lumpSumToBrokerageRate === '') {
+    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '' || pensionAge === '' || withdrawalRate === '' || earlyRetirementAge === '' || salaryReplacementRate === '' || pensionLumpSumAge === '' || lumpSumToBrokerageRate === '' || houseWithdrawalAge === '' || houseDepositPercent === '' || houseDepositFromBrokerageRate === '') {
       return false;
     }
 
@@ -96,9 +100,12 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const replacement = typeof salaryReplacementRate === 'number' ? salaryReplacementRate : parseFloat(salaryReplacementRate as string);
     const lumpSumAge = typeof pensionLumpSumAge === 'number' ? pensionLumpSumAge : parseInt(pensionLumpSumAge as string);
     const brokerageRate = typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : parseFloat(lumpSumToBrokerageRate as string);
+    const houseAge = typeof houseWithdrawalAge === 'number' ? houseWithdrawalAge : parseInt(houseWithdrawalAge);
+    const housePercent = typeof houseDepositPercent === 'number' ? houseDepositPercent : parseFloat(houseDepositPercent);
+    const houseBrokerageRate = typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : parseFloat(houseDepositFromBrokerageRate);
 
     // Check for NaN
-    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase) || isNaN(pension) || isNaN(withdrawal) || isNaN(earlyRetirement) || isNaN(replacement) || isNaN(lumpSumAge) || isNaN(brokerageRate)) {
+    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase) || isNaN(pension) || isNaN(withdrawal) || isNaN(earlyRetirement) || isNaN(replacement) || isNaN(lumpSumAge) || isNaN(brokerageRate) || isNaN(houseAge) || isNaN(housePercent) || isNaN(houseBrokerageRate)) {
       return false;
     }
 
@@ -113,6 +120,9 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     if (replacement <= 0 || replacement > 100) return false;
     if (lumpSumAge < 50 || lumpSumAge > 100) return false;
     if (brokerageRate < 0 || brokerageRate > 100) return false;
+    if (houseAge < 18 || houseAge > 100) return false;
+    if (housePercent < 10 || housePercent > 100) return false;
+    if (houseBrokerageRate < 0 || houseBrokerageRate > 100) return false;
 
     return true;
   };
@@ -133,6 +143,9 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const replacement = typeof salaryReplacementRate === 'number' ? salaryReplacementRate : parseFloat(salaryReplacementRate as string);
     const lumpSumAge = typeof pensionLumpSumAge === 'number' ? pensionLumpSumAge : parseInt(pensionLumpSumAge as string);
     const brokerageRate = typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : parseFloat(lumpSumToBrokerageRate as string);
+    const houseAge = typeof houseWithdrawalAge === 'number' ? houseWithdrawalAge : parseInt(houseWithdrawalAge);
+    const housePercent = typeof houseDepositPercent === 'number' ? houseDepositPercent : parseFloat(houseDepositPercent);
+    const houseBrokerageRate = typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : parseFloat(houseDepositFromBrokerageRate);
 
     // Validation
     if (!dateOfBirth) {
@@ -171,11 +184,20 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     if (brokerageRate < 0 || brokerageRate > 100) {
       newErrors.push('Lump sum brokerage allocation must be between 0% and 100%');
     }
+    if (houseAge < 18 || houseAge > 100) {
+      newErrors.push('House withdrawal age must be between 18 and 100');
+    }
+    if (housePercent < 10 || housePercent > 100) {
+      newErrors.push('House deposit percentage must be between 10% and 100%');
+    }
+    if (houseBrokerageRate < 0 || houseBrokerageRate > 100) {
+      newErrors.push('House deposit brokerage allocation must be between 0% and 100%');
+    }
 
     setErrors(newErrors);
 
     if (newErrors.length === 0) {
-      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday, bonusPercent: bonus, pensionAge: pension, withdrawalRate: withdrawal, earlyRetirementAge: earlyRetirement, salaryReplacementRate: replacement, pensionLumpSumAge: lumpSumAge, lumpSumToBrokerageRate: brokerageRate, useSalaryReplacementForPension: useSalaryReplacementForPension });
+      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday, bonusPercent: bonus, pensionAge: pension, withdrawalRate: withdrawal, earlyRetirementAge: earlyRetirement, salaryReplacementRate: replacement, pensionLumpSumAge: lumpSumAge, lumpSumToBrokerageRate: brokerageRate, useSalaryReplacementForPension: useSalaryReplacementForPension, houseWithdrawalAge: houseAge, enableHouseWithdrawal: enableHouseWithdrawal, houseDepositPercent: housePercent, houseDepositFromBrokerageRate: houseBrokerageRate });
     }
   };
 
@@ -338,7 +360,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               value={earlyRetirementAge}
               onChange={(e) => setEarlyRetirementAge(e.target.value === '' ? '' : parseInt(e.target.value) || 50)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="50"
+              placeholder="48"
             />
             <p className="mt-1 text-xs text-gray-500">Age when you can start withdrawing from brokerage account</p>
           </div>
@@ -503,6 +525,103 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
             </div>
             <p className="mt-3 text-xs text-gray-500">Drag to allocate your pension lump sum between brokerage and savings accounts</p>
           </div>
+        </div>
+      </div>
+
+      {/* House Purchase Section */}
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <label className="block text-sm font-medium text-gray-700 mb-4">
+          House Purchase <span className="text-gray-500">(Optional)</span>
+        </label>
+        
+        <div className="space-y-4">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={enableHouseWithdrawal}
+              onChange={(e) => setEnableHouseWithdrawal(e.target.checked)}
+              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            />
+            <div>
+              <p className="text-sm font-medium text-gray-700">Enable house purchase withdrawal</p>
+              <p className="text-xs text-gray-500">Withdraw funds from savings account at a specified age for house down payment</p>
+            </div>
+          </label>
+
+          {enableHouseWithdrawal && (
+            <div className="ml-7 pt-4 border-t border-gray-200">
+              <div>
+                <label htmlFor="houseWithdrawalAge" className="block text-xs font-medium text-gray-600 mb-2">
+                  Age for House Purchase
+                </label>
+                <input
+                  type="number"
+                  id="houseWithdrawalAge"
+                  min="18"
+                  max="100"
+                  value={houseWithdrawalAge}
+                  onChange={(e) => setHouseWithdrawalAge(e.target.value === '' ? '' : parseInt(e.target.value) || 34)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="34"
+                />
+                <p className="mt-1 text-xs text-gray-500">Withdrawal occurs in January following the specified age</p>
+              </div>
+
+              <div className="mt-4">
+                <label htmlFor="houseDepositPercent" className="block text-xs font-medium text-gray-600 mb-2">
+                  Deposit Percentage
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    id="houseDepositPercent"
+                    min="10"
+                    max="100"
+                    step="0.1"
+                    value={houseDepositPercent}
+                    onChange={(e) => setHouseDepositPercent(e.target.value === '' ? '' : parseFloat(e.target.value) || 15)}
+                    className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="15"
+                  />
+                  <span className="absolute right-3 top-2.5 text-gray-500">%</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">Withdrawal amount: (salary × 4 + bonus × 2) × {typeof houseDepositPercent === 'number' ? houseDepositPercent.toFixed(1) : '15'}%</p>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <label htmlFor="houseDepositFromBrokerageRate" className="block text-xs font-medium text-gray-600 mb-4">
+                  Account Allocation
+                </label>
+                <div className="space-y-4">
+                  {/* Slider with labels */}
+                  <div className="flex items-end gap-3">
+                    <div className="flex-shrink-0">
+                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Brokerage</p>
+                      <p className="text-xl font-bold text-emerald-600">{typeof houseDepositFromBrokerageRate === 'number' ? Math.round(houseDepositFromBrokerageRate) : 50}%</p>
+                    </div>
+                    <input
+                      type="range"
+                      id="houseDepositFromBrokerageRate"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50}
+                      onChange={(e) => setHouseDepositFromBrokerageRate(parseFloat(e.target.value))}
+                      className="flex-1 h-3 bg-gray-200 rounded-full appearance-none cursor-pointer accent-emerald-600 slider"
+                      style={{
+                        background: `linear-gradient(to right, rgb(16, 185, 129) 0%, rgb(16, 185, 129) ${typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50}%, rgb(59, 130, 246) ${typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50}%, rgb(59, 130, 246) 100%)`
+                      }}
+                    />
+                    <div className="flex-shrink-0 text-right">
+                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Savings</p>
+                      <p className="text-xl font-bold text-blue-600">{typeof houseDepositFromBrokerageRate === 'number' ? Math.round(100 - houseDepositFromBrokerageRate) : 50}%</p>
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-gray-500">Drag to allocate your house deposit between brokerage and savings accounts</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

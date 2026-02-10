@@ -26,7 +26,11 @@ function App() {
       inputs.pensionLumpSumAge,
       inputs.lumpSumToBrokerageRate,
       inputs.useSalaryReplacementForPension,
-      inputs.bonusPercent
+      inputs.bonusPercent,
+      inputs.houseWithdrawalAge,
+      inputs.enableHouseWithdrawal,
+      inputs.houseDepositPercent,
+      inputs.houseDepositFromBrokerageRate
     );
     setResults(calculatedResults);
     
