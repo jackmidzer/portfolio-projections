@@ -24,16 +24,47 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
   const [chartType, setChartType] = useState<'line' | 'area'>('area');
   const [showTotal, setShowTotal] = useState<boolean>(true);
   const [selectedAccount, setSelectedAccount] = useState<AccountType | 'All'>('All');
+  const [showPrincipalInterest, setShowPrincipalInterest] = useState<boolean>(false);
 
   const allData = combineYearlyData(results.accountResults);
   
-  // Filter data based on selected account
-  const data = selectedAccount === 'All' 
-    ? allData
-    : allData.map((entry) => ({
-        age: entry.age,
-        [selectedAccount]: entry[selectedAccount as keyof typeof entry],
-      }));
+  // Filter data based on selected account and principal/interest view
+  let data;
+  if (showPrincipalInterest) {
+    if (selectedAccount === 'All') {
+      // Show total principal and interest breakdown
+      data = allData;
+    } else {
+      // Show principal and interest for the selected account
+      const accountResult = results.accountResults.find(r => r.accountName === selectedAccount);
+      data = allData.map((entry, index) => {
+        const yearData = accountResult?.yearlyData[index];
+        if (!yearData) return { age: entry.age };
+        
+        // Calculate principal for this account up to this year
+        let accountPrincipal = accountResult.yearlyData[0]?.startingBalance || 0;
+        for (let y = 0; y <= index; y++) {
+          accountPrincipal += accountResult.yearlyData[y]?.contributions || 0;
+        }
+        
+        const accountBalance = yearData.endingBalance || 0;
+        const accountInterest = Math.max(0, accountBalance - accountPrincipal);
+        
+        return {
+          age: entry.age,
+          Principal: accountPrincipal,
+          Interest: accountInterest,
+        };
+      });
+    }
+  } else if (selectedAccount === 'All') {
+    data = allData;
+  } else {
+    data = allData.map((entry) => ({
+      age: entry.age,
+      [selectedAccount]: entry[selectedAccount as keyof typeof entry],
+    }));
+  }
   
   const isFirstYearProRated = results.monthsUntilNextBirthday < 12;
 
@@ -106,17 +137,38 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
               strokeDasharray="5 5"
               label={{ value: `Pension Age (${results.pensionAge})`, position: 'top', fill: '#f59e0b', fontSize: 12 }}
             />
-            {accountNames.map((name) => (
-              <Area
-                key={name}
-                type="monotone"
-                dataKey={name}
-                stackId={selectedAccount === 'All' ? '1' : undefined}
-                stroke={colors[name]}
-                fill={colors[name]}
-                fillOpacity={0.6}
-              />
-            ))}
+            {showPrincipalInterest ? (
+              <>
+                <Area
+                  type="monotone"
+                  dataKey="Principal"
+                  stackId="1"
+                  stroke="#8b5cf6"
+                  fill="#8b5cf6"
+                  fillOpacity={0.8}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="Interest"
+                  stackId="1"
+                  stroke="#06b6d4"
+                  fill="#06b6d4"
+                  fillOpacity={0.8}
+                />
+              </>
+            ) : (
+              accountNames.map((name) => (
+                <Area
+                  key={name}
+                  type="monotone"
+                  dataKey={name}
+                  stackId={selectedAccount === 'All' ? '1' : undefined}
+                  stroke={colors[name]}
+                  fill={colors[name]}
+                  fillOpacity={0.6}
+                />
+              ))
+            )}
           </AreaChart>
         </ResponsiveContainer>
       );
@@ -149,7 +201,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
             strokeDasharray="5 5"
             label={{ value: `Pension Age (${results.pensionAge})`, position: 'top', fill: '#f59e0b', fontSize: 12 }}
           />
-          {showTotal && selectedAccount === 'All' && (
+          {showTotal && selectedAccount === 'All' && !showPrincipalInterest && (
             <Line
               type="monotone"
               dataKey="Total"
@@ -158,16 +210,35 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
               dot={false}
             />
           )}
-          {accountNames.map((name) => (
-            <Line
-              key={name}
-              type="monotone"
-              dataKey={name}
-              stroke={colors[name]}
-              strokeWidth={2}
-              dot={false}
-            />
-          ))}
+          {showPrincipalInterest ? (
+            <>
+              <Line
+                type="monotone"
+                dataKey="Principal"
+                stroke="#8b5cf6"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="Interest"
+                stroke="#06b6d4"
+                strokeWidth={2}
+                dot={false}
+              />
+            </>
+          ) : (
+            accountNames.map((name) => (
+              <Line
+                key={name}
+                type="monotone"
+                dataKey={name}
+                stroke={colors[name]}
+                strokeWidth={2}
+                dot={false}
+              />
+            ))
+          )}
         </LineChart>
       </ResponsiveContainer>
     );
@@ -212,6 +283,29 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
               }`}
             >
               Area Chart
+            </button>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowPrincipalInterest(false)}
+              className={`px-4 py-2 rounded-md font-medium transition ${
+                !showPrincipalInterest
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Balance
+            </button>
+            <button
+              onClick={() => setShowPrincipalInterest(true)}
+              className={`px-4 py-2 rounded-md font-medium transition ${
+                showPrincipalInterest
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Principal vs Interest
             </button>
           </div>
         </div>

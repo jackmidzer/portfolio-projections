@@ -35,7 +35,7 @@ export function calculateAccountGrowth(
 ): AccountResults {
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
-  const totalMonths = firstYearMonths + (timeHorizon - 1) * 12;
+  let totalMonths = firstYearMonths + (timeHorizon - 1) * 12;
   const isPensionAccount = account.name === 'Pension';
   const isBrokerageAccount = account.name === 'Brokerage';
   const pensionAgeValue = pensionAge ?? 65;
@@ -53,17 +53,28 @@ export function calculateAccountGrowth(
     const now = new Date();
     monthDate = new Date(now.getFullYear(), now.getMonth(), 1);
   }
+  
+  // Extend to end of calendar year so final year includes full 12 months
+  const startCalendarMonth = monthDate.getMonth();
+  const endCalendarMonth = (startCalendarMonth + totalMonths - 1) % 12;
+  const monthsToYearEnd = endCalendarMonth === 11 ? 0 : (11 - endCalendarMonth);
+  totalMonths += monthsToYearEnd;
+
+  // Calculate the month when user reaches early retirement age
+  const monthReachEarlyRetirement = firstYearMonths + (earlyRetirementAgeValue - currentAge - 1) * 12;
+  // Early retirement withdrawals start in the next January after reaching the age
+  // Find which calendar month they turn the age
+  let tempDate = new Date(monthDate);
+  for (let i = 0; i < monthReachEarlyRetirement; i++) {
+    tempDate.setMonth(tempDate.getMonth() + 1);
+  }
+  const retirementCalendarMonth = tempDate.getMonth(); // 0=Jan, 11=Dec
+  // Calculate months until next January (0) from the retirement month
+  const monthsToNextJanuary = retirementCalendarMonth === 0 ? 12 : (12 - retirementCalendarMonth);
+  const earlyRetirementYearStartMonth = monthReachEarlyRetirement + monthsToNextJanuary;
 
   // Main monthly loop - iterate through all months in the time horizon
   for (let month = 0; month < totalMonths; month++) {
-    // Determine which year and month-within-year we're at
-    let currentYear = 0;
-    let monthIndexInYear = month;
-    if (month >= firstYearMonths) {
-      currentYear = 1 + Math.floor((month - firstYearMonths) / 12);
-      monthIndexInYear = month - (firstYearMonths + (currentYear - 1) * 12);
-    }
-    const isFirstMonthOfYear = monthIndexInYear === 0;
     
     // Calculate current age based on number of full birthdays passed
     // Birthdays occur every 12 months starting after the pro-rated first year
@@ -78,13 +89,14 @@ export function calculateAccountGrowth(
       salaryAtMonth = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, yearsOfSalaryGrowth);
     }
 
-    // Determine if we should apply withdrawals (only in the first month of each year, before interest and contributions)
+    // Determine if we should apply withdrawals (only in January, before interest and contributions)
+    const isJanuary = monthDate.getMonth() === 0;
     let monthWithdrawal = 0;
     let lumpSumContribution = 0;
     const monthStartBalance = currentBalance;
     const lumpSumAgeValue = pensionLumpSumAge ?? 50;
     
-    if (isFirstMonthOfYear) {
+    if (isJanuary) {
       // Pension lump sum: withdraw 25% of balance (capped at 200k) at lumpSumAge
       if (isPensionAccount && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1)) {
         const lumpSumAmount = Math.min(monthStartBalance * 0.25, 200000);
@@ -104,8 +116,8 @@ export function calculateAccountGrowth(
         }
         currentBalance -= monthWithdrawal;
       } 
-      // Brokerage: starts at earlyRetirementAge, ends when pensionAge is reached
-      else if (isBrokerageAccount && ageAtMonth >= earlyRetirementAgeValue && ageAtMonth < pensionAgeValue) {
+      // Brokerage: starts in the January following early retirement age, ends when pensionAge is reached
+      else if (isBrokerageAccount && month >= earlyRetirementYearStartMonth && ageAtMonth < pensionAgeValue) {
         // Calculate hypothetical salary if user had continued to work
         const yearsOfContinuedWork = ageAtMonth - currentAge;
         const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, yearsOfContinuedWork) : 0;
@@ -113,7 +125,7 @@ export function calculateAccountGrowth(
         currentBalance -= monthWithdrawal;
       }
       
-      // Savings/Brokerage: receive lump sum allocation at lumpSumAge (add to contributions) - only in the year of withdrawal
+      // Savings/Brokerage: receive lump sum allocation at lumpSumAge (add to contributions) - only in January
       if (!isPensionAccount && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1) && pensionLumpSumAmount !== undefined && pensionLumpSumAmount > 0) {
         lumpSumContribution = pensionLumpSumAmount;
       }
@@ -121,8 +133,8 @@ export function calculateAccountGrowth(
 
     // Calculate monthly contribution
     let monthlyContribution = 0;
-    if (ageAtMonth < earlyRetirementAgeValue) {
-      // Contributions stop once early retirement age is reached
+    if (month < earlyRetirementYearStartMonth) {
+      // Contributions stop once the following January after early retirement age is reached
       if (account.isSalaryPercentage && currentSalary && annualSalaryIncrease !== undefined) {
         // For salary-based contributions (e.g., Pension with age brackets)
         let contributionPercentage = account.monthlyContribution;
@@ -143,7 +155,7 @@ export function calculateAccountGrowth(
       }
       
       // Add bonus contribution from bonus salary (December only)
-      const isDecember = monthIndexInYear === 11;
+      const isDecember = monthDate.getMonth() === 11;
       if (isDecember && bonusPercent !== undefined && bonusPercent > 0 && account.bonusContributionPercent !== undefined) {
         const annualBonus = salaryAtMonth * (bonusPercent / 100);
         let bonusContributionPercent = account.bonusContributionPercent;
@@ -186,49 +198,62 @@ export function calculateAccountGrowth(
     monthDate.setMonth(monthDate.getMonth() + 1);
   }
 
-  // Now aggregate monthly data into yearly breakdowns
+  // Now aggregate monthly data into yearly breakdowns by calendar year
   const yearlyData: YearlyBreakdown[] = [];
-  let monthIndex = 0;
-
-  for (let year = 0; year < timeHorizon; year++) {
-    const monthsInThisYear = year === 0 ? firstYearMonths : 12;
-    const yearStartMonthIndex = monthIndex;
-    const yearEndMonthIndex = monthIndex + monthsInThisYear;
+  
+  // Group months by calendar year extracted from monthYear string (e.g., "FEB 2026" -> 2026)
+  const monthsByYear = new Map<number, typeof allMonthlyData>();
+  allMonthlyData.forEach(monthData => {
+    // Extract year from monthYear string (e.g., "FEB 2026" -> 2026)
+    const yearMatch = monthData.monthYear.match(/\d{4}$/);
+    const calendarYear = yearMatch ? parseInt(yearMatch[0], 10) : 2026;
     
-    // Get monthly data for this year and renumber months to be 1-indexed within the year
-    const yearMonthlyData = allMonthlyData.slice(yearStartMonthIndex, yearEndMonthIndex).map((m, index) => ({
+    if (!monthsByYear.has(calendarYear)) {
+      monthsByYear.set(calendarYear, []);
+    }
+    monthsByYear.get(calendarYear)!.push(monthData);
+  });
+  
+  // Process each calendar year in order
+  const sortedYears = Array.from(monthsByYear.keys()).sort((a, b) => a - b);
+  
+  sortedYears.forEach(calendarYear => {
+    const yearMonthlyData = monthsByYear.get(calendarYear) || [];
+    
+    // Renumber months to be 1-indexed within the calendar year
+    const renumberedMonthlyData = yearMonthlyData.map((m, index) => ({
       ...m,
-      month: index + 1, // Reset month numbering to 1 for each year
+      month: index + 1,
     }));
     
-    // Aggregate metrics for this year
-    const yearStartingBalance = yearMonthlyData[0]?.startingBalance ?? 0;
-    const yearEndingBalance = yearMonthlyData[monthsInThisYear - 1]?.endingBalance ?? currentBalance;
-    const yearContributions = yearMonthlyData.reduce((sum, m) => sum + m.contribution, 0);
-    const yearInterest = yearMonthlyData.reduce((sum, m) => sum + m.interest, 0);
-    const yearWithdrawal = yearMonthlyData.reduce((sum, m) => sum + m.withdrawal, 0);
-    const yearSalary = yearMonthlyData[0]?.salary ?? 0; // Salary at start of year
+    // Aggregate metrics for this calendar year
+    const yearStartingBalance = renumberedMonthlyData[0]?.startingBalance ?? 0;
+    const yearEndingBalance = renumberedMonthlyData[renumberedMonthlyData.length - 1]?.endingBalance ?? currentBalance;
+    const yearContributions = renumberedMonthlyData.reduce((sum, m) => sum + m.contribution, 0);
+    const yearInterest = renumberedMonthlyData.reduce((sum, m) => sum + m.interest, 0);
+    const yearWithdrawal = renumberedMonthlyData.reduce((sum, m) => sum + m.withdrawal, 0);
+    const yearSalary = renumberedMonthlyData[0]?.salary ?? 0; // Salary at start of year
     
-    // Calculate age at the start of this year using the same logic as the monthly loop
-    const birthdays = yearStartMonthIndex >= firstYearMonths 
-      ? 1 + Math.floor((yearStartMonthIndex - firstYearMonths) / 12) 
+    // Calculate age at the start of this calendar year
+    // Find which month in allMonthlyData corresponds to the first month of this calendar year
+    const firstMonthIndexInAllData = allMonthlyData.indexOf(yearMonthlyData[0]) || 0;
+    const birthdays = firstMonthIndexInAllData >= firstYearMonths 
+      ? 1 + Math.floor((firstMonthIndexInAllData - firstYearMonths) / 12) 
       : 0;
     const yearAge = currentAge + birthdays;
 
     yearlyData.push({
-      year,
+      year: calendarYear,
       age: yearAge,
       salary: yearSalary,
       startingBalance: yearStartingBalance,
       contributions: yearContributions,
       interestEarned: yearInterest,
       endingBalance: yearEndingBalance,
-      monthlyData: yearMonthlyData,
+      monthlyData: renumberedMonthlyData,
       withdrawal: yearWithdrawal,
     });
-
-    monthIndex = yearEndMonthIndex;
-  }
+  });
 
   // Calculate totals
   const totalContributions = yearlyData.reduce((sum, yd) => sum + yd.contributions, 0);
@@ -405,15 +430,33 @@ export function combineYearlyData(accountResults: AccountResults[]) {
     if (age) {
       dataPoint.age = age;
     }
+    
+    let totalPrincipal = 0;
+    let totalEndingBalance = 0;
+    
     accountResults.forEach((result) => {
       const accountName = result.accountName;
-      dataPoint[accountName] = result.yearlyData[year]?.endingBalance || 0;
+      const yearData = result.yearlyData[year];
+      const endingBalance = yearData?.endingBalance || 0;
+      
+      dataPoint[accountName] = endingBalance;
+      totalEndingBalance += endingBalance;
+      
+      // Calculate cumulative principal for this account
+      // Principal = starting balance at year 0 + sum of all contributions up to this year
+      let cumulativePrincipal = result.yearlyData[0]?.startingBalance || 0;
+      for (let y = 0; y <= year; y++) {
+        cumulativePrincipal += result.yearlyData[y]?.contributions || 0;
+      }
+      totalPrincipal += cumulativePrincipal;
     });
 
     // Calculate total
-    dataPoint.Total = Object.keys(dataPoint)
-      .filter((key) => !['year', 'age'].includes(key))
-      .reduce((sum, key) => sum + dataPoint[key], 0);
+    dataPoint.Total = totalEndingBalance;
+    
+    // Calculate principal and interest for the total
+    dataPoint.Principal = totalPrincipal;
+    dataPoint.Interest = Math.max(0, totalEndingBalance - totalPrincipal);
 
     combined.push(dataPoint);
   }
