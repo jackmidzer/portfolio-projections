@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
 } from 'recharts';
 import { PortfolioResults, AccountType } from '../types';
 import { combineYearlyData } from '../utils/calculations';
@@ -70,7 +71,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
   const renderChart = () => {
     const commonProps = {
       data,
-      margin: { top: 10, right: 30, left: 0, bottom: 0 },
+      margin: { top: 20, right: 30, left: 20, bottom: 0 },
     };
 
     const accountNames = selectedAccount === 'All' 
@@ -93,6 +94,18 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
+            <ReferenceLine
+              x={results.earlyRetirementAge}
+              stroke="#f59e0b"
+              strokeDasharray="5 5"
+              label={{ value: `Early Retirement (${results.earlyRetirementAge})`, position: 'top', fill: '#d97706', fontSize: 12 }}
+            />
+            <ReferenceLine
+              x={results.pensionAge}
+              stroke="#f59e0b"
+              strokeDasharray="5 5"
+              label={{ value: `Pension Age (${results.pensionAge})`, position: 'top', fill: '#f59e0b', fontSize: 12 }}
+            />
             {accountNames.map((name) => (
               <Area
                 key={name}
@@ -124,6 +137,18 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend />
+          <ReferenceLine
+            x={results.earlyRetirementAge}
+            stroke="#f59e0b"
+            strokeDasharray="5 5"
+            label={{ value: `Early Retirement (${results.earlyRetirementAge})`, position: 'top', fill: '#d97706', fontSize: 12 }}
+          />
+          <ReferenceLine
+            x={results.pensionAge}
+            stroke="#f59e0b"
+            strokeDasharray="5 5"
+            label={{ value: `Pension Age (${results.pensionAge})`, position: 'top', fill: '#f59e0b', fontSize: 12 }}
+          />
           {showTotal && selectedAccount === 'All' && (
             <Line
               type="monotone"

@@ -22,7 +22,10 @@ function App() {
       inputs.pensionAge,
       inputs.withdrawalRate,
       inputs.earlyRetirementAge,
-      inputs.salaryReplacementRate
+      inputs.salaryReplacementRate,
+      inputs.pensionLumpSumAge,
+      inputs.lumpSumToBrokerageRate,
+      inputs.useSalaryReplacementForPension
     );
     setResults(calculatedResults);
     

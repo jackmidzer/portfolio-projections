@@ -8,7 +8,7 @@ interface InputFormProps {
 
 const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [accounts, setAccounts] = useState<AccountInputType[]>([
-    { name: 'Savings', currentBalance: 10000, monthlyContribution: 500, expectedReturn: 2, isSalaryPercentage: false },
+    { name: 'Savings', currentBalance: 10000, monthlyContribution: 8.5, expectedReturn: 2, isSalaryPercentage: true },
     { 
       name: 'Pension', 
       currentBalance: 25000, 
@@ -25,7 +25,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         age60plus: 40,
       }
     },
-    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 1250, expectedReturn: 8, isSalaryPercentage: false },
+    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 21.5, expectedReturn: 8, isSalaryPercentage: true },
   ]);
 
   const [dateOfBirth, setDateOfBirth] = useState<string>('1997-10-03'); // Default to my date of birth
@@ -36,6 +36,9 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [withdrawalRate, setWithdrawalRate] = useState<number | ''>(4);
   const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(50);
   const [salaryReplacementRate, setSalaryReplacementRate] = useState<number | ''>(80);
+  const [pensionLumpSumAge, setPensionLumpSumAge] = useState<number | ''>(50);
+  const [lumpSumToBrokerageRate, setLumpSumToBrokerageRate] = useState<number | ''>(80);
+  const [useSalaryReplacementForPension, setUseSalaryReplacementForPension] = useState<boolean>(true);
   const [errors, setErrors] = useState<string[]>([]);
 
   // Helper function to calculate current age from date of birth
@@ -76,7 +79,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
   const isFormValid = (): boolean => {
     // Check if any field is empty
-    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '' || pensionAge === '' || withdrawalRate === '' || earlyRetirementAge === '' || salaryReplacementRate === '') {
+    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '' || pensionAge === '' || withdrawalRate === '' || earlyRetirementAge === '' || salaryReplacementRate === '' || pensionLumpSumAge === '' || lumpSumToBrokerageRate === '') {
       return false;
     }
 
@@ -89,9 +92,11 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const withdrawal = typeof withdrawalRate === 'number' ? withdrawalRate : parseFloat(withdrawalRate as string);
     const earlyRetirement = typeof earlyRetirementAge === 'number' ? earlyRetirementAge : parseInt(earlyRetirementAge as string);
     const replacement = typeof salaryReplacementRate === 'number' ? salaryReplacementRate : parseFloat(salaryReplacementRate as string);
+    const lumpSumAge = typeof pensionLumpSumAge === 'number' ? pensionLumpSumAge : parseInt(pensionLumpSumAge as string);
+    const brokerageRate = typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : parseFloat(lumpSumToBrokerageRate as string);
 
     // Check for NaN
-    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase) || isNaN(pension) || isNaN(withdrawal) || isNaN(earlyRetirement) || isNaN(replacement)) {
+    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase) || isNaN(pension) || isNaN(withdrawal) || isNaN(earlyRetirement) || isNaN(replacement) || isNaN(lumpSumAge) || isNaN(brokerageRate)) {
       return false;
     }
 
@@ -104,6 +109,8 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     if (withdrawal <= 0 || withdrawal > 20) return false;
     if (earlyRetirement < 18 || earlyRetirement > 100) return false;
     if (replacement <= 0 || replacement > 100) return false;
+    if (lumpSumAge < 50 || lumpSumAge > 100) return false;
+    if (brokerageRate < 0 || brokerageRate > 100) return false;
 
     return true;
   };
@@ -121,6 +128,8 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const withdrawal = typeof withdrawalRate === 'number' ? withdrawalRate : parseFloat(withdrawalRate as string);
     const earlyRetirement = typeof earlyRetirementAge === 'number' ? earlyRetirementAge : parseInt(earlyRetirementAge as string);
     const replacement = typeof salaryReplacementRate === 'number' ? salaryReplacementRate : parseFloat(salaryReplacementRate as string);
+    const lumpSumAge = typeof pensionLumpSumAge === 'number' ? pensionLumpSumAge : parseInt(pensionLumpSumAge as string);
+    const brokerageRate = typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : parseFloat(lumpSumToBrokerageRate as string);
 
     // Validation
     if (!dateOfBirth) {
@@ -153,11 +162,17 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     if (replacement <= 0 || replacement > 100) {
       newErrors.push('Salary replacement rate must be between 0% and 100%');
     }
+    if (lumpSumAge < 50 || lumpSumAge > 100) {
+      newErrors.push('Pension lump sum age must be between 50 and 100');
+    }
+    if (brokerageRate < 0 || brokerageRate > 100) {
+      newErrors.push('Lump sum brokerage allocation must be between 0% and 100%');
+    }
 
     setErrors(newErrors);
 
     if (newErrors.length === 0) {
-      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday, pensionAge: pension, withdrawalRate: withdrawal, earlyRetirementAge: earlyRetirement, salaryReplacementRate: replacement });
+      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday, pensionAge: pension, withdrawalRate: withdrawal, earlyRetirementAge: earlyRetirement, salaryReplacementRate: replacement, pensionLumpSumAge: lumpSumAge, lumpSumToBrokerageRate: brokerageRate, useSalaryReplacementForPension: useSalaryReplacementForPension });
     }
   };
 
@@ -229,12 +244,13 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         ))}
       </div>
 
+      {/* Age & Timeline Section */}
       <div className="bg-white p-6 rounded-lg shadow-sm">
         <label className="block text-sm font-medium text-gray-700 mb-4">
-          Age Projection
+          Age & Timeline
         </label>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="dateOfBirth" className="block text-xs font-medium text-gray-600 mb-2">
               Date of Birth
@@ -272,8 +288,37 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
             <p className="mt-1 text-xs text-gray-500">Greater than current age</p>
           </div>
         </div>
+        {typeof targetAge === 'number' && typeof currentAge === 'number' && targetAge > currentAge && (
+          <div className="p-3 bg-blue-50 rounded text-sm text-blue-900">
+            Time horizon: <strong>{targetAge - currentAge} years</strong>
+          </div>
+        )}
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      {/* Retirement Timeline Section */}
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <label className="block text-sm font-medium text-gray-700 mb-4">
+          Retirement Timeline
+        </label>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="earlyRetirementAge" className="block text-xs font-medium text-gray-600 mb-2">
+              Early Retirement Age
+            </label>
+            <input
+              type="number"
+              id="earlyRetirementAge"
+              min="18"
+              max="100"
+              value={earlyRetirementAge}
+              onChange={(e) => setEarlyRetirementAge(e.target.value === '' ? '' : parseInt(e.target.value) || 50)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="50"
+            />
+            <p className="mt-1 text-xs text-gray-500">Age when you can start withdrawing from brokerage account</p>
+          </div>
+
           <div>
             <label htmlFor="pensionAge" className="block text-xs font-medium text-gray-600 mb-2">
               Pension Age
@@ -290,7 +335,37 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
             />
             <p className="mt-1 text-xs text-gray-500">Age when you can withdraw from pension</p>
           </div>
+        </div>
+      </div>
 
+      {/* Withdrawal Strategy Section */}
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <label className="block text-sm font-medium text-gray-700 mb-4">
+          Withdrawal Strategy
+        </label>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="salaryReplacementRate" className="block text-xs font-medium text-gray-600 mb-2">
+              Salary Replacement Rate
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                id="salaryReplacementRate"
+                min="0"
+                max="100"
+                step="0.1"
+                value={salaryReplacementRate}
+                onChange={(e) => setSalaryReplacementRate(e.target.value === '' ? '' : parseFloat(e.target.value) || 80)}
+                className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="80"
+              />
+              <span className="absolute right-3 top-2.5 text-gray-500">%</span>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Percentage of final salary to withdraw annually during early retirement</p>
+          </div>
+          
           <div>
             <label htmlFor="withdrawalRate" className="block text-xs font-medium text-gray-600 mb-2">
               Annual Withdrawal Rate
@@ -313,62 +388,109 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Pension Withdrawal Method
+          </label>
+          <div className="space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="pensionWithdrawalMethod"
+                checked={!useSalaryReplacementForPension}
+                onChange={() => setUseSalaryReplacementForPension(false)}
+                className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Withdrawal Rate ({withdrawalRate}% Rule)</p>
+                <p className="text-xs text-gray-500">Withdraw {withdrawalRate}% of pension balance annually</p>
+              </div>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="pensionWithdrawalMethod"
+                checked={useSalaryReplacementForPension}
+                onChange={() => setUseSalaryReplacementForPension(true)}
+                className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Salary Replacement ({salaryReplacementRate}%)</p>
+                <p className="text-xs text-gray-500">Use {salaryReplacementRate}% of hypothetical salary, continuing to grow annually</p>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Pension Lump Sum Section */}
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <label className="block text-sm font-medium text-gray-700 mb-4">
+          Pension Lump Sum
+        </label>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="earlyRetirementAge" className="block text-xs font-medium text-gray-600 mb-2">
-              Early Retirement Age
+            <label htmlFor="pensionLumpSumAge" className="block text-xs font-medium text-gray-600 mb-2">
+              Lump Sum Withdrawal Age
             </label>
             <input
               type="number"
-              id="earlyRetirementAge"
-              min="18"
+              id="pensionLumpSumAge"
+              min="50"
               max="100"
-              value={earlyRetirementAge}
-              onChange={(e) => setEarlyRetirementAge(e.target.value === '' ? '' : parseInt(e.target.value) || 50)}
+              value={pensionLumpSumAge}
+              onChange={(e) => setPensionLumpSumAge(e.target.value === '' ? '' : parseInt(e.target.value) || 50)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="50"
             />
-            <p className="mt-1 text-xs text-gray-500">Age when you can start withdrawing from brokerage account</p>
+            <p className="mt-1 text-xs text-gray-500">Age to withdraw 25% of pension (capped at €200,000)</p>
           </div>
 
           <div>
-            <label htmlFor="salaryReplacementRate" className="block text-xs font-medium text-gray-600 mb-2">
-              Salary Replacement Rate
+            <label htmlFor="lumpSumToBrokerageRate" className="block text-xs font-medium text-gray-600 mb-4">
+              Allocation
             </label>
-            <div className="relative">
-              <input
-                type="number"
-                id="salaryReplacementRate"
-                min="0"
-                max="100"
-                step="0.1"
-                value={salaryReplacementRate}
-                onChange={(e) => setSalaryReplacementRate(e.target.value === '' ? '' : parseFloat(e.target.value) || 80)}
-                className="w-full pr-8 pl-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="80"
-              />
-              <span className="absolute right-3 top-2.5 text-gray-500">%</span>
+            <div className="space-y-4">
+              {/* Slider with labels */}
+              <div className="flex items-end gap-3">
+                <div className="flex-shrink-0">
+                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Brokerage</p>
+                  <p className="text-xl font-bold text-emerald-600">{typeof lumpSumToBrokerageRate === 'number' ? Math.round(lumpSumToBrokerageRate) : 80}%</p>
+                </div>
+                <input
+                  type="range"
+                  id="lumpSumToBrokerageRate"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : 80}
+                  onChange={(e) => setLumpSumToBrokerageRate(parseFloat(e.target.value))}
+                  className="flex-1 h-3 bg-gray-200 rounded-full appearance-none cursor-pointer accent-emerald-600 slider"
+                  style={{
+                    background: `linear-gradient(to right, rgb(16, 185, 129) 0%, rgb(16, 185, 129) ${typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : 80}%, rgb(59, 130, 246) ${typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : 80}%, rgb(59, 130, 246) 100%)`
+                  }}
+                />
+                <div className="flex-shrink-0 text-right">
+                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Savings</p>
+                  <p className="text-xl font-bold text-blue-600">{typeof lumpSumToBrokerageRate === 'number' ? Math.round(100 - lumpSumToBrokerageRate) : 20}%</p>
+                </div>
+              </div>
             </div>
-            <p className="mt-1 text-xs text-gray-500">Percentage of final salary to withdraw annually during early retirement</p>
+            <p className="mt-3 text-xs text-gray-500">Drag to allocate your pension lump sum between brokerage and savings accounts</p>
           </div>
         </div>
-
-        {typeof targetAge === 'number' && typeof currentAge === 'number' && targetAge > currentAge && (
-          <div className="mb-4 p-3 bg-blue-50 rounded text-sm text-blue-900">
-            Time horizon: <strong>{targetAge - currentAge} years</strong>
-          </div>
-        )}
-
-        {errors.length > 0 && (
-          <div className="mb-4 p-3 bg-red-50 rounded border border-red-200">
-            {errors.map((error, idx) => (
-              <p key={idx} className="text-sm text-red-700">
-                • {error}
-              </p>
-            ))}
-          </div>
-        )}
       </div>
+
+      {errors.length > 0 && (
+        <div className="p-3 bg-red-50 rounded border border-red-200">
+          {errors.map((error, idx) => (
+            <p key={idx} className="text-sm text-red-700">
+              • {error}
+            </p>
+          ))}
+        </div>
+      )}
 
       <button
         type="submit"

@@ -28,12 +28,13 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             let endingBalance = 0;
             const age = results.accountResults[0].yearlyData[index].age;
             const monthlyData = results.accountResults[0].yearlyData[index].monthlyData.map((m) => {
-              const combinedMonth = { ...m };
+              const combinedMonth = { ...m, withdrawal: 0 };
               results.accountResults.slice(1).forEach((account) => {
                 const monthData = account.yearlyData[index].monthlyData[m.month - 1];
                 combinedMonth.startingBalance += monthData.startingBalance;
                 combinedMonth.contribution += monthData.contribution;
                 combinedMonth.interest += monthData.interest;
+                combinedMonth.withdrawal += monthData.withdrawal;
                 combinedMonth.endingBalance += monthData.endingBalance;
               });
               return combinedMonth;
@@ -186,6 +187,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                               <tr className="text-gray-600 border-b border-gray-300">
                                 <th className="text-left py-2 pl-4 font-medium">Month / Year</th>
                                 <th className="text-right py-2 pr-4 font-medium">Starting</th>
+                                <th className="text-right py-2 pr-4 font-medium">Withdrawal</th>
                                 <th className="text-right py-2 pr-4 font-medium">Contribution</th>
                                 <th className="text-right py-2 pr-4 font-medium">Interest</th>
                                 <th className="text-right py-2 pr-4 font-medium">Ending</th>
@@ -196,6 +198,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                                 <tr key={month.month} className="border-b border-gray-200 hover:bg-gray-100">
                                   <td className="text-left py-2 pl-4 text-gray-700">{month.monthYear}</td>
                                   <td className="text-right py-2 pr-4 text-gray-600">{formatCurrency(month.startingBalance)}</td>
+                                  <td className="text-right py-2 pr-4 text-red-600">{formatCurrency(month.withdrawal)}</td>
                                   <td className="text-right py-2 pr-4 text-green-600">{formatCurrency(month.contribution)}</td>
                                   <td className="text-right py-2 pr-4 text-purple-600">{formatCurrency(month.interest)}</td>
                                   <td className="text-right py-2 pr-4 font-medium text-gray-900">{formatCurrency(month.endingBalance)}</td>

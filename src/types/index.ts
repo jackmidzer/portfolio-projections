@@ -25,6 +25,7 @@ export interface MonthlyBreakdown {
   startingBalance: number;
   contribution: number;
   interest: number;
+  withdrawal: number; // amount withdrawn (pension or brokerage withdrawal)
   endingBalance: number;
 }
 
@@ -59,6 +60,9 @@ export interface PortfolioInputs {
   withdrawalRate: number; // annual withdrawal percent for pension (default 4)
   earlyRetirementAge: number; // age when early retirement withdrawals can start (default 50)
   salaryReplacementRate: number; // replacement rate for salary during early retirement (default 80)
+  pensionLumpSumAge: number; // age when pension lump sum can be withdrawn (default 50, minimum 50)
+  lumpSumToBrokerageRate: number; // allocation rate of lump sum to brokerage as % (default 80)
+  useSalaryReplacementForPension?: boolean; // if true, use salary replacement at pension age instead of withdrawal rate
 }
 
 export interface PortfolioResults {
