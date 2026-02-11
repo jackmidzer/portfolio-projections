@@ -30,7 +30,8 @@ function App() {
       inputs.houseWithdrawalAge,
       inputs.enableHouseWithdrawal,
       inputs.houseDepositPercent,
-      inputs.houseDepositFromBrokerageRate
+      inputs.houseDepositFromBrokerageRate,
+      inputs.enablePensionLumpSum
     );
     setResults(calculatedResults);
     
@@ -41,26 +42,34 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+      <div className="container mx-auto px-4 py-12 max-w-6xl">
         {/* Header */}
-        <header className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
+        <header className="text-center mb-16">
+          <div className="inline-block mb-4">
+            <div className="text-5xl mb-3">📈</div>
+          </div>
+          <h1 className="text-5xl md:text-6xl font-black text-gray-900 mb-4 tracking-tight">
             Portfolio Projections
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Plan your financial future with compound interest projections across multiple accounts
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+            Advanced financial planning tool. Project your wealth growth across multiple investment accounts with precision.
           </p>
         </header>
 
         {/* Input Form */}
-        <div className="mb-12">
+        <div className="mb-16">
           <InputForm onCalculate={handleCalculate} />
         </div>
 
         {/* Results Section */}
         {results && (
-          <div id="results" className="space-y-8">
+          <div id="results" className="space-y-12">
+            <div className="pt-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
+                <span>📊</span> Your Projections
+              </h2>
+            </div>
             <AccountSummary results={results} />
             <PortfolioChart results={results} />
             <ResultsTable results={results} />
@@ -68,10 +77,12 @@ function App() {
         )}
 
         {/* Footer */}
-        <footer className="mt-16 text-center text-gray-500 text-sm">
+        <footer className="mt-24 pt-12 border-t border-gray-200 text-center text-gray-600 text-sm">
+          <p className="mb-2">
+            ⚠️ This is an educational calculator demonstrating compound interest and financial projections.
+          </p>
           <p>
-            This is an MVP calculator for educational purposes. Results are projections based on
-            your inputs and do not constitute financial advice.
+            Results are estimates based on your inputs and do not constitute professional financial advice.
           </p>
         </footer>
       </div>

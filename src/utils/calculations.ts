@@ -35,7 +35,8 @@ export function calculateAccountGrowth(
   houseWithdrawalAge?: number,
   enableHouseWithdrawal?: boolean,
   houseDepositPercent?: number,
-  houseDepositFromBrokerageRate?: number
+  houseDepositFromBrokerageRate?: number,
+  enablePensionLumpSum?: boolean
 ): AccountResults {
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
@@ -109,7 +110,7 @@ export function calculateAccountGrowth(
     
     if (isJanuary) {
       // Pension lump sum: withdraw 25% of balance (capped at 200k) at lumpSumAge
-      if (isPensionAccount && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1)) {
+      if (isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1)) {
         const lumpSumAmount = Math.min(monthStartBalance * 0.25, 200000);
         monthWithdrawal = lumpSumAmount;
         currentBalance -= monthWithdrawal;
@@ -152,7 +153,7 @@ export function calculateAccountGrowth(
       }
       
       // Savings/Brokerage: receive lump sum allocation at lumpSumAge (add to contributions) - only in January
-      if (!isPensionAccount && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1) && pensionLumpSumAmount !== undefined && pensionLumpSumAmount > 0) {
+      if (!isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1) && pensionLumpSumAmount !== undefined && pensionLumpSumAmount > 0) {
         lumpSumContribution = pensionLumpSumAmount;
       }
     }
@@ -317,7 +318,8 @@ export function calculatePortfolioGrowth(
   houseWithdrawalAge?: number,
   enableHouseWithdrawal?: boolean,
   houseDepositPercent?: number,
-  houseDepositFromBrokerageRate?: number
+  houseDepositFromBrokerageRate?: number,
+  enablePensionLumpSum?: boolean
 ): PortfolioResults {
   const pensionAgeValue = pensionAge ?? 65;
   const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
@@ -347,7 +349,8 @@ export function calculatePortfolioGrowth(
       houseWithdrawalAge,
       enableHouseWithdrawal,
       houseDepositPercent,
-      houseDepositFromBrokerageRate
+      houseDepositFromBrokerageRate,
+      enablePensionLumpSum
     );
     
     // Find the lump sum amount from the pension monthly data
@@ -413,7 +416,8 @@ export function calculatePortfolioGrowth(
       houseWithdrawalAge,
       enableHouseWithdrawal,
       houseDepositPercent,
-      houseDepositFromBrokerageRate
+      houseDepositFromBrokerageRate,
+      enablePensionLumpSum
     );
   });
 
@@ -457,6 +461,7 @@ export function calculatePortfolioGrowth(
     earlyRetirementAge: earlyRetirementAgeValue,
     pensionAge: pensionAgeValue,
     pensionLumpSumAge: pensionLumpSumAgeValue,
+    enablePensionLumpSum,
     houseWithdrawalAge,
     enableHouseWithdrawal,
   };

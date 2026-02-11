@@ -100,7 +100,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
   };
 
   // Custom shape for shortened reference lines relative to data height with labels
-  const ShortenedReferenceLineWithLabel = (labelText: string, color: string, age: number) => (props: any) => {
+  const ShortenedReferenceLineWithLabel = (labelText: string, color: string, age: number, duplicateIndex: number = 0) => (props: any) => {
     const { x1, y1, y2, stroke, strokeDasharray } = props;
     const lineHeight = y2 - y1;
     
@@ -134,7 +134,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
     );
     
     // Calculate the line height relative to the data value
-    const valueRatio = value / maxValue;
+    const valueRatio = value / (maxValue * 2);
     const shortenedY2 = (y2 - lineHeight * (1 - valueRatio)) - 100;
     
     // Collect all milestone ages to detect overlapping labels
@@ -150,20 +150,31 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
     // Check if this age is close to other ages (within 4 years)
     const otherAges = milestoneAges.filter(a => a !== age);
     const closeAges = otherAges.filter(a => Math.abs(a - age) <= 4);
+    const sameAges = milestoneAges.filter(a => a === age);
     
-    let labelXOffset = 0;
-    if (closeAges.length > 0) {
-      // If there are younger ages nearby, offset to the right; if older, offset to the left
+    let labelYOffset = 0;
+    
+    if (sameAges.length > 1) {
+      // Multiple milestones at the same age - use duplicateIndex to alternate offsets
+      if (closeAges.length > 0) {
+        // If there are also nearby ages, use larger offsets for same-age milestones
+        labelYOffset = duplicateIndex % 2 === 0 ? -30 : 30;
+      } else {
+        // Only same ages, standard offset
+        labelYOffset = duplicateIndex % 2 === 0 ? -20 : 20;
+      }
+    } else if (closeAges.length > 0) {
+      // Single milestone with nearby ages
       const hasYoungerClose = closeAges.some(a => a < age);
       const hasOlderClose = closeAges.some(a => a > age);
       
       if (hasYoungerClose && !hasOlderClose) {
-        labelXOffset = 50; // Offset right
+        labelYOffset = -20; // Offset down
       } else if (hasOlderClose && !hasYoungerClose) {
-        labelXOffset = -50; // Offset left
+        labelYOffset = 20; // Offset up
       } else {
         // Both younger and older nearby, alternate
-        labelXOffset = age % 2 === 0 ? 50 : -50;
+        labelYOffset = age % 2 === 0 ? -20 : 20;
       }
     }
     
@@ -172,14 +183,14 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
         <line
           x1={x1}
           y1={y1}
-          x2={x1 + labelXOffset}
-          y2={shortenedY2}
+          x2={x1}
+          y2={shortenedY2 + labelYOffset}
           stroke={stroke}
           strokeDasharray={strokeDasharray}
         />
         <text
-          x={x1 + labelXOffset}
-          y={shortenedY2}
+          x={x1}
+          y={shortenedY2 + labelYOffset}
           fill={color}
           fontSize={12}
           textAnchor="middle"
@@ -220,26 +231,26 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
               x={results.earlyRetirementAge}
               stroke="#f59e0b"
               strokeDasharray="5 5"
-              shape={ShortenedReferenceLineWithLabel(`Early Retirement (${results.earlyRetirementAge})`, '#d97706', results.earlyRetirementAge)}
+              shape={ShortenedReferenceLineWithLabel(`Early Retirement (${results.earlyRetirementAge})`, '#d97706', results.earlyRetirementAge, 0)}
             />
             <ReferenceLine
               x={results.pensionAge}
               stroke="#f59e0b"
               strokeDasharray="5 5"
-              shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge)}
+              shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
             />
             <ReferenceLine
               x={results.pensionLumpSumAge}
               stroke="#f59e0b"
               strokeDasharray="5 5"
-              shape={ShortenedReferenceLineWithLabel(`Lump Sum (${results.pensionLumpSumAge})`, '#f59e0b', results.pensionLumpSumAge)}
+              shape={ShortenedReferenceLineWithLabel(`Lump Sum (${results.pensionLumpSumAge})`, '#f59e0b', results.pensionLumpSumAge, [results.earlyRetirementAge, results.pensionAge].filter(a => a === results.pensionLumpSumAge).length)}
             />
             {results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined && (
               <ReferenceLine
                 x={results.houseWithdrawalAge}
                 stroke="#f59e0b"
                 strokeDasharray="5 5"
-                shape={ShortenedReferenceLineWithLabel(`House Purchase (${results.houseWithdrawalAge})`, '#f59e0b', results.houseWithdrawalAge)}
+                shape={ShortenedReferenceLineWithLabel(`House Purchase (${results.houseWithdrawalAge})`, '#f59e0b', results.houseWithdrawalAge, [results.earlyRetirementAge, results.pensionAge, results.pensionLumpSumAge].filter(a => a === results.houseWithdrawalAge).length)}
               />
             )}
             {showPrincipalInterest ? (
@@ -298,26 +309,26 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
             x={results.earlyRetirementAge}
             stroke="#f59e0b"
             strokeDasharray="5 5"
-            shape={ShortenedReferenceLineWithLabel(`Early Retirement (${results.earlyRetirementAge})`, '#d97706', results.earlyRetirementAge)}
+            shape={ShortenedReferenceLineWithLabel(`Early Retirement (${results.earlyRetirementAge})`, '#d97706', results.earlyRetirementAge, 0)}
           />
           <ReferenceLine
             x={results.pensionAge}
             stroke="#f59e0b"
             strokeDasharray="5 5"
-            shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge)}
+            shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
           />
           <ReferenceLine
             x={results.pensionLumpSumAge}
             stroke="#06b6d4"
             strokeDasharray="5 5"
-            shape={ShortenedReferenceLineWithLabel(`Lump Sum (${results.pensionLumpSumAge})`, '#0891b2', results.pensionLumpSumAge)}
+            shape={ShortenedReferenceLineWithLabel(`Lump Sum (${results.pensionLumpSumAge})`, '#0891b2', results.pensionLumpSumAge, [results.earlyRetirementAge, results.pensionAge].filter(a => a === results.pensionLumpSumAge).length)}
           />
           {results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined && (
             <ReferenceLine
               x={results.houseWithdrawalAge}
               stroke="#ec4899"
               strokeDasharray="5 5"
-              shape={ShortenedReferenceLineWithLabel(`House Purchase (${results.houseWithdrawalAge})`, '#ec4899', results.houseWithdrawalAge)}
+              shape={ShortenedReferenceLineWithLabel(`House Purchase (${results.houseWithdrawalAge})`, '#ec4899', results.houseWithdrawalAge, [results.earlyRetirementAge, results.pensionAge, results.pensionLumpSumAge].filter(a => a === results.houseWithdrawalAge).length)}
             />
           )}
           {showTotal && selectedAccount === 'All' && !showPrincipalInterest && (
