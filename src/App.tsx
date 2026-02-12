@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense } from 'react';
 import InputForm from './components/InputForm';
 import AccountSummary from './components/AccountSummary';
+import MilestoneSummary from './components/MilestoneSummary';
 import ResultsTable from './components/ResultsTable';
 import { PortfolioInputs, PortfolioResults } from './types';
 import { calculatePortfolioGrowth } from './utils/calculations';
@@ -74,6 +75,24 @@ function App() {
               </h2>
             </div>
             <AccountSummary results={results} />
+            
+            {/* Milestone Summaries */}
+            {results.earlyRetirementSnapshot && (
+              <MilestoneSummary 
+                snapshot={results.earlyRetirementSnapshot} 
+                title="Early Retirement Milestone" 
+                ageLabel="Early Retirement"
+              />
+            )}
+            
+            {results.pensionAgeSnapshot && (
+              <MilestoneSummary 
+                snapshot={results.pensionAgeSnapshot} 
+                title="Pension Age Milestone" 
+                ageLabel="Pension Age"
+              />
+            )}
+            
             <Suspense fallback={<div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">Loading chart...</div>}>
               <PortfolioChart results={results} />
             </Suspense>

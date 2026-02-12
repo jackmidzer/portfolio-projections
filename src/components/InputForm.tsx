@@ -52,8 +52,6 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   // Tax Calculation State
   const [enableTaxCalculation, setEnableTaxCalculation] = useState<boolean>(true);
   const [taxBikValue, setTaxBikValue] = useState<number | ''>(1600);
-  const [taxRentalRelief, setTaxRentalRelief] = useState<number | ''>(1000);
-  const [taxMedicalInsuranceRelief, setTaxMedicalInsuranceRelief] = useState<number | ''>(200);
   const [taxCalculationResult, setTaxCalculationResult] = useState<TaxCalculationResult | null>(null);
   
   const [errors, setErrors] = useState<string[]>([]);
@@ -117,14 +115,12 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         grossSalary: salary,
         pensionContribution: pensionContribution,
         bikValue: typeof taxBikValue === 'number' ? taxBikValue : 0,
-        rentalRelief: typeof taxRentalRelief === 'number' ? taxRentalRelief : 0,
-        medicalInsuranceRelief: typeof taxMedicalInsuranceRelief === 'number' ? taxMedicalInsuranceRelief : 0,
       });
       setTaxCalculationResult(result);
     } else {
       setTaxCalculationResult(null);
     }
-  }, [enableTaxCalculation, currentSalary, currentPensionPercent, taxBikValue, taxRentalRelief, taxMedicalInsuranceRelief]);
+  }, [enableTaxCalculation, currentSalary, currentPensionPercent, taxBikValue]);
 
   const handleAccountChange = (index: number, updatedAccount: AccountInputType) => {
     const newAccounts = [...accounts];
@@ -261,8 +257,6 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         grossSalary: salary,
         pensionContribution: (salary * currentPensionPercent) / 100,
         bikValue: typeof taxBikValue === 'number' ? taxBikValue : 0,
-        rentalRelief: typeof taxRentalRelief === 'number' ? taxRentalRelief : 0,
-        medicalInsuranceRelief: typeof taxMedicalInsuranceRelief === 'number' ? taxMedicalInsuranceRelief : 0,
       } : undefined;
 
       onCalculate({
@@ -822,7 +816,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
           />
           <div>
             <p className="text-sm font-semibold text-gray-900">Calculate net salary (Irish tax)</p>
-            <p className="text-xs text-gray-600 mt-1">Account for PAYE, USC, PRSI, and pension contributions to determine disposable income</p>
+            <p className="text-xs text-gray-600 mt-1">Account for PAYE, USC, PRSI, and pension contributions to determine net income</p>
           </div>
         </label>
 
@@ -882,45 +876,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                 <p className="mt-2 text-xs text-gray-600">Health insurance, car, etc.</p>
               </div>
 
-              <div>
-                <label htmlFor="taxRentalRelief" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                  Rental Relief
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-3.5 text-red-600 font-bold">€</span>
-                  <input
-                    type="number"
-                    id="taxRentalRelief"
-                    min="0"
-                    step="100"
-                    value={taxRentalRelief}
-                    onChange={(e) => setTaxRentalRelief(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                    placeholder="1000"
-                  />
-                </div>
-                <p className="mt-2 text-xs text-gray-600">Rental accommodation relief (monthly rent relief)</p>
-              </div>
 
-              <div>
-                <label htmlFor="taxMedicalInsuranceRelief" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                  Medical Insurance Relief
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-3.5 text-red-600 font-bold">€</span>
-                  <input
-                    type="number"
-                    id="taxMedicalInsuranceRelief"
-                    min="0"
-                    step="50"
-                    value={taxMedicalInsuranceRelief}
-                    onChange={(e) => setTaxMedicalInsuranceRelief(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                    placeholder="200"
-                  />
-                </div>
-                <p className="mt-2 text-xs text-gray-600">Health insurance premium relief</p>
-              </div>
             </div>
 
             {taxCalculationResult && (

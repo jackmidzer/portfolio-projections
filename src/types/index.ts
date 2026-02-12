@@ -37,7 +37,8 @@ export interface MonthlyBreakdown {
   interest: number;
   withdrawal: number; // amount withdrawn (pension or brokerage withdrawal)
   endingBalance: number;
-  monthlyNetSalary: number; // disposable income after taxes and pension contributions
+  monthlyNetSalary: number; // net income after taxes and pension contributions
+  monthlyTax?: number; // monthly tax paid (PAYE + USC + PRSI)
 }
 
 export interface YearlyBreakdown {
@@ -85,6 +86,19 @@ export interface PortfolioInputs {
   enableTaxCalculation?: boolean; // whether to show tax calculation
 }
 
+export interface MilestoneSnapshot {
+  age: number; // age at the milestone
+  accountBalances: Array<{
+    accountName: AccountType;
+    finalBalance: number;
+    totalContributions: number;
+    totalInterest: number;
+  }>;
+  totalBalance: number;
+  totalContributions: number;
+  totalInterest: number;
+}
+
 export interface PortfolioResults {
   accountResults: AccountResults[];
   totalFinalBalance: number;
@@ -99,6 +113,8 @@ export interface PortfolioResults {
   enablePensionLumpSum?: boolean; // whether pension lump sum withdrawal is enabled
   houseWithdrawalAge?: number; // age when house purchase withdrawal occurs
   enableHouseWithdrawal?: boolean; // whether house withdrawal is enabled
+  earlyRetirementSnapshot?: MilestoneSnapshot; // portfolio snapshot at early retirement age
+  pensionAgeSnapshot?: MilestoneSnapshot; // portfolio snapshot at pension age
   taxInputs?: TaxInputs; // optional Irish tax calculation inputs
   enableTaxCalculation?: boolean; // whether to show tax calculation
 }
@@ -108,8 +124,6 @@ export interface TaxInputs {
   grossSalary: number; // Annual gross salary in EUR
   pensionContribution: number; // Annual pension contribution in EUR
   bikValue: number; // Benefit in Kind value in EUR
-  rentalRelief: number; // Rental relief amount in EUR
-  medicalInsuranceRelief: number; // Medical insurance relief amount in EUR
 }
 
 export interface TaxCalculationResult {
@@ -135,8 +149,6 @@ export interface TaxCalculationResult {
   taxCreditsApplied: {
     personal: number;
     earned: number;
-    rental: number;
-    medicalInsurance: number;
     total: number;
   };
   payeTaxBands: Array<{

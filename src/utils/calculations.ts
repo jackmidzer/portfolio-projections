@@ -1,4 +1,4 @@
-import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown, TaxInputs } from '../types';
+import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot } from '../types';
 import { calculateNetSalary } from './taxCalculations';
 import { isWorkingPhase, isEarlyRetirementPhase, isPensionPhase } from './phaseHelpers';
 
@@ -12,6 +12,78 @@ function getAgeBracketPercentage(age: number, brackets: AgeBracketContributions)
   if (age < 55) return brackets.age50to54;
   if (age < 60) return brackets.age55to59;
   return brackets.age60plus;
+}
+
+/**
+ * Extract a milestone snapshot at a specific age from account results
+ * Returns undefined if the age is not reached
+ */
+function extractMilestoneSnapshot(accountResults: AccountResults[], targetAge: number): MilestoneSnapshot | undefined {
+  // Find the first year at or after the target age across all accounts
+  let snapshotYearIndex = -1;
+  
+  for (const result of accountResults) {
+    for (let i = 0; i < result.yearlyData.length; i++) {
+      if (result.yearlyData[i].age >= targetAge) {
+        snapshotYearIndex = i;
+        break;
+      }
+    }
+    if (snapshotYearIndex >= 0) break;
+  }
+  
+  // If target age was not reached, return undefined
+  if (snapshotYearIndex < 0) {
+    return undefined;
+  }
+  
+  // Build the snapshot data at this year
+  const accountBalances = accountResults.map((result) => {
+    const yearData = result.yearlyData[snapshotYearIndex];
+    
+    // Calculate cumulative contributions and interest up to this year
+    let cumulativeContributions = 0;
+    let cumulativeInterest = 0;
+    for (let i = 0; i <= snapshotYearIndex; i++) {
+      cumulativeContributions += result.yearlyData[i].contributions;
+      cumulativeInterest += result.yearlyData[i].interestEarned;
+    }
+    
+    return {
+      accountName: result.accountName,
+      finalBalance: yearData.endingBalance,
+      totalContributions: cumulativeContributions,
+      totalInterest: cumulativeInterest,
+    };
+  });
+  
+  // Calculate cumulative totals up to this year
+  let totalBalance = 0;
+  let totalContributions = 0;
+  let totalInterest = 0;
+  
+  for (const result of accountResults) {
+    // Sum contributions across all years up to and including snapshotYearIndex
+    for (let i = 0; i <= snapshotYearIndex; i++) {
+      totalContributions += result.yearlyData[i].contributions;
+    }
+    // Add final balance at snapshot year
+    totalBalance += result.yearlyData[snapshotYearIndex].endingBalance;
+    // Interest is calculated as ending balance - starting balance - contributions + withdrawals
+    for (let i = 0; i <= snapshotYearIndex; i++) {
+      totalInterest += result.yearlyData[i].interestEarned;
+    }
+  }
+  
+  const age = accountResults[0]?.yearlyData[snapshotYearIndex]?.age || targetAge;
+  
+  return {
+    age,
+    accountBalances,
+    totalBalance,
+    totalContributions,
+    totalInterest,
+  };
 }
 
 /**
@@ -217,23 +289,25 @@ export function calculateAccountGrowth(
     // Format month/year as 'FEB 2026'
     const monthLabel = monthDate.toLocaleString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
 
-    // Calculate monthly net salary (disposable income)
+    // Calculate monthly net salary (net income)
     // Note: This is simplified to show gross salary when tax calc is disabled,
     // and uses tax calculation results when enabled
     let monthlyNetSalary = 0;
+    let monthlyTax = 0;
     if (salaryAtMonth > 0 && enableTaxCalculation && taxInputs) {
       // Use tax calculation: calculate annual net salary then divide by 12
       const annualTaxResult = calculateNetSalary({
         grossSalary: salaryAtMonth,
         pensionContribution: taxInputs.pensionContribution,
         bikValue: taxInputs.bikValue || 0,
-        rentalRelief: taxInputs.rentalRelief || 0,
-        medicalInsuranceRelief: taxInputs.medicalInsuranceRelief || 0,
       });
       monthlyNetSalary = annualTaxResult.monthlyNetSalary;
+      // Monthly tax = (PAYE + USC + PRSI) / 12
+      monthlyTax = (annualTaxResult.payeTax + annualTaxResult.usc + annualTaxResult.prsi) / 12;
     } else if (salaryAtMonth > 0) {
-      // Simple case: show gross salary as disposable income (no tax applied)
+      // Simple case: show gross salary as net income (no tax applied)
       monthlyNetSalary = salaryAtMonth / 12;
+      monthlyTax = 0;
     }
 
     allMonthlyData.push({
@@ -246,6 +320,7 @@ export function calculateAccountGrowth(
       withdrawal: monthWithdrawal,
       endingBalance: currentBalance,
       monthlyNetSalary,
+      monthlyTax,
     });
 
     // Advance to next month
@@ -483,6 +558,10 @@ export function calculatePortfolioGrowth(
   // Calculate bonus salary at the same milestone
   const bonusSalary = bonusPercent !== undefined && bonusPercent > 0 ? finalSalary * (bonusPercent / 100) : 0;
 
+  // Extract milestone snapshots
+  const earlyRetirementSnapshot = extractMilestoneSnapshot(accountResults, earlyRetirementAgeValue);
+  const pensionAgeSnapshot = extractMilestoneSnapshot(accountResults, pensionAgeValue);
+
   return {
     accountResults,
     totalFinalBalance,
@@ -497,6 +576,10 @@ export function calculatePortfolioGrowth(
     enablePensionLumpSum,
     houseWithdrawalAge,
     enableHouseWithdrawal,
+    earlyRetirementSnapshot,
+    pensionAgeSnapshot,
+    taxInputs,
+    enableTaxCalculation,
   };
 }
 

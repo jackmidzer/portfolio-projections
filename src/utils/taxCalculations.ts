@@ -17,18 +17,14 @@ export interface TaxCalculationInput {
   grossSalary: number;
   pensionContribution: number;
   bikValue: number;
-  rentalRelief: number;
-  medicalInsuranceRelief: number;
 }
 
 /**
  * Calculate PAYE tax with band details
  */
 function calculatePayeTaxWithDetails(
-  taxableIncome: number,
-  rentalRelief: number = 0,
-  medicalInsuranceRelief: number = 0
-): { totalTax: number; bands: Array<{ startThreshold: number; threshold: number; rate: number; incomeInBand: number; taxInBand: number }>; creditsApplied: { personal: number; earned: number; rental: number; medicalInsurance: number; total: number } } {
+  taxableIncome: number
+): { totalTax: number; bands: Array<{ startThreshold: number; threshold: number; rate: number; incomeInBand: number; taxInBand: number }>; creditsApplied: { personal: number; earned: number; total: number } } {
   const taxBands = getTaxBands();
   let tax = 0;
   let previousThreshold = 0;
@@ -58,7 +54,7 @@ function calculatePayeTaxWithDetails(
   // Apply tax credits
   const personalCredit = getPersonalTaxCredit();
   const earnedCredit = getEarnedIncomeCredit();
-  const totalCredits = personalCredit + earnedCredit + rentalRelief + medicalInsuranceRelief;
+  const totalCredits = personalCredit + earnedCredit;
 
   // Tax cannot be negative after credits
   const finalTax = Math.max(0, tax - totalCredits);
@@ -69,8 +65,6 @@ function calculatePayeTaxWithDetails(
     creditsApplied: {
       personal: personalCredit,
       earned: earnedCredit,
-      rental: rentalRelief,
-      medicalInsurance: medicalInsuranceRelief,
       total: totalCredits,
     },
   };
@@ -201,7 +195,7 @@ export function calculateTaxableIncome(
  * Main function: Calculate complete tax breakdown for Irish salary
  */
 export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationResult {
-  const { grossSalary, pensionContribution, bikValue, rentalRelief = 0, medicalInsuranceRelief = 0 } = input;
+  const { grossSalary, pensionContribution, bikValue } = input;
 
   // BIK is added to gross income for all tax purposes
   const grossIncomeWithBIK = grossSalary + bikValue;
@@ -211,7 +205,7 @@ export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationRe
   const taxableIncome = calculateTaxableIncome(grossIncomeWithBIK, pensionContribution);
 
   // Calculate PAYE with band details and apply reliefs
-  const payeeTaxDetails = calculatePayeTaxWithDetails(taxableIncome, rentalRelief, medicalInsuranceRelief);
+  const payeeTaxDetails = calculatePayeTaxWithDetails(taxableIncome);
   const payeTax = payeeTaxDetails.totalTax;
   const payeTaxBands = payeeTaxDetails.bands;
   const taxCredits = payeeTaxDetails.creditsApplied;
@@ -227,12 +221,12 @@ export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationRe
   // Total deductions
   const totalTax = payeTax + usc + prsi;
 
-  // Disposable income: Gross salary minus pension contribution and taxes
-  // (BIK is included in taxable income but not in cash disposable income)
+  // Net income: Gross salary minus pension contribution and taxes
+  // (BIK is included in taxable income but not in cash net income)
   const netSalary = grossSalary - pensionContribution - totalTax;
 
   // Effective tax rate
-  const effectiveTaxRate = grossIncomeWithBIK > 0 ? (totalTax / grossIncomeWithBIK) * 100 : 0;
+  const effectiveTaxRate = grossSalary > 0 ? (totalTax / grossSalary) * 100 : 0;
 
   // Monthly amounts
   const monthlyNetSalary = netSalary / 12;

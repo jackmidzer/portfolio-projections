@@ -34,7 +34,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             const age = results.accountResults[0].yearlyData[index].age;
             const salary = results.accountResults[0].yearlyData[index].salary;
             const monthlyData = results.accountResults[0].yearlyData[index].monthlyData.map((m) => {
-              const combinedMonth = { ...m, withdrawal: 0 };
+              const combinedMonth = { ...m };
               results.accountResults.slice(1).forEach((account) => {
                 const monthData = account.yearlyData[index].monthlyData[m.month - 1];
                 combinedMonth.startingBalance += monthData.startingBalance;
@@ -109,7 +109,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                 Income
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Disposable Income
+                Monthly Tax
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Net Income
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Starting Balance
@@ -162,6 +165,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                 }
                 return sum + monthlyDisplayIncome;
               }, 0);
+              const annualTax = row.monthlyData.reduce((sum, month) => sum + (month.monthlyTax || 0), 0);
               const annualDisposableIncome = row.monthlyData.reduce((sum, month) => sum + month.monthlyNetSalary, 0);
               const annualWithdrawals = row.monthlyData.reduce((sum, month) => sum + month.withdrawal, 0);
               const annualContributions = row.monthlyData.reduce((sum, month) => sum + month.contribution, 0);
@@ -210,6 +214,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
                       {formatCurrency(annualIncome)}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-orange-600 font-medium">
+                      {formatCurrency(annualTax)}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-teal-600 font-medium">
                       {formatCurrency(annualDisposableIncome)}
                     </td>
@@ -231,7 +238,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                   </tr>
                   {isExpanded && (
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <td colSpan={9} className="px-6 py-4">
+                      <td colSpan={10} className="px-6 py-4">
                         <div className="text-xs font-semibold text-gray-600 mb-3">Monthly Breakdown for Age {row.age}</div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs">
@@ -239,6 +246,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                               <tr className="text-gray-600 border-b border-gray-300">
                                 <th className="text-left py-2 pl-4 font-medium">Month / Year</th>
                                 <th className="text-right py-2 pr-4 font-medium">Income</th>
+                                <th className="text-right py-2 pr-4 font-medium">Tax</th>
                                 <th className="text-right py-2 pr-4 font-medium">Disposable</th>
                                 <th className="text-right py-2 pr-4 font-medium">Starting</th>
                                 <th className="text-right py-2 pr-4 font-medium">Withdrawal</th>
@@ -269,7 +277,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                                   }
                                 }
 
-                                // Calculate monthly display disposable income
+                                // Calculate monthly display net income
                                 let monthlyDisplayDisposable = month.monthlyNetSalary;
                                 if (isInEarlyRetirement || isInPension) {
                                   monthlyDisplayDisposable = 0;
@@ -279,6 +287,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                                 <tr key={month.month} className="border-b border-gray-200 hover:bg-gray-100">
                                   <td className="text-left py-2 pl-4 text-gray-700">{month.monthYear}</td>
                                   <td className="text-right py-2 pr-4 text-blue-600">{formatCurrency(monthlyDisplayIncome)}</td>
+                                  <td className="text-right py-2 pr-4 text-orange-600">{formatCurrency(month.monthlyTax || 0)}</td>
                                   <td className="text-right py-2 pr-4 text-teal-600 font-medium">{formatCurrency(monthlyDisplayDisposable)}</td>
                                   <td className="text-right py-2 pr-4 text-gray-600">{formatCurrency(month.startingBalance)}</td>
                                   <td className="text-right py-2 pr-4 text-red-600">{formatCurrency(month.withdrawal)}</td>

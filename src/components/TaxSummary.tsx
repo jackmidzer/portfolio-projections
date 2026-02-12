@@ -90,18 +90,6 @@ export default function TaxSummary({ result, showDetail = true }: TaxSummaryProp
               <span>Earned Income Credit</span>
               <span className="font-mono">€{result.taxCreditsApplied.earned.toFixed(2)}</span>
             </div>
-            {result.taxCreditsApplied.rental > 0 && (
-              <div className="ml-2 flex justify-between text-sm text-gray-700 dark:text-gray-300">
-                <span>Rental Relief</span>
-                <span className="font-mono">€{result.taxCreditsApplied.rental.toFixed(2)}</span>
-              </div>
-            )}
-            {result.taxCreditsApplied.medicalInsurance > 0 && (
-              <div className="ml-2 flex justify-between text-sm text-gray-700 dark:text-gray-300">
-                <span>Medical Insurance Relief</span>
-                <span className="font-mono">€{result.taxCreditsApplied.medicalInsurance.toFixed(2)}</span>
-              </div>
-            )}
             <div className="ml-2 flex justify-between border-t border-green-200 pt-1 dark:border-green-700 text-sm font-semibold text-green-700 dark:text-green-400">
               <span>PAYE Tax (after credits)</span>
               <span className="font-mono">€{result.payeTax.toFixed(2)}</span>
@@ -153,7 +141,7 @@ export default function TaxSummary({ result, showDetail = true }: TaxSummaryProp
               </p>
             </div>
             <div>
-              <p className="text-xs text-gray-600 dark:text-gray-400">Disposable Income / Month</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Net Income / Month</p>
               <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
                 {formatCurrency(result.monthlyNetSalary)}
               </p>
