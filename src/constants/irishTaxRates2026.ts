@@ -24,16 +24,11 @@ export const USC_RATES = [
 // PRSI (Pay Related Social Insurance)
 export const PRSI_SETTINGS = {
   employeeRate: 0.042375,      // 4.2375% employee contribution (updated for 2026)
-  employerRate: 0.1105,      // 11.05% employer contribution
-  annualCap: 3034,           // Annual maximum employee contribution
-  weeklyThreshold: 352,      // Weekly earnings threshold for coverage
 };
 
-// Pension Contribution Limits
-export const PENSION_SETTINGS = {
-  annualContributionLimit: 60000,  // Maximum annual contribution
-  reliefType: 'marginal',          // Tax relief at marginal rate (20% or 40%)
-};
+// Pension Tax Relief Cap
+// Maximum amount of earnings taken into account for calculating tax relief
+export const PENSION_TAX_RELIEF_CAP = 115000;
 
 /**
  * Get applicable tax bands (single filer)

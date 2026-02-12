@@ -32,7 +32,9 @@ function App() {
       inputs.enableHouseWithdrawal,
       inputs.houseDepositPercent,
       inputs.houseDepositFromBrokerageRate,
-      inputs.enablePensionLumpSum
+      inputs.enablePensionLumpSum,
+      inputs.taxInputs,
+      inputs.enableTaxCalculation
     );
     setResults(calculatedResults);
     

@@ -227,12 +227,15 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
+            {/* Phase transition reference lines */}
+            {/* Working Phase ends / Early Retirement Phase begins */}
             <ReferenceLine
               x={results.earlyRetirementAge}
               stroke="#f59e0b"
               strokeDasharray="5 5"
               shape={ShortenedReferenceLineWithLabel(`Early Retirement (${results.earlyRetirementAge})`, '#d97706', results.earlyRetirementAge, 0)}
             />
+            {/* Early Retirement Phase ends / Pension Phase begins */}
             <ReferenceLine
               x={results.pensionAge}
               stroke="#f59e0b"

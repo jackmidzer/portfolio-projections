@@ -50,7 +50,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [houseDepositFromBrokerageRate, setHouseDepositFromBrokerageRate] = useState<number | ''>(50);
   
   // Tax Calculation State
-  const [enableTaxCalculation, setEnableTaxCalculation] = useState<boolean>(false);
+  const [enableTaxCalculation, setEnableTaxCalculation] = useState<boolean>(true);
   const [taxBikValue, setTaxBikValue] = useState<number | ''>(1600);
   const [taxRentalRelief, setTaxRentalRelief] = useState<number | ''>(1000);
   const [taxMedicalInsuranceRelief, setTaxMedicalInsuranceRelief] = useState<number | ''>(200);

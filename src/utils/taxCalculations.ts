@@ -6,6 +6,7 @@
 import {
   USC_RATES,
   PRSI_SETTINGS,
+  PENSION_TAX_RELIEF_CAP,
   getTaxBands,
   getPersonalTaxCredit,
   getEarnedIncomeCredit,
@@ -168,22 +169,31 @@ export function calculateUSC(grossSalary: number): number {
 
 /**
  * Calculate PRSI (Pay Related Social Insurance)
- * PRSI is 4% of gross salary with an annual cap
+ * PRSI is 4.2375% of gross salary
  */
 export function calculatePRSI(grossSalary: number): number {
-  const prsi = grossSalary * PRSI_SETTINGS.employeeRate;
-  // Apply annual cap
-  return Math.min(prsi, PRSI_SETTINGS.annualCap);
+  return grossSalary * PRSI_SETTINGS.employeeRate;
 }
 
 /**
  * Calculate taxable income after accounting for pension contributions
  * Pension contributions reduce taxable income for PAYE calculation
+ * Note: Tax relief on pension contributions is capped at €115,000 of earnings
+ * (Employer contributions are not taken into consideration for this threshold)
  */
 export function calculateTaxableIncome(
   grossSalary: number,
   pensionContribution: number
 ): number {
+  // If earnings exceed the relief cap, only provide relief on capped earnings
+  if (grossSalary > PENSION_TAX_RELIEF_CAP) {
+    // Calculate the proportion of contributions that relate to capped earnings
+    const contributionRate = pensionContribution / grossSalary;
+    const cappedContributionRelief = PENSION_TAX_RELIEF_CAP * contributionRate;
+    return Math.max(0, grossSalary - cappedContributionRelief);
+  }
+  
+  // Below the cap, apply full pension contribution relief
   return Math.max(0, grossSalary - pensionContribution);
 }
 

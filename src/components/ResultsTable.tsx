@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { PortfolioResults, AccountType } from '../types';
 import { formatCurrency } from '../utils/formatters';
+import {
+  isWorkingPhase,
+  isEarlyRetirementPhase,
+  isPensionPhase,
+} from '../utils/phaseHelpers';
 
 interface ResultsTableProps {
   results: PortfolioResults;
@@ -37,6 +42,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                 combinedMonth.interest += monthData.interest;
                 combinedMonth.withdrawal += monthData.withdrawal;
                 combinedMonth.endingBalance += monthData.endingBalance;
+                // monthlyNetSalary is the same across all accounts, so we don't add it
               });
               return combinedMonth;
             });
@@ -100,7 +106,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                 Age
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Annual Salary
+                Income
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Disposable Income
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Starting Balance
@@ -122,16 +131,48 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           <tbody className="bg-white">
             {combinedData.map((row) => {
               const isFirstYearProRated = results.monthsUntilNextBirthday < 12 && row.year === 0;
-              const isEarlyRetirementPhase = row.age >= results.earlyRetirementAge && row.age < results.pensionAge;
-              const isPensionPhase = row.age >= results.pensionAge;
+              const isInEarlyRetirement = isEarlyRetirementPhase(
+                row.age,
+                results.earlyRetirementAge,
+                results.pensionAge
+              );
+              const isInPension = isPensionPhase(row.age, results.pensionAge);
+              void isWorkingPhase(row.age, results.earlyRetirementAge); // Reserved for future working-phase-specific logic
               const isExpanded = expandedYear === row.year;
+              
+              // Calculate all yearly metrics by summing monthly data
+              const annualIncome = row.monthlyData.reduce((sum, month) => {
+                let monthlyDisplayIncome = month.salary;
+                if (isInEarlyRetirement) {
+                  if (selectedAccount === 'All') {
+                    const brokerageAccount = results.accountResults.find(r => r.accountName === 'Brokerage');
+                    const monthDataIndex = month.month - 1;
+                    monthlyDisplayIncome = brokerageAccount?.yearlyData[row.year]?.monthlyData[monthDataIndex]?.withdrawal || 0;
+                  } else if (selectedAccount === 'Brokerage') {
+                    monthlyDisplayIncome = month.withdrawal || 0;
+                  }
+                } else if (isInPension) {
+                  if (selectedAccount === 'All') {
+                    const pensionAccount = results.accountResults.find(r => r.accountName === 'Pension');
+                    const monthDataIndex = month.month - 1;
+                    monthlyDisplayIncome = pensionAccount?.yearlyData[row.year]?.monthlyData[monthDataIndex]?.withdrawal || 0;
+                  } else if (selectedAccount === 'Pension') {
+                    monthlyDisplayIncome = month.withdrawal || 0;
+                  }
+                }
+                return sum + monthlyDisplayIncome;
+              }, 0);
+              const annualDisposableIncome = row.monthlyData.reduce((sum, month) => sum + month.monthlyNetSalary, 0);
+              const annualWithdrawals = row.monthlyData.reduce((sum, month) => sum + month.withdrawal, 0);
+              const annualContributions = row.monthlyData.reduce((sum, month) => sum + month.contribution, 0);
+              const annualInterest = row.monthlyData.reduce((sum, month) => sum + month.interest, 0);
               
               let rowBgClass = 'border-b border-gray-200 hover:bg-gray-50';
               if (isFirstYearProRated) {
                 rowBgClass = 'bg-orange-50 hover:bg-orange-100';
-              } else if (isPensionPhase) {
+              } else if (isInPension) {
                 rowBgClass = 'bg-emerald-50 hover:bg-emerald-100';
-              } else if (isEarlyRetirementPhase) {
+              } else if (isInEarlyRetirement) {
                 rowBgClass = 'bg-indigo-50 hover:bg-indigo-100';
               }
               return (
@@ -155,31 +196,34 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                           Pro-rated ({results.monthsUntilNextBirthday}m)
                         </span>
                       )}
-                      {isPensionPhase && (
+                      {isInPension && (
                         <span className="ml-2 text-xs font-normal text-emerald-600 bg-white px-2 py-1 rounded border border-emerald-200">
                           Pension Withdrawals
                         </span>
                       )}
-                      {isEarlyRetirementPhase && (
+                      {isInEarlyRetirement && (
                         <span className="ml-2 text-xs font-normal text-indigo-600 bg-white px-2 py-1 rounded border border-indigo-200">
                           Early Retirement
                         </span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-blue-600 font-medium">
-                      {formatCurrency(row.salary)}
+                      {formatCurrency(annualIncome)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-teal-600 font-medium">
+                      {formatCurrency(annualDisposableIncome)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
                       {formatCurrency(row.startingBalance)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600">
-                      {formatCurrency(row.withdrawal)}
+                      {formatCurrency(annualWithdrawals)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600">
-                      {formatCurrency(row.contributions)}
+                      {formatCurrency(annualContributions)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-purple-600">
-                      {formatCurrency(row.interestEarned)}
+                      {formatCurrency(annualInterest)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
                       {formatCurrency(row.endingBalance)}
@@ -187,14 +231,15 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                   </tr>
                   {isExpanded && (
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <td colSpan={8} className="px-6 py-4">
+                      <td colSpan={9} className="px-6 py-4">
                         <div className="text-xs font-semibold text-gray-600 mb-3">Monthly Breakdown for Age {row.age}</div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="text-gray-600 border-b border-gray-300">
                                 <th className="text-left py-2 pl-4 font-medium">Month / Year</th>
-                                <th className="text-right py-2 pr-4 font-medium">Salary</th>
+                                <th className="text-right py-2 pr-4 font-medium">Income</th>
+                                <th className="text-right py-2 pr-4 font-medium">Disposable</th>
                                 <th className="text-right py-2 pr-4 font-medium">Starting</th>
                                 <th className="text-right py-2 pr-4 font-medium">Withdrawal</th>
                                 <th className="text-right py-2 pr-4 font-medium">Contribution</th>
@@ -203,17 +248,46 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                               </tr>
                             </thead>
                             <tbody>
-                              {row.monthlyData.map((month) => (
+                              {row.monthlyData.map((month) => {
+                                // Calculate monthly display income based on phase
+                                let monthlyDisplayIncome = month.salary;
+                                if (isInEarlyRetirement) {
+                                  if (selectedAccount === 'All') {
+                                    const brokerageAccount = results.accountResults.find(r => r.accountName === 'Brokerage');
+                                    const monthDataIndex = month.month - 1;
+                                    monthlyDisplayIncome = brokerageAccount?.yearlyData[row.year]?.monthlyData[monthDataIndex]?.withdrawal || 0;
+                                  } else if (selectedAccount === 'Brokerage') {
+                                    monthlyDisplayIncome = month.withdrawal || 0;
+                                  }
+                                } else if (isInPension) {
+                                  if (selectedAccount === 'All') {
+                                    const pensionAccount = results.accountResults.find(r => r.accountName === 'Pension');
+                                    const monthDataIndex = month.month - 1;
+                                    monthlyDisplayIncome = pensionAccount?.yearlyData[row.year]?.monthlyData[monthDataIndex]?.withdrawal || 0;
+                                  } else if (selectedAccount === 'Pension') {
+                                    monthlyDisplayIncome = month.withdrawal || 0;
+                                  }
+                                }
+
+                                // Calculate monthly display disposable income
+                                let monthlyDisplayDisposable = month.monthlyNetSalary;
+                                if (isInEarlyRetirement || isInPension) {
+                                  monthlyDisplayDisposable = 0;
+                                }
+
+                                return (
                                 <tr key={month.month} className="border-b border-gray-200 hover:bg-gray-100">
                                   <td className="text-left py-2 pl-4 text-gray-700">{month.monthYear}</td>
-                                  <td className="text-right py-2 pr-4 text-blue-600">{formatCurrency(month.salary)}</td>
+                                  <td className="text-right py-2 pr-4 text-blue-600">{formatCurrency(monthlyDisplayIncome)}</td>
+                                  <td className="text-right py-2 pr-4 text-teal-600 font-medium">{formatCurrency(monthlyDisplayDisposable)}</td>
                                   <td className="text-right py-2 pr-4 text-gray-600">{formatCurrency(month.startingBalance)}</td>
                                   <td className="text-right py-2 pr-4 text-red-600">{formatCurrency(month.withdrawal)}</td>
                                   <td className="text-right py-2 pr-4 text-green-600">{formatCurrency(month.contribution)}</td>
                                   <td className="text-right py-2 pr-4 text-purple-600">{formatCurrency(month.interest)}</td>
                                   <td className="text-right py-2 pr-4 font-medium text-gray-900">{formatCurrency(month.endingBalance)}</td>
                                 </tr>
-                              ))}
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>

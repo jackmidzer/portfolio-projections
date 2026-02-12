@@ -1,5 +1,13 @@
 export type AccountType = 'Savings' | 'Pension' | 'Brokerage';
 
+/**
+ * Phase type for the financial lifecycle
+ * - 'working': period of earning salary and making contributions
+ * - 'earlyRetirement': period of no salary but portfolio withdrawals (between earlyRetirementAge and pensionAge)
+ * - 'pension': period of pension withdrawals (from pensionAge onward)
+ */
+export type PhaseType = 'working' | 'earlyRetirement' | 'pension';
+
 export interface AgeBracketContributions {
   under30: number;       // percentage for ages < 30
   age30to39: number;     // percentage for ages 30-39
@@ -29,6 +37,7 @@ export interface MonthlyBreakdown {
   interest: number;
   withdrawal: number; // amount withdrawn (pension or brokerage withdrawal)
   endingBalance: number;
+  monthlyNetSalary: number; // disposable income after taxes and pension contributions
 }
 
 export interface YearlyBreakdown {
