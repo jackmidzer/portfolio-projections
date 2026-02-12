@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import InputForm from './components/InputForm';
 import AccountSummary from './components/AccountSummary';
-import PortfolioChart from './components/PortfolioChart';
 import ResultsTable from './components/ResultsTable';
 import { PortfolioInputs, PortfolioResults } from './types';
 import { calculatePortfolioGrowth } from './utils/calculations';
+
+const PortfolioChart = lazy(() => import('./components/PortfolioChart'));
 
 function App() {
   const [results, setResults] = useState<PortfolioResults | null>(null);
@@ -71,7 +72,9 @@ function App() {
               </h2>
             </div>
             <AccountSummary results={results} />
-            <PortfolioChart results={results} />
+            <Suspense fallback={<div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">Loading chart...</div>}>
+              <PortfolioChart results={results} />
+            </Suspense>
             <ResultsTable results={results} />
           </div>
         )}

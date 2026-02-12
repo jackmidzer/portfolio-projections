@@ -107,7 +107,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
     // Find the data entry at this age to get the actual value
     const dataAtAge = data.find(d => d.age === age);
     if (!dataAtAge) {
-      return null;
+      return <></>;
     }
     
     // Get the value (Total, selected account, or principal/interest)

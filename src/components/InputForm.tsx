@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { AccountInput as AccountInputType, PortfolioInputs } from '../types';
+import { AccountInput as AccountInputType, PortfolioInputs, TaxCalculationResult } from '../types';
 import AccountInput from './AccountInput';
+import TaxSummary from './TaxSummary';
+import { calculateNetSalary } from '../utils/taxCalculations';
 
 interface InputFormProps {
   onCalculate: (inputs: PortfolioInputs) => void;
@@ -46,6 +48,14 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [enableHouseWithdrawal, setEnableHouseWithdrawal] = useState<boolean>(true);
   const [houseDepositPercent, setHouseDepositPercent] = useState<number | ''>(15);
   const [houseDepositFromBrokerageRate, setHouseDepositFromBrokerageRate] = useState<number | ''>(50);
+  
+  // Tax Calculation State
+  const [enableTaxCalculation, setEnableTaxCalculation] = useState<boolean>(false);
+  const [taxBikValue, setTaxBikValue] = useState<number | ''>(1600);
+  const [taxRentalRelief, setTaxRentalRelief] = useState<number | ''>(1000);
+  const [taxMedicalInsuranceRelief, setTaxMedicalInsuranceRelief] = useState<number | ''>(200);
+  const [taxCalculationResult, setTaxCalculationResult] = useState<TaxCalculationResult | null>(null);
+  
   const [errors, setErrors] = useState<string[]>([]);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState<boolean>(false);
 
@@ -78,6 +88,43 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
   const currentAge = dateOfBirth ? calculateAgeFromDOB(dateOfBirth) : '';
   const monthsUntilBirthday = dateOfBirth ? calculateMonthsUntilBirthday(dateOfBirth) : 0;
+
+  // Helper function to get pension contribution percentage based on age brackets
+  const getPensionPercentForAge = (age: number): number => {
+    const pensionAccount = accounts.find(acc => acc.name === 'Pension');
+    if (!pensionAccount || !pensionAccount.ageBracketContributions) {
+      return 0;
+    }
+    const brackets = pensionAccount.ageBracketContributions;
+    if (age < 30) return brackets.under30;
+    if (age < 40) return brackets.age30to39;
+    if (age < 50) return brackets.age40to49;
+    if (age < 55) return brackets.age50to54;
+    if (age < 60) return brackets.age55to59;
+    return brackets.age60plus;
+  };
+
+  const currentPensionPercent = typeof currentAge === 'number' ? getPensionPercentForAge(currentAge) : 0;
+
+  // Calculate tax result when inputs change
+  React.useEffect(() => {
+    if (enableTaxCalculation && currentSalary !== '' && taxBikValue !== '') {
+      const salary = typeof currentSalary === 'number' ? currentSalary : 0;
+      const pensionPercent = currentPensionPercent;
+      const pensionContribution = (salary * pensionPercent) / 100;
+      
+      const result = calculateNetSalary({
+        grossSalary: salary,
+        pensionContribution: pensionContribution,
+        bikValue: typeof taxBikValue === 'number' ? taxBikValue : 0,
+        rentalRelief: typeof taxRentalRelief === 'number' ? taxRentalRelief : 0,
+        medicalInsuranceRelief: typeof taxMedicalInsuranceRelief === 'number' ? taxMedicalInsuranceRelief : 0,
+      });
+      setTaxCalculationResult(result);
+    } else {
+      setTaxCalculationResult(null);
+    }
+  }, [enableTaxCalculation, currentSalary, currentPensionPercent, taxBikValue, taxRentalRelief, taxMedicalInsuranceRelief]);
 
   const handleAccountChange = (index: number, updatedAccount: AccountInputType) => {
     const newAccounts = [...accounts];
@@ -198,10 +245,50 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
       }
     }
 
+    // Tax validation
+    if (enableTaxCalculation) {
+      const taxBik = typeof taxBikValue === 'number' ? taxBikValue : parseInt(taxBikValue as string);
+      
+      if (isNaN(taxBik) || taxBik < 0) {
+        newErrors.push('BIK value must be a valid number');
+      }
+    }
+
     setErrors(newErrors);
 
     if (newErrors.length === 0) {
-      onCalculate({ accounts, dateOfBirth: new Date(dateOfBirth), currentAge: age, targetAge: future, currentSalary: salary, annualSalaryIncrease: increase, monthsUntilNextBirthday: monthsUntilBirthday, bonusPercent: bonus, pensionAge: pension, withdrawalRate: withdrawal, earlyRetirementAge: earlyRetirement, salaryReplacementRate: replacement, pensionLumpSumAge: lumpSumAge, lumpSumToBrokerageRate: brokerageRate, enablePensionLumpSum: enablePensionLumpSum, useSalaryReplacementForPension: useSalaryReplacementForPension, houseWithdrawalAge: houseAge, enableHouseWithdrawal: enableHouseWithdrawal, houseDepositPercent: housePercent, houseDepositFromBrokerageRate: houseBrokerageRate });
+      const taxInputData = enableTaxCalculation ? {
+        grossSalary: salary,
+        pensionContribution: (salary * currentPensionPercent) / 100,
+        bikValue: typeof taxBikValue === 'number' ? taxBikValue : 0,
+        rentalRelief: typeof taxRentalRelief === 'number' ? taxRentalRelief : 0,
+        medicalInsuranceRelief: typeof taxMedicalInsuranceRelief === 'number' ? taxMedicalInsuranceRelief : 0,
+      } : undefined;
+
+      onCalculate({
+        accounts,
+        dateOfBirth: new Date(dateOfBirth),
+        currentAge: age,
+        targetAge: future,
+        currentSalary: salary,
+        annualSalaryIncrease: increase,
+        monthsUntilNextBirthday: monthsUntilBirthday,
+        bonusPercent: bonus,
+        pensionAge: pension,
+        withdrawalRate: withdrawal,
+        earlyRetirementAge: earlyRetirement,
+        salaryReplacementRate: replacement,
+        pensionLumpSumAge: lumpSumAge,
+        lumpSumToBrokerageRate: brokerageRate,
+        enablePensionLumpSum: enablePensionLumpSum,
+        useSalaryReplacementForPension: useSalaryReplacementForPension,
+        houseWithdrawalAge: houseAge,
+        enableHouseWithdrawal: enableHouseWithdrawal,
+        houseDepositPercent: housePercent,
+        houseDepositFromBrokerageRate: houseBrokerageRate,
+        taxInputs: taxInputData,
+        enableTaxCalculation: enableTaxCalculation,
+      });
     }
   };
 
@@ -710,6 +797,137 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Irish Tax Calculation Section */}
+      <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+            <span className="text-white text-lg">💰</span>
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Tax Calculation (Ireland)</h2>
+            <p className="text-sm text-gray-600">Calculate your net salary based on Irish tax laws</p>
+          </div>
+        </div>
+
+        <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 cursor-pointer transition-all duration-200">
+          <input
+            type="checkbox"
+            checked={enableTaxCalculation}
+            onChange={(e) => setEnableTaxCalculation(e.target.checked)}
+            className="w-5 h-5 mt-1 text-red-600 rounded focus:ring-2 focus:ring-red-500"
+          />
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Calculate net salary (Irish tax)</p>
+            <p className="text-xs text-gray-600 mt-1">Account for PAYE, USC, PRSI, and pension contributions to determine disposable income</p>
+          </div>
+        </label>
+
+        {enableTaxCalculation && (
+          <div className="mt-6 pt-6 border-t-2 border-gray-100">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div>
+                <label htmlFor="salaryDisplay" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  Annual Gross Salary
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-3.5 text-red-600 font-bold">€</span>
+                  <input
+                    type="number"
+                    id="salaryDisplay"
+                    disabled
+                    value={currentSalary}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-gray-100 focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 placeholder-gray-400 cursor-not-allowed text-gray-600"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-600">From Income Details section</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  Pension Contribution
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    disabled
+                    value={currentPensionPercent}
+                    className="w-full pr-10 pl-4 py-3 border border-gray-300 rounded-lg bg-gray-100 focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 cursor-not-allowed text-gray-600"
+                  />
+                  <span className="absolute right-4 top-3.5 text-gray-600 font-semibold">%</span>
+                </div>
+                <p className="mt-2 text-xs text-gray-600">From age bracket (age {typeof currentAge === 'number' ? currentAge : '?'})</p>
+              </div>
+
+              <div>
+                <label htmlFor="taxBikValue" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  Benefit in Kind (BIK)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-3.5 text-red-600 font-bold">€</span>
+                  <input
+                    type="number"
+                    id="taxBikValue"
+                    min="0"
+                    step="100"
+                    value={taxBikValue}
+                    onChange={(e) => setTaxBikValue(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                    placeholder="1600"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-600">Health insurance, car, etc.</p>
+              </div>
+
+              <div>
+                <label htmlFor="taxRentalRelief" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  Rental Relief
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-3.5 text-red-600 font-bold">€</span>
+                  <input
+                    type="number"
+                    id="taxRentalRelief"
+                    min="0"
+                    step="100"
+                    value={taxRentalRelief}
+                    onChange={(e) => setTaxRentalRelief(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                    placeholder="1000"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-600">Rental accommodation relief (monthly rent relief)</p>
+              </div>
+
+              <div>
+                <label htmlFor="taxMedicalInsuranceRelief" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+                  Medical Insurance Relief
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-3.5 text-red-600 font-bold">€</span>
+                  <input
+                    type="number"
+                    id="taxMedicalInsuranceRelief"
+                    min="0"
+                    step="50"
+                    value={taxMedicalInsuranceRelief}
+                    onChange={(e) => setTaxMedicalInsuranceRelief(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                    placeholder="200"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-600">Health insurance premium relief</p>
+              </div>
+            </div>
+
+            {taxCalculationResult && (
+              <div className="mt-6">
+                <TaxSummary result={taxCalculationResult} showDetail={true} />
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -72,6 +72,8 @@ export interface PortfolioInputs {
   enableHouseWithdrawal?: boolean; // whether to enable house withdrawal (default false)
   houseDepositPercent?: number; // percentage of (salary*4 + bonus*2) to withdraw for house deposit (default 15, minimum 10)
   houseDepositFromBrokerageRate?: number; // allocation rate of house deposit from brokerage as % (default 50)
+  taxInputs?: TaxInputs; // optional Irish tax calculation inputs
+  enableTaxCalculation?: boolean; // whether to show tax calculation
 }
 
 export interface PortfolioResults {
@@ -88,4 +90,58 @@ export interface PortfolioResults {
   enablePensionLumpSum?: boolean; // whether pension lump sum withdrawal is enabled
   houseWithdrawalAge?: number; // age when house purchase withdrawal occurs
   enableHouseWithdrawal?: boolean; // whether house withdrawal is enabled
+  taxInputs?: TaxInputs; // optional Irish tax calculation inputs
+  enableTaxCalculation?: boolean; // whether to show tax calculation
+}
+
+// Irish Tax Calculation Types
+export interface TaxInputs {
+  grossSalary: number; // Annual gross salary in EUR
+  pensionContribution: number; // Annual pension contribution in EUR
+  bikValue: number; // Benefit in Kind value in EUR
+  rentalRelief: number; // Rental relief amount in EUR
+  medicalInsuranceRelief: number; // Medical insurance relief amount in EUR
+}
+
+export interface TaxCalculationResult {
+  grossSalary: number;
+  pendingContribution: number;
+  bikValue: number;
+  taxableIncome: number; // After pension relief
+  payeTax: number;
+  usc: number; // Universal Social Charge
+  prsi: number; // Pay Related Social Insurance
+  totalDeductions: number;
+  netSalary: number; // Annual net salary
+  effectiveTaxRate: number; // Percentage
+  monthlyNetSalary: number;
+  breakdown: {
+    payeTax: number;
+    usc: number;
+    prsi: number;
+    pensionContribution: number;
+  };
+  // Additional breakdown details
+  prsiPercentUsed: number; // PRSI percentage rate
+  taxCreditsApplied: {
+    personal: number;
+    earned: number;
+    rental: number;
+    medicalInsurance: number;
+    total: number;
+  };
+  payeTaxBands: Array<{
+    startThreshold: number;
+    threshold: number;
+    rate: number;
+    incomeInBand: number;
+    taxInBand: number;
+  }>;
+  uscBands: Array<{
+    startThreshold: number;
+    threshold: number;
+    rate: number;
+    incomeInBand: number;
+    uscInBand: number;
+  }>;
 }
