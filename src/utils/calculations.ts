@@ -156,6 +156,9 @@ export function calculateAccountGrowth(
 
   // Track January-based salary growth
   let januarysSeen = monthDate.getMonth() === 0 ? 1 : 0;
+  
+  // Track when pension age is first reached to defer pension phase to next calendar year
+  let yearPensionAgeReached: number | null = null;
 
   // Main monthly loop - iterate through all months in the time horizon
   for (let month = 0; month < totalMonths; month++) {
@@ -184,8 +187,21 @@ export function calculateAccountGrowth(
     const monthStartBalance = currentBalance;
     const lumpSumAgeValue = pensionLumpSumAge ?? 50;
     void isWorkingPhase(ageAtMonth, earlyRetirementAgeValue); // Reserved for future working-phase-specific logic
-    const isInEarlyRetirementPhase = isEarlyRetirementPhase(ageAtMonth, earlyRetirementAgeValue, pensionAgeValue);
-    const isInPensionPhase = isPensionPhase(ageAtMonth, pensionAgeValue);
+    
+    // Detect first time pension age is reached and track the year
+    const previousMonth = month > 0 ? currentAge + (month >= firstYearMonths ? Math.floor((month - 1 - firstYearMonths) / 12) : 0) : currentAge;
+    if (ageAtMonth >= pensionAgeValue && previousMonth < pensionAgeValue && yearPensionAgeReached === null) {
+      yearPensionAgeReached = monthDate.getFullYear();
+    }
+    
+    // Defer pension phase to next calendar year if pension age is reached mid-year
+    // Only enter pension phase if it's the following calendar year, or if pension age was reached on January 1st
+    const currentYear = monthDate.getFullYear();
+    const shouldDeferPensionPhase = yearPensionAgeReached !== null && currentYear === yearPensionAgeReached && monthDate.getMonth() !== 0;
+    
+    // Extend early retirement phase to include deferral period
+    let isInEarlyRetirementPhase = isEarlyRetirementPhase(ageAtMonth, earlyRetirementAgeValue, pensionAgeValue) || shouldDeferPensionPhase;
+    let isInPensionPhase = isPensionPhase(ageAtMonth, pensionAgeValue) && !shouldDeferPensionPhase;
     
     if (isJanuary) {
       // [PENSION PHASE] Pension lump sum: withdraw 25% of balance (capped at 200k) at lumpSumAge

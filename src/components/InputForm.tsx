@@ -13,7 +13,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     { name: 'Savings', currentBalance: 10000, monthlyContribution: 8.5, expectedReturn: 2, isSalaryPercentage: true, bonusContributionPercent: 10 },
     { 
       name: 'Pension', 
-      currentBalance: 25000, 
+      currentBalance: 27500, 
       monthlyContribution: 0, // will be determined by age bracket
       expectedReturn: 7, 
       isSalaryPercentage: true,
