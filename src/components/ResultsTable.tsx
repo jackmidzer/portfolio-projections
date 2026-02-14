@@ -6,6 +6,7 @@ import {
   isEarlyRetirementPhase,
   isPensionPhase,
 } from '../utils/phaseHelpers';
+import { calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax } from '../utils/taxCalculations';
 
 interface ResultsTableProps {
   results: PortfolioResults;
@@ -109,7 +110,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                 Income
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Monthly Tax
+                Tax
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Net Income
@@ -148,25 +149,78 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                 let monthlyDisplayIncome = month.salary;
                 if (isInEarlyRetirement) {
                   if (selectedAccount === 'All') {
+                    // For "All Accounts" during early retirement: ONLY brokerage withdrawals (no salary)
                     const brokerageAccount = results.accountResults.find(r => r.accountName === 'Brokerage');
                     const monthDataIndex = month.month - 1;
                     monthlyDisplayIncome = brokerageAccount?.yearlyData[row.year]?.monthlyData[monthDataIndex]?.withdrawal || 0;
                   } else if (selectedAccount === 'Brokerage') {
                     monthlyDisplayIncome = month.withdrawal || 0;
+                  } else {
+                    // Savings account: no withdrawals during early retirement
+                    monthlyDisplayIncome = 0;
                   }
                 } else if (isInPension) {
                   if (selectedAccount === 'All') {
+                    // For "All Accounts" during pension: ONLY pension withdrawals (no salary)
                     const pensionAccount = results.accountResults.find(r => r.accountName === 'Pension');
                     const monthDataIndex = month.month - 1;
                     monthlyDisplayIncome = pensionAccount?.yearlyData[row.year]?.monthlyData[monthDataIndex]?.withdrawal || 0;
                   } else if (selectedAccount === 'Pension') {
                     monthlyDisplayIncome = month.withdrawal || 0;
+                  } else {
+                    // Other accounts: no withdrawals during pension phase
+                    monthlyDisplayIncome = 0;
                   }
                 }
                 return sum + monthlyDisplayIncome;
               }, 0);
-              const annualTax = row.monthlyData.reduce((sum, month) => sum + (month.monthlyTax || 0), 0);
-              const annualDisposableIncome = row.monthlyData.reduce((sum, month) => sum + month.monthlyNetSalary, 0);
+              // Calculate annual gross income (withdrawal or salary)
+              let annualGrossIncome = 0;
+              if (isInEarlyRetirement) {
+                // Early retirement: ONLY brokerage withdrawals (no salary)
+                if (selectedAccount === 'All') {
+                  annualGrossIncome = annualIncome; // Only brokerage withdrawals
+                } else if (selectedAccount === 'Brokerage') {
+                  annualGrossIncome = annualIncome;
+                } else {
+                  annualGrossIncome = 0; // No income from other accounts
+                }
+              } else if (isInPension) {
+                // Pension phase: ONLY pension withdrawals (no salary)
+                if (selectedAccount === 'All') {
+                  annualGrossIncome = annualIncome; // Only pension withdrawals
+                } else if (selectedAccount === 'Pension') {
+                  annualGrossIncome = annualIncome;
+                } else {
+                  annualGrossIncome = 0; // No income from other accounts
+                }
+              } else {
+                // Working phase: salary only
+                annualGrossIncome = row.monthlyData.reduce((sum, month) => sum + month.salary, 0);
+              }
+
+              // Calculate tax and net income
+              let annualTax = 0;
+              let annualNetIncome = 0;
+
+              if (isInEarlyRetirement && annualGrossIncome > 0) {
+                // Early retirement: ONLY brokerage withdrawal, taxed at 33% CGT
+                const taxResult = calculateBrokerageCapitalGainsTax(annualGrossIncome);
+                annualTax = taxResult.cgt;
+                annualNetIncome = taxResult.netWithdrawal;
+              } else if (isInPension && annualGrossIncome > 0) {
+                // Pension phase: ONLY pension withdrawal, taxed at income tax + €245 credit
+                const taxResult = calculatePensionWithdrawalTax(annualGrossIncome, true);
+                annualTax = taxResult.totalTax;
+                annualNetIncome = taxResult.netWithdrawal;
+              } else if (!isInEarlyRetirement && !isInPension) {
+                // Working phase: use existing salary tax calculations
+                annualTax = row.monthlyData.reduce((sum, month) => sum + (month.monthlyTax || 0), 0);
+                annualNetIncome = row.monthlyData.reduce((sum, month) => sum + month.monthlyNetSalary, 0);
+              } else {
+                // No income, no tax
+                annualNetIncome = 0;
+              }
               const annualWithdrawals = row.monthlyData.reduce((sum, month) => sum + month.withdrawal, 0);
               const annualContributions = row.monthlyData.reduce((sum, month) => sum + month.contribution, 0);
               const annualInterest = row.monthlyData.reduce((sum, month) => sum + month.interest, 0);
@@ -218,7 +272,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                       {formatCurrency(annualTax)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-teal-600 font-medium">
-                      {formatCurrency(annualDisposableIncome)}
+                      {formatCurrency(annualNetIncome)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
                       {formatCurrency(row.startingBalance)}
@@ -247,7 +301,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                                 <th className="text-left py-2 pl-4 font-medium">Month / Year</th>
                                 <th className="text-right py-2 pr-4 font-medium">Income</th>
                                 <th className="text-right py-2 pr-4 font-medium">Tax</th>
-                                <th className="text-right py-2 pr-4 font-medium">Disposable</th>
+                                <th className="text-right py-2 pr-4 font-medium">Net</th>
                                 <th className="text-right py-2 pr-4 font-medium">Starting</th>
                                 <th className="text-right py-2 pr-4 font-medium">Withdrawal</th>
                                 <th className="text-right py-2 pr-4 font-medium">Contribution</th>
@@ -277,18 +331,30 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                                   }
                                 }
 
-                                // Calculate monthly display net income
-                                let monthlyDisplayDisposable = month.monthlyNetSalary;
-                                if (isInEarlyRetirement || isInPension) {
-                                  monthlyDisplayDisposable = 0;
+                                // Calculate monthly display tax and net income
+                                let monthlyDisplayTax = month.monthlyTax || 0;
+                                let monthlyDisplayNet = month.monthlyNetSalary;
+                                
+                                if ((isInEarlyRetirement || isInPension) && monthlyDisplayIncome > 0 && results.enableTaxCalculation && results.taxInputs) {
+                                  // Show monthly share of the annual tax calculated above
+                                  monthlyDisplayTax = annualTax / 12;
+                                  monthlyDisplayNet = annualNetIncome / 12;
+                                } else if (!isInEarlyRetirement && !isInPension) {
+                                  // Working phase: use existing tax calculations from month data
+                                  monthlyDisplayTax = month.monthlyTax || 0;
+                                  monthlyDisplayNet = month.monthlyNetSalary;
+                                } else {
+                                  // No tax calculation, show withdrawal as net
+                                  monthlyDisplayTax = 0;
+                                  monthlyDisplayNet = monthlyDisplayIncome;
                                 }
 
                                 return (
                                 <tr key={month.month} className="border-b border-gray-200 hover:bg-gray-100">
                                   <td className="text-left py-2 pl-4 text-gray-700">{month.monthYear}</td>
                                   <td className="text-right py-2 pr-4 text-blue-600">{formatCurrency(monthlyDisplayIncome)}</td>
-                                  <td className="text-right py-2 pr-4 text-orange-600">{formatCurrency(month.monthlyTax || 0)}</td>
-                                  <td className="text-right py-2 pr-4 text-teal-600 font-medium">{formatCurrency(monthlyDisplayDisposable)}</td>
+                                  <td className="text-right py-2 pr-4 text-orange-600">{formatCurrency(monthlyDisplayTax)}</td>
+                                  <td className="text-right py-2 pr-4 text-teal-600 font-medium">{formatCurrency(monthlyDisplayNet)}</td>
                                   <td className="text-right py-2 pr-4 text-gray-600">{formatCurrency(month.startingBalance)}</td>
                                   <td className="text-right py-2 pr-4 text-red-600">{formatCurrency(month.withdrawal)}</td>
                                   <td className="text-right py-2 pr-4 text-green-600">{formatCurrency(month.contribution)}</td>

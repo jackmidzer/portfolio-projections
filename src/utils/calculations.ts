@@ -1,5 +1,5 @@
 import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot } from '../types';
-import { calculateNetSalary } from './taxCalculations';
+import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax } from './taxCalculations';
 import { isWorkingPhase, isEarlyRetirementPhase, isPensionPhase } from './phaseHelpers';
 
 /**
@@ -289,6 +289,55 @@ export function calculateAccountGrowth(
     // Format month/year as 'FEB 2026'
     const monthLabel = monthDate.toLocaleString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
 
+    // Calculate withdrawal tax based on account type and phase
+    let withdrawalTax = 0;
+    let withdrawalNetAmount = monthWithdrawal;
+    let withdrawalPhase: 'lumpSum' | 'earlyRetirement' | 'pensionPhase' | undefined;
+
+    // Determine withdrawal phase and apply account-specific tax
+    if (monthWithdrawal > 0) {
+      // Pension lump sum withdrawal
+      if (isPensionAccount && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1)) {
+        withdrawalPhase = 'lumpSum';
+        // Lump sum withdrawals typically have special tax treatment (not fully taxed)
+        // For now, apply standard income tax (PAYE + USC, no PRSI)
+        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, false);
+        withdrawalTax = taxResult.totalTax;
+        withdrawalNetAmount = taxResult.netWithdrawal;
+      }
+      // Pension phase withdrawal (regular pension withdrawals)
+      else if (isPensionAccount && isInPensionPhase) {
+        withdrawalPhase = 'pensionPhase';
+        // Pension withdrawals: PAYE + USC (no PRSI) + €245 age credit
+        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, true);
+        withdrawalTax = taxResult.totalTax;
+        withdrawalNetAmount = taxResult.netWithdrawal;
+      }
+      // Brokerage early retirement withdrawal
+      else if (isBrokerageAccount && isInEarlyRetirementPhase) {
+        withdrawalPhase = 'earlyRetirement';
+        // Brokerage withdrawals: 33% CGT
+        const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal);
+        withdrawalTax = taxResult.cgt;
+        withdrawalNetAmount = taxResult.netWithdrawal;
+      }
+      // House deposit withdrawal (from Brokerage or Savings)
+      else if (enableHouseWithdrawal && houseWithdrawalAge !== undefined && ageAtMonth >= houseWithdrawalAge && ageAtMonth < (houseWithdrawalAge + 1)) {
+        if (isBrokerageAccount) {
+          withdrawalPhase = 'earlyRetirement'; // Treat house withdrawal from brokerage as early retirement withdrawal
+          // Brokerage withdrawals: 33% CGT
+          const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal);
+          withdrawalTax = taxResult.cgt;
+          withdrawalNetAmount = taxResult.netWithdrawal;
+        } else {
+          // Savings account house withdrawal (no tax on savings)
+          withdrawalPhase = undefined;
+          withdrawalTax = 0;
+          withdrawalNetAmount = monthWithdrawal;
+        }
+      }
+    }
+
     // Calculate monthly net salary (net income)
     // Note: This is simplified to show gross salary when tax calc is disabled,
     // and uses tax calculation results when enabled
@@ -321,6 +370,9 @@ export function calculateAccountGrowth(
       endingBalance: currentBalance,
       monthlyNetSalary,
       monthlyTax,
+      withdrawalPhase,
+      withdrawalTax,
+      withdrawalNetAmount,
     });
 
     // Advance to next month

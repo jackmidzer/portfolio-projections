@@ -39,6 +39,9 @@ export interface MonthlyBreakdown {
   endingBalance: number;
   monthlyNetSalary: number; // net income after taxes and pension contributions
   monthlyTax?: number; // monthly tax paid (PAYE + USC + PRSI)
+  withdrawalPhase?: 'lumpSum' | 'earlyRetirement' | 'pensionPhase'; // type of withdrawal if any
+  withdrawalTax?: number; // tax paid on withdrawal (CGT for brokerage, income tax for pension)
+  withdrawalNetAmount?: number; // net withdrawal amount after tax
 }
 
 export interface YearlyBreakdown {

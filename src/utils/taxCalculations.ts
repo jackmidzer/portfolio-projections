@@ -7,6 +7,8 @@ import {
   USC_RATES,
   PRSI_SETTINGS,
   PENSION_TAX_RELIEF_CAP,
+  CGT_RATE,
+  PENSION_AGE_TAX_CREDIT,
   getTaxBands,
   getPersonalTaxCredit,
   getEarnedIncomeCredit,
@@ -261,4 +263,71 @@ export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationRe
  */
 export function calculateMonthlyNetSalary(annualNetSalary: number): number {
   return annualNetSalary / 12;
+}
+
+/**
+ * Calculate tax on pension withdrawals
+ * Pension withdrawals use income tax (PAYE + USC only, no PRSI)
+ * and include a €245 age tax credit when in pension phase (age 66+)
+ */
+export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPhase: boolean): {
+  grossWithdrawal: number;
+  payeTax: number;
+  usc: number;
+  totalTax: number;
+  taxCredit: number;
+  netWithdrawal: number;
+} {
+  // Pension withdrawals are treated as income for tax purposes
+  // Apply PAYE tax on the withdrawal amount
+  const payeTaxDetails = calculatePayeTaxWithDetails(withdrawal);
+  const payeTax = payeTaxDetails.totalTax;
+
+  // Apply USC (no reduction for pension contributions on withdrawal income)
+  const uscDetails = calculateUSCWithDetails(withdrawal);
+  const usc = uscDetails.totalUSC;
+
+  // No PRSI on pension withdrawals (PRSI is employment tax only)
+  // Pocket pension withdrawals are already exempt from PRSI
+
+  // Apply age tax credit (€245) if in pension phase
+  let taxCredit = 0;
+  if (isInPensionPhase) {
+    taxCredit = PENSION_AGE_TAX_CREDIT;
+  }
+
+  // Total tax after applying credits
+  const totalTaxBefore = payeTax + usc;
+  const totalTax = Math.max(0, totalTaxBefore - taxCredit);
+
+  // Net withdrawal is gross minus taxes
+  const netWithdrawal = withdrawal - totalTax;
+
+  return {
+    grossWithdrawal: withdrawal,
+    payeTax,
+    usc,
+    totalTax,
+    taxCredit,
+    netWithdrawal,
+  };
+}
+
+/**
+ * Calculate Capital Gains Tax (CGT) on brokerage withdrawals
+ * CGT is taxed at a flat rate of 33%
+ */
+export function calculateBrokerageCapitalGainsTax(withdrawal: number): {
+  grossWithdrawal: number;
+  cgt: number;
+  netWithdrawal: number;
+} {
+  const cgt = withdrawal * CGT_RATE;
+  const netWithdrawal = withdrawal - cgt;
+
+  return {
+    grossWithdrawal: withdrawal,
+    cgt,
+    netWithdrawal,
+  };
 }

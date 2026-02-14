@@ -30,6 +30,13 @@ export const PRSI_SETTINGS = {
 // Maximum amount of earnings taken into account for calculating tax relief
 export const PENSION_TAX_RELIEF_CAP = 115000;
 
+// Capital Gains Tax (CGT) Rate
+export const CGT_RATE = 0.33; // 33% on brokerage withdrawals
+
+// Pension Age Tax Credit
+// Additional tax credit available for pension withdrawals during pension phase
+export const PENSION_AGE_TAX_CREDIT = 245; // €245 age credit
+
 /**
  * Get applicable tax bands (single filer)
  */
