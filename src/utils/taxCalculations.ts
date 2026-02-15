@@ -213,12 +213,12 @@ export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationRe
   const taxCredits = payeeTaxDetails.creditsApplied;
 
   // Calculate USC with band details
-  const uscDetails = calculateUSCWithDetails(grossIncomeWithBIK);
+  const uscDetails = calculateUSCWithDetails(taxableIncome);
   const usc = uscDetails.totalUSC;
   const uscBands = uscDetails.bands;
 
   // Calculate PRSI
-  const prsi = calculatePRSI(grossIncomeWithBIK);
+  const prsi = calculatePRSI(taxableIncome);
 
   // Total deductions
   const totalTax = payeTax + usc + prsi;

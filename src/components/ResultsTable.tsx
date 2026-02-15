@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PortfolioResults, AccountType } from '../types';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, getMonthsUntilYearEnd } from '../utils/formatters';
 import {
   isWorkingPhase,
   isEarlyRetirementPhase,
@@ -251,7 +251,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                       {row.age}
                       {isFirstYearProRated && (
                         <span className="ml-2 text-xs font-normal text-orange-600 bg-white px-2 py-1 rounded border border-orange-200">
-                          Pro-rated ({results.monthsUntilNextBirthday}m)
+                          Pro-rated ({getMonthsUntilYearEnd()}m)
                         </span>
                       )}
                       {isInPension && (

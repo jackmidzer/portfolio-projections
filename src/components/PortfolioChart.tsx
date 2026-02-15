@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { PortfolioResults, AccountType } from '../types';
 import { combineYearlyData } from '../utils/calculations';
-import { formatCompactCurrency } from '../utils/formatters';
+import { formatCompactCurrency, getMonthsUntilYearEnd } from '../utils/formatters';
 
 interface PortfolioChartProps {
   results: PortfolioResults;
@@ -41,14 +41,15 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
         const yearData = accountResult?.yearlyData[index];
         if (!yearData) return { age: entry.age };
         
-        // Calculate principal for this account up to this year
-        let accountPrincipal = accountResult.yearlyData[0]?.startingBalance || 0;
+        // Calculate cumulative contributions and interest for this account
+        // Principal = sum of all contributions up to this year
+        // Interest = sum of all interest earned up to this year
+        let accountPrincipal = 0;
+        let accountInterest = 0;
         for (let y = 0; y <= index; y++) {
           accountPrincipal += accountResult.yearlyData[y]?.contributions || 0;
+          accountInterest += accountResult.yearlyData[y]?.interestEarned || 0;
         }
-        
-        const accountBalance = yearData.endingBalance || 0;
-        const accountInterest = Math.max(0, accountBalance - accountPrincipal);
         
         return {
           age: entry.age,
@@ -79,12 +80,13 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
     if (active && payload && payload.length) {
       // Determine if this is the first data point (year 0) and it's pro-rated
       const isProRatedDataPoint = isFirstYearProRated && data[0]?.age === label;
+      const monthsUntilYearEnd = getMonthsUntilYearEnd();
       
       return (
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-semibold text-gray-800 mb-2">Age {label}
             {isProRatedDataPoint && (
-              <span className="ml-2 text-xs font-normal text-orange-600 bg-orange-50 px-2 py-1 rounded">Pro-rated ({results.monthsUntilNextBirthday} months)</span>
+              <span className="ml-2 text-xs font-normal text-orange-600 bg-orange-50 px-2 py-1 rounded">Pro-rated ({monthsUntilYearEnd} months)</span>
             )}
           </p>
           {payload.map((entry: any) => (
