@@ -326,6 +326,38 @@ export function calculateBonusTaxBurden(
 }
 
 /**
+ * Calculate net bonus after taxes and pension contributions
+ * Returns the actual take-home amount from the bonus
+ */
+export function calculateNetBonus(
+  grossSalary: number,
+  bonusPercent: number,
+  pensionContributionPercent: number,
+  bikValue: number = 0
+): { grossBonus: number; bonusNetSalary: number; bonusTaxBurden: number; bonusPensionContribution: number } {
+  if (bonusPercent <= 0) {
+    return {
+      grossBonus: 0,
+      bonusNetSalary: 0,
+      bonusTaxBurden: 0,
+      bonusPensionContribution: 0,
+    };
+  }
+
+  const grossBonus = grossSalary * (bonusPercent / 100);
+  const bonusPensionContribution = (grossBonus * pensionContributionPercent) / 100;
+  const bonusTaxBurden = calculateBonusTaxBurden(grossSalary, bonusPercent, pensionContributionPercent, bikValue);
+  const bonusNetSalary = grossBonus - bonusPensionContribution - bonusTaxBurden;
+
+  return {
+    grossBonus,
+    bonusNetSalary,
+    bonusTaxBurden,
+    bonusPensionContribution,
+  };
+}
+
+/**
  * Calculate tax on pension withdrawals
  * Pension withdrawals use income tax (PAYE + USC only, no PRSI)
  * and include a €245 age tax credit when in pension phase (age 66+)

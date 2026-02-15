@@ -8,7 +8,7 @@ interface InputFormProps {
 
 const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [accounts, setAccounts] = useState<AccountInputType[]>([
-    { name: 'Savings', currentBalance: 10000, monthlyContribution: 8.5, expectedReturn: 2, isSalaryPercentage: true, bonusContributionPercent: 10 },
+    { name: 'Savings', currentBalance: 10000, monthlyContribution: 10, expectedReturn: 2, isSalaryPercentage: true, bonusContributionPercent: 10 },
     { 
       name: 'Pension', 
       currentBalance: 27500, 
@@ -26,22 +26,21 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         age60plus: 40,
       }
     },
-    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 21.5, expectedReturn: 8, isSalaryPercentage: true, bonusContributionPercent: 40 },
+    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 35, expectedReturn: 8, isSalaryPercentage: true, bonusContributionPercent: 70 },
   ]);
 
   const [dateOfBirth, setDateOfBirth] = useState<string>('1997-10-03'); // Default to my date of birth
-  const [targetAge, setTargetAge] = useState<number | ''>(80);
+  const [targetAge, setTargetAge] = useState<number | ''>(70);
   const [currentSalary, setCurrentSalary] = useState<number | ''>(70000);
   const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(2);
   const [bonusPercent, setBonusPercent] = useState<number | ''>(15);
-  const [pensionAge, setPensionAge] = useState<number | ''>(66);
+  const [pensionAge, setPensionAge] = useState<number | ''>(55);
   const [withdrawalRate, setWithdrawalRate] = useState<number | ''>(4);
-  const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(48);
-  const [salaryReplacementRate, setSalaryReplacementRate] = useState<number | ''>(80);
-  const [pensionLumpSumAge, setPensionLumpSumAge] = useState<number | ''>(50);
-  const [lumpSumToBrokerageRate, setLumpSumToBrokerageRate] = useState<number | ''>(80);
-  const [useSalaryReplacementForPension, setUseSalaryReplacementForPension] = useState<boolean>(true);
-  const [enablePensionLumpSum, setEnablePensionLumpSum] = useState<boolean>(true);
+  const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(45);
+  const [salaryReplacementRate, setSalaryReplacementRate] = useState<number | ''>(70);
+  const [lumpSumToBrokerageRate, setLumpSumToBrokerageRate] = useState<number | ''>(90);
+  const [useSalaryReplacementForPension, setUseSalaryReplacementForPension] = useState<boolean>(false);
+  const [enablePensionLumpSum, setEnablePensionLumpSum] = useState<boolean>(false);
   const [houseWithdrawalAge, setHouseWithdrawalAge] = useState<number | ''>(34);
   const [enableHouseWithdrawal, setEnableHouseWithdrawal] = useState<boolean>(true);
   const [houseDepositPercent, setHouseDepositPercent] = useState<number | ''>(15);
@@ -108,7 +107,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
   const isFormValid = (): boolean => {
     // Check if any field is empty
-    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '' || pensionAge === '' || withdrawalRate === '' || earlyRetirementAge === '' || salaryReplacementRate === '' || pensionLumpSumAge === '' || lumpSumToBrokerageRate === '' || houseWithdrawalAge === '' || houseDepositPercent === '' || houseDepositFromBrokerageRate === '') {
+    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '' || pensionAge === '' || withdrawalRate === '' || earlyRetirementAge === '' || salaryReplacementRate === '' || lumpSumToBrokerageRate === '' || houseWithdrawalAge === '' || houseDepositPercent === '' || houseDepositFromBrokerageRate === '') {
       return false;
     }
 
@@ -121,14 +120,13 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const withdrawal = typeof withdrawalRate === 'number' ? withdrawalRate : parseFloat(withdrawalRate as string);
     const earlyRetirement = typeof earlyRetirementAge === 'number' ? earlyRetirementAge : parseInt(earlyRetirementAge as string);
     const replacement = typeof salaryReplacementRate === 'number' ? salaryReplacementRate : parseFloat(salaryReplacementRate as string);
-    const lumpSumAge = typeof pensionLumpSumAge === 'number' ? pensionLumpSumAge : parseInt(pensionLumpSumAge as string);
     const brokerageRate = typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : parseFloat(lumpSumToBrokerageRate as string);
     const houseAge = typeof houseWithdrawalAge === 'number' ? houseWithdrawalAge : parseInt(houseWithdrawalAge);
     const housePercent = typeof houseDepositPercent === 'number' ? houseDepositPercent : parseFloat(houseDepositPercent);
     const houseBrokerageRate = typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : parseFloat(houseDepositFromBrokerageRate);
 
     // Check for NaN
-    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase) || isNaN(pension) || isNaN(withdrawal) || isNaN(earlyRetirement) || isNaN(replacement) || isNaN(lumpSumAge) || isNaN(brokerageRate) || isNaN(houseAge) || isNaN(housePercent) || isNaN(houseBrokerageRate)) {
+    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase) || isNaN(pension) || isNaN(withdrawal) || isNaN(earlyRetirement) || isNaN(replacement) || isNaN(brokerageRate) || isNaN(houseAge) || isNaN(housePercent) || isNaN(houseBrokerageRate)) {
       return false;
     }
 
@@ -141,7 +139,6 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     if (withdrawal <= 0 || withdrawal > 20) return false;
     if (earlyRetirement < 18 || earlyRetirement > 100) return false;
     if (replacement <= 0 || replacement > 100) return false;
-    if (lumpSumAge < 50 || lumpSumAge > 100) return false;
     if (brokerageRate < 0 || brokerageRate > 100) return false;
     if (houseAge < 18 || houseAge > 100) return false;
     if (housePercent < 10 || housePercent > 100) return false;
@@ -164,7 +161,6 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const withdrawal = typeof withdrawalRate === 'number' ? withdrawalRate : parseFloat(withdrawalRate as string);
     const earlyRetirement = typeof earlyRetirementAge === 'number' ? earlyRetirementAge : parseInt(earlyRetirementAge as string);
     const replacement = typeof salaryReplacementRate === 'number' ? salaryReplacementRate : parseFloat(salaryReplacementRate as string);
-    const lumpSumAge = typeof pensionLumpSumAge === 'number' ? pensionLumpSumAge : parseInt(pensionLumpSumAge as string);
     const brokerageRate = typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : parseFloat(lumpSumToBrokerageRate as string);
     const houseAge = typeof houseWithdrawalAge === 'number' ? houseWithdrawalAge : parseInt(houseWithdrawalAge);
     const housePercent = typeof houseDepositPercent === 'number' ? houseDepositPercent : parseFloat(houseDepositPercent);
@@ -201,13 +197,9 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     if (replacement <= 0 || replacement > 100) {
       newErrors.push('Salary replacement rate must be between 0% and 100%');
     }
-    if (lumpSumAge < 50 || lumpSumAge > 100) {
-      newErrors.push('Pension lump sum age must be between 50 and 100');
-    }
     if (brokerageRate < 0 || brokerageRate > 100) {
       newErrors.push('Lump sum brokerage allocation must be between 0% and 100%');
-    }
-    if (enableHouseWithdrawal) {
+    }    if (enableHouseWithdrawal) {
       if (houseAge < 18 || houseAge > 100) {
         newErrors.push('House withdrawal age must be between 18 and 100');
       }
@@ -248,7 +240,6 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         withdrawalRate: withdrawal,
         earlyRetirementAge: earlyRetirement,
         salaryReplacementRate: replacement,
-        pensionLumpSumAge: lumpSumAge,
         lumpSumToBrokerageRate: brokerageRate,
         enablePensionLumpSum: enablePensionLumpSum,
         useSalaryReplacementForPension: useSalaryReplacementForPension,
@@ -628,24 +619,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
                 {enablePensionLumpSum && (
                   <div className="mt-6 pt-6 border-t-2 border-gray-100 space-y-5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label htmlFor="pensionLumpSumAge" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                          Lump Sum Withdrawal Age
-                        </label>
-                        <input
-                          type="number"
-                          id="pensionLumpSumAge"
-                          min="50"
-                          max="100"
-                          value={pensionLumpSumAge}
-                          onChange={(e) => setPensionLumpSumAge(e.target.value === '' ? '' : parseInt(e.target.value) || 50)}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                          placeholder="50"
-                        />
-                        <p className="mt-2 text-xs text-gray-600">Age to withdraw 25% (capped at €200,000)</p>
-                      </div>
-
+                    <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-4 uppercase tracking-wide">
                           Account Allocation

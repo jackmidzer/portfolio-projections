@@ -143,7 +143,6 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
     const milestoneAges = [
       results.earlyRetirementAge,
       results.pensionAge,
-      results.pensionLumpSumAge,
       ...(results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined 
         ? [results.houseWithdrawalAge] 
         : [])
@@ -244,18 +243,12 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
               strokeDasharray="5 5"
               shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
             />
-            <ReferenceLine
-              x={results.pensionLumpSumAge}
-              stroke="#f59e0b"
-              strokeDasharray="5 5"
-              shape={ShortenedReferenceLineWithLabel(`Lump Sum (${results.pensionLumpSumAge})`, '#f59e0b', results.pensionLumpSumAge, [results.earlyRetirementAge, results.pensionAge].filter(a => a === results.pensionLumpSumAge).length)}
-            />
             {results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined && (
               <ReferenceLine
                 x={results.houseWithdrawalAge}
                 stroke="#f59e0b"
                 strokeDasharray="5 5"
-                shape={ShortenedReferenceLineWithLabel(`House Purchase (${results.houseWithdrawalAge})`, '#f59e0b', results.houseWithdrawalAge, [results.earlyRetirementAge, results.pensionAge, results.pensionLumpSumAge].filter(a => a === results.houseWithdrawalAge).length)}
+                shape={ShortenedReferenceLineWithLabel(`House Purchase (${results.houseWithdrawalAge})`, '#f59e0b', results.houseWithdrawalAge, [results.earlyRetirementAge, results.pensionAge].filter(a => a === results.houseWithdrawalAge).length)}
               />
             )}
             {showPrincipalInterest ? (
@@ -322,18 +315,12 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
             strokeDasharray="5 5"
             shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
           />
-          <ReferenceLine
-            x={results.pensionLumpSumAge}
-            stroke="#06b6d4"
-            strokeDasharray="5 5"
-            shape={ShortenedReferenceLineWithLabel(`Lump Sum (${results.pensionLumpSumAge})`, '#0891b2', results.pensionLumpSumAge, [results.earlyRetirementAge, results.pensionAge].filter(a => a === results.pensionLumpSumAge).length)}
-          />
           {results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined && (
             <ReferenceLine
               x={results.houseWithdrawalAge}
               stroke="#ec4899"
               strokeDasharray="5 5"
-              shape={ShortenedReferenceLineWithLabel(`House Purchase (${results.houseWithdrawalAge})`, '#ec4899', results.houseWithdrawalAge, [results.earlyRetirementAge, results.pensionAge, results.pensionLumpSumAge].filter(a => a === results.houseWithdrawalAge).length)}
+              shape={ShortenedReferenceLineWithLabel(`House Purchase (${results.houseWithdrawalAge})`, '#ec4899', results.houseWithdrawalAge, [results.earlyRetirementAge, results.pensionAge].filter(a => a === results.houseWithdrawalAge).length)}
             />
           )}
           {showTotal && selectedAccount === 'All' && !showPrincipalInterest && (

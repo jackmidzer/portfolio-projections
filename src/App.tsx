@@ -45,7 +45,6 @@ function App() {
       inputs.withdrawalRate,
       inputs.earlyRetirementAge,
       inputs.salaryReplacementRate,
-      inputs.pensionLumpSumAge,
       inputs.lumpSumToBrokerageRate,
       inputs.useSalaryReplacementForPension,
       inputs.bonusPercent,

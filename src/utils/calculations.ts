@@ -1,6 +1,6 @@
 import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot } from '../types';
-import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateDirtTax } from './taxCalculations';
-import { isWorkingPhase, isEarlyRetirementPhase, isPensionPhase } from './phaseHelpers';
+import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax } from './taxCalculations';
+import { isEarlyRetirementPhase, isPensionPhase } from './phaseHelpers';
 
 /**
  * Get the contribution percentage for a given age from age bracket contributions
@@ -102,7 +102,6 @@ export function calculateAccountGrowth(
   withdrawalRate?: number,
   earlyRetirementAge?: number,
   salaryReplacementRate?: number,
-  pensionLumpSumAge?: number,
   pensionLumpSumAmount?: number,
   useSalaryReplacementForPension?: boolean,
   bonusPercent?: number,
@@ -112,7 +111,8 @@ export function calculateAccountGrowth(
   houseDepositFromBrokerageRate?: number,
   enablePensionLumpSum?: boolean,
   taxInputs?: TaxInputs,
-  pensionAgeBracketContributions?: AgeBracketContributions
+  pensionAgeBracketContributions?: AgeBracketContributions,
+  netBonusValue?: number
 ): AccountResults {
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
@@ -199,11 +199,84 @@ export function calculateAccountGrowth(
       lastYearBracketUpdated = currentYear;
     }
     
+    // Calculate monthly net salary (net income) - needed for Savings/Brokerage contributions
+    // Note: This is simplified to show gross salary when tax calc is disabled,
+    // and uses tax calculation results when enabled
+    let monthlyNetSalary = 0;
+    let baseMonthlyNetSalary = 0;  // Track base salary net (without bonus) for contribution calculations
+    let monthlyTax = 0;
+    let monthlyGrossIncome = 0;
+    let monthlyPensionDeduction = 0;
+    
+    if (salaryAtMonth > 0 && taxInputs) {
+      // Use tax calculation: calculate annual net salary then divide by 12
+      // Calculate dynamic pension contribution based on current age and pension age brackets
+      let dynamicPensionContribution = taxInputs.pensionContribution;
+      
+      if (pensionAgeBracketContributions && salaryAtMonth > 0) {
+        // Get the pension contribution percentage based on age at start of current year
+        const pensionPercent = getAgeBracketPercentage(ageAtStartOfCurrentYear, pensionAgeBracketContributions);
+        dynamicPensionContribution = (salaryAtMonth * pensionPercent) / 100;
+      }
+      
+      const annualTaxResult = calculateNetSalary({
+        grossSalary: salaryAtMonth,
+        pensionContribution: dynamicPensionContribution,
+        bikValue: taxInputs.bikValue || 0,
+      });
+      
+      // Monthly tax = (PAYE + USC + PRSI) / 12, except in December when bonus is included
+      const baseMonthlyTax = (annualTaxResult.payeTax + annualTaxResult.usc + annualTaxResult.prsi) / 12;
+      const baseMonthlySalaryPension = dynamicPensionContribution / 12;
+      
+      // Check if this is December and bonus should be applied
+      const isDecemberMonth = monthDate.getMonth() === 11;
+      const hasBonusPercent = bonusPercent !== undefined && bonusPercent > 0;
+      
+      monthlyGrossIncome = salaryAtMonth / 12;
+      monthlyPensionDeduction = baseMonthlySalaryPension;
+      monthlyTax = baseMonthlyTax;
+      
+      // Calculate base monthly net salary (without bonus) for use in contribution calculations
+      baseMonthlyNetSalary = (salaryAtMonth / 12) - baseMonthlyTax - baseMonthlySalaryPension;
+      
+      if (isDecemberMonth && hasBonusPercent) {
+        // Calculate additional tax burden from bonus in December
+        const pensionPercent = pensionAgeBracketContributions
+          ? getAgeBracketPercentage(ageAtStartOfCurrentYear, pensionAgeBracketContributions)
+          : (dynamicPensionContribution / salaryAtMonth) * 100;
+        
+        const bonusTaxBurden = calculateBonusTaxBurden(
+          salaryAtMonth,
+          bonusPercent,
+          pensionPercent,
+          taxInputs.bikValue || 0
+        );
+        
+        monthlyTax = baseMonthlyTax + bonusTaxBurden;
+        
+        // Include full bonus amount in the gross income for December
+        const bonusAmount = salaryAtMonth * (bonusPercent / 100);
+        monthlyGrossIncome = salaryAtMonth / 12 + bonusAmount;
+        
+        // Include bonus pension deduction in December
+        const bonusPensionDeduction = (bonusAmount * pensionPercent) / 100;
+        monthlyPensionDeduction = baseMonthlySalaryPension + bonusPensionDeduction;
+      }
+      
+      monthlyNetSalary = monthlyGrossIncome - monthlyTax - monthlyPensionDeduction;
+    } else if (salaryAtMonth > 0) {
+      // Simple case: show gross salary as net income (no tax applied)
+      monthlyGrossIncome = salaryAtMonth / 12;
+      monthlyNetSalary = salaryAtMonth / 12;
+      baseMonthlyNetSalary = salaryAtMonth / 12;
+      monthlyTax = 0;
+      monthlyPensionDeduction = 0;
+    }
+    
     let monthWithdrawal = 0;
     let lumpSumContribution = 0;
     const monthStartBalance = currentBalance;
-    const lumpSumAgeValue = pensionLumpSumAge ?? 50;
-    void isWorkingPhase(ageAtMonth, earlyRetirementAgeValue); // Reserved for future working-phase-specific logic
     
     // Detect first time pension age is reached and track the year
     const previousMonth = month > 0 ? currentAge + (month >= firstYearMonths ? Math.floor((month - 1 - firstYearMonths) / 12) : 0) : currentAge;
@@ -245,8 +318,8 @@ export function calculateAccountGrowth(
     }
 
     if (isJanuary) {
-      // [PENSION PHASE] Pension lump sum: withdraw 25% of balance (capped at 200k) at lumpSumAge - ONE TIME ONLY
-      if (isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1)) {
+      // [PENSION PHASE] Pension lump sum: withdraw 25% of balance (capped at 200k) at pensionAge - ONE TIME ONLY
+      if (isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= pensionAgeValue && ageAtMonth < (pensionAgeValue + 1)) {
         const lumpSumAmount = Math.min(monthStartBalance * 0.25, 200000);
         monthWithdrawal = lumpSumAmount;
         currentBalance -= monthWithdrawal;
@@ -269,9 +342,11 @@ export function calculateAccountGrowth(
         }
       }
       
-      // Savings/Brokerage: receive lump sum allocation at lumpSumAge (add to contributions) - only in January
-      if (!isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1) && pensionLumpSumAmount !== undefined && pensionLumpSumAmount > 0) {
+      // Savings/Brokerage: receive lump sum allocation at pensionAge (add to contributions + show as withdrawal) - only in January
+      if (!isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= pensionAgeValue && ageAtMonth < (pensionAgeValue + 1) && pensionLumpSumAmount !== undefined && pensionLumpSumAmount > 0) {
         lumpSumContribution = pensionLumpSumAmount;
+        // Also track as withdrawal for display in withdrawal column (not subtracted from balance, separate from recurring withdrawals)
+        monthWithdrawal = pensionLumpSumAmount;
       }
     }
 
@@ -299,10 +374,12 @@ export function calculateAccountGrowth(
           contributionPercentage = getAgeBracketPercentage(ageAtStartOfCurrentYear, account.ageBracketContributions);
         }
         
-        // Monthly contribution is percentage of monthly salary
-        monthlyContribution = (salaryAtMonth / 12) * (contributionPercentage / 100);
+        // Monthly contribution uses net income for Savings/Brokerage, gross for Pension
+        // For non-pension accounts, use baseMonthlyNetSalary to avoid including bonus in regular contribution
+        const contributionBase = isPensionAccount ? (salaryAtMonth / 12) : baseMonthlyNetSalary;
+        monthlyContribution = contributionBase * (contributionPercentage / 100);
         
-        // Add employer contribution if present
+        // Add employer contribution if present (Pension only, uses gross salary)
         if (account.employerContributionPercent !== undefined && account.employerContributionPercent > 0) {
           monthlyContribution += (salaryAtMonth / 12) * (account.employerContributionPercent / 100);
         }
@@ -314,7 +391,10 @@ export function calculateAccountGrowth(
       // Add bonus contribution from bonus salary (December only)
       const isDecember = monthDate.getMonth() === 11;
       if (isDecember && bonusPercent !== undefined && bonusPercent > 0 && account.bonusContributionPercent !== undefined) {
-        const annualBonus = salaryAtMonth * (bonusPercent / 100);
+        // For Savings/Brokerage: use net bonus; for Pension: use gross bonus (tax-relievable)
+        const isSavingsOrBrokerage = account.name === 'Savings' || account.name === 'Brokerage';
+        const annualBonus = isSavingsOrBrokerage && netBonusValue !== undefined ? netBonusValue : salaryAtMonth * (bonusPercent / 100);
+        
         let bonusContributionPercent = account.bonusContributionPercent;
         
         // Handle pension bonus checkbox: -1 means enabled, use age bracket percentage
@@ -358,13 +438,20 @@ export function calculateAccountGrowth(
     // Determine withdrawal phase and apply account-specific tax
     if (monthWithdrawal > 0) {
       // Pension lump sum withdrawal
-      if (isPensionAccount && ageAtMonth >= lumpSumAgeValue && ageAtMonth < (lumpSumAgeValue + 1)) {
+      if (isPensionAccount && ageAtMonth >= pensionAgeValue && ageAtMonth < (pensionAgeValue + 1)) {
         withdrawalPhase = 'lumpSum';
         // Lump sum withdrawals typically have special tax treatment (not fully taxed)
         // For now, apply standard income tax (PAYE + USC, no PRSI)
         const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, false);
         withdrawalTax = taxResult.totalTax;
         withdrawalNetAmount = taxResult.netWithdrawal;
+      }
+      // Savings/Brokerage lump sum allocation from pension
+      else if (!isPensionAccount && ageAtMonth >= pensionAgeValue && ageAtMonth < (pensionAgeValue + 1) && lumpSumContribution > 0) {
+        withdrawalPhase = 'lumpSum';
+        // Lump sum allocation is not taxed (it's receiving funds from pension)
+        withdrawalTax = 0;
+        withdrawalNetAmount = monthWithdrawal;
       }
       // Pension phase withdrawal (regular pension withdrawals)
       else if (isPensionAccount && isInPensionPhase) {
@@ -399,76 +486,7 @@ export function calculateAccountGrowth(
       }
     }
 
-    // Calculate monthly net salary (net income)
-    // Note: This is simplified to show gross salary when tax calc is disabled,
-    // and uses tax calculation results when enabled
-    let monthlyNetSalary = 0;
-    let monthlyTax = 0;
-    let monthlyGrossIncome = 0;
-    let monthlyPensionDeduction = 0;
-    
-    if (salaryAtMonth > 0 && taxInputs) {
-      // Use tax calculation: calculate annual net salary then divide by 12
-      // Calculate dynamic pension contribution based on current age and pension age brackets
-      let dynamicPensionContribution = taxInputs.pensionContribution;
-      
-      if (pensionAgeBracketContributions && salaryAtMonth > 0) {
-        // Get the pension contribution percentage based on age at start of current year
-        const pensionPercent = getAgeBracketPercentage(ageAtStartOfCurrentYear, pensionAgeBracketContributions);
-        dynamicPensionContribution = (salaryAtMonth * pensionPercent) / 100;
-      }
-      
-      const annualTaxResult = calculateNetSalary({
-        grossSalary: salaryAtMonth,
-        pensionContribution: dynamicPensionContribution,
-        bikValue: taxInputs.bikValue || 0,
-      });
-      
-      // Monthly tax = (PAYE + USC + PRSI) / 12, except in December when bonus is included
-      const baseMonthlyTax = (annualTaxResult.payeTax + annualTaxResult.usc + annualTaxResult.prsi) / 12;
-      const baseMonthlySalaryPension = dynamicPensionContribution / 12;
-      
-      // Check if this is December and bonus should be applied
-      const isDecemberMonth = monthDate.getMonth() === 11;
-      const hasBonusPercent = bonusPercent !== undefined && bonusPercent > 0;
-      
-      monthlyGrossIncome = salaryAtMonth / 12;
-      monthlyPensionDeduction = baseMonthlySalaryPension;
-      
-      if (isDecemberMonth && hasBonusPercent) {
-        // Calculate additional tax burden from bonus in December
-        const pensionPercent = pensionAgeBracketContributions
-          ? getAgeBracketPercentage(ageAtStartOfCurrentYear, pensionAgeBracketContributions)
-          : (dynamicPensionContribution / salaryAtMonth) * 100;
-        
-        const bonusTaxBurden = calculateBonusTaxBurden(
-          salaryAtMonth,
-          bonusPercent,
-          pensionPercent,
-          taxInputs.bikValue || 0
-        );
-        
-        monthlyTax = baseMonthlyTax + bonusTaxBurden;
-        
-        // Include full bonus amount in the gross income for December
-        const bonusAmount = salaryAtMonth * (bonusPercent / 100);
-        monthlyGrossIncome = salaryAtMonth / 12 + bonusAmount;
-        
-        // Include bonus pension deduction in December
-        const bonusPensionDeduction = (bonusAmount * pensionPercent) / 100;
-        monthlyPensionDeduction = baseMonthlySalaryPension + bonusPensionDeduction;
-      } else {
-        monthlyTax = baseMonthlyTax;
-      }
-      
-      monthlyNetSalary = monthlyGrossIncome - monthlyTax - monthlyPensionDeduction;
-    } else if (salaryAtMonth > 0) {
-      // Simple case: show gross salary as net income (no tax applied)
-      monthlyGrossIncome = salaryAtMonth / 12;
-      monthlyNetSalary = salaryAtMonth / 12;
-      monthlyTax = 0;
-      monthlyPensionDeduction = 0;
-    }
+
 
     allMonthlyData.push({
       month: month + 1,
@@ -579,7 +597,6 @@ export function calculatePortfolioGrowth(
   withdrawalRate?: number,
   earlyRetirementAge?: number,
   salaryReplacementRate?: number,
-  pensionLumpSumAge?: number,
   lumpSumToBrokerageRate?: number,
   useSalaryReplacementForPension?: boolean,
   bonusPercent?: number,
@@ -592,12 +609,25 @@ export function calculatePortfolioGrowth(
 ): PortfolioResults {
   const pensionAgeValue = pensionAge ?? 65;
   const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
-  const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
   const lumpSumToBrokerageRateValue = lumpSumToBrokerageRate ?? 80;
 
   // Extract pension account's age bracket contributions for use in tax calculations
   const pensionAccount = accounts.find((a) => a.name === 'Pension');
   const pensionAgeBracketContributions = pensionAccount?.ageBracketContributions;
+
+  // Calculate net bonus for use in savings/brokerage contribution calculations
+  let netBonusValue = 0;
+  if (currentSalary && bonusPercent && bonusPercent > 0 && taxInputs) {
+    // Calculate pension contribution percentage from the amount in taxInputs
+    const pensionPercent = currentSalary > 0 ? (taxInputs.pensionContribution / currentSalary) * 100 : 0;
+    const netBonusResult = calculateNetBonus(
+      currentSalary,
+      bonusPercent,
+      pensionPercent,
+      taxInputs.bikValue || 0
+    );
+    netBonusValue = netBonusResult.bonusNetSalary;
+  }
 
   // First, calculate pension account to determine lump sum amount
   let lumpSumAmount = 0;
@@ -614,7 +644,6 @@ export function calculatePortfolioGrowth(
       withdrawalRate,
       earlyRetirementAge,
       salaryReplacementRate,
-      pensionLumpSumAgeValue,
       undefined,
       useSalaryReplacementForPension,
       bonusPercent,
@@ -624,11 +653,12 @@ export function calculatePortfolioGrowth(
       houseDepositFromBrokerageRate,
       enablePensionLumpSum,
       taxInputs,
-      pensionAgeBracketContributions
+      pensionAgeBracketContributions,
+      netBonusValue
     );
     
     // Find the lump sum amount from the pension monthly data
-    // Look for the first month when age >= pensionLumpSumAgeValue
+    // Look for the first month when age >= pensionAgeValue
     const firstYearMonths = monthsUntilNextBirthday || 12;
     const totalMonths = firstYearMonths + (timeHorizon - 1) * 12;
     
@@ -638,7 +668,7 @@ export function calculatePortfolioGrowth(
       const monthIndexInYear = month >= firstYearMonths ? month - (firstYearMonths + (Math.floor((month - firstYearMonths) / 12)) * 12) : month;
       const isFirstMonthOfYear = monthIndexInYear === 0;
       
-      if (ageAtMonth >= pensionLumpSumAgeValue && isFirstMonthOfYear) {
+      if (ageAtMonth >= pensionAgeValue && isFirstMonthOfYear) {
         // Find this month's data in yearly breakdown and monthly data
         let yearIndex = 0;
         if (month >= firstYearMonths) {
@@ -683,7 +713,6 @@ export function calculatePortfolioGrowth(
       withdrawalRate,
       earlyRetirementAge,
       salaryReplacementRate,
-      pensionLumpSumAgeValue,
       lumpSumAllocation,
       useSalaryReplacementForPension,
       bonusPercent,
@@ -693,7 +722,8 @@ export function calculatePortfolioGrowth(
       houseDepositFromBrokerageRate,
       enablePensionLumpSum,
       taxInputs,
-      pensionAgeBracketContributions
+      pensionAgeBracketContributions,
+      netBonusValue
     );
   });
 
@@ -740,7 +770,6 @@ export function calculatePortfolioGrowth(
     monthsUntilNextBirthday: monthsUntilNextBirthday || 12,
     earlyRetirementAge: earlyRetirementAgeValue,
     pensionAge: pensionAgeValue,
-    pensionLumpSumAge: pensionLumpSumAgeValue,
     enablePensionLumpSum,
     houseWithdrawalAge,
     enableHouseWithdrawal,
