@@ -8,10 +8,13 @@ import {
   PRSI_SETTINGS,
   PENSION_TAX_RELIEF_CAP,
   CGT_RATE,
+  DIRT_RATE,
   PENSION_AGE_TAX_CREDIT,
   getTaxBands,
   getPersonalTaxCredit,
   getEarnedIncomeCredit,
+  getMedicalInsuranceCredit,
+  getRentReliefCredit,
 } from '../constants/irishTaxRates2026';
 import { TaxCalculationResult } from '../types/index';
 
@@ -26,7 +29,7 @@ export interface TaxCalculationInput {
  */
 function calculatePayeTaxWithDetails(
   taxableIncome: number
-): { totalTax: number; bands: Array<{ startThreshold: number; threshold: number; rate: number; incomeInBand: number; taxInBand: number }>; creditsApplied: { personal: number; earned: number; total: number } } {
+): { totalTax: number; bands: Array<{ startThreshold: number; threshold: number; rate: number; incomeInBand: number; taxInBand: number }>; creditsApplied: { personal: number; earned: number; medicalInsurance: number; rentRelief: number; total: number } } {
   const taxBands = getTaxBands();
   let tax = 0;
   let previousThreshold = 0;
@@ -56,7 +59,9 @@ function calculatePayeTaxWithDetails(
   // Apply tax credits
   const personalCredit = getPersonalTaxCredit();
   const earnedCredit = getEarnedIncomeCredit();
-  const totalCredits = personalCredit + earnedCredit;
+  const medicalInsuranceCredit = getMedicalInsuranceCredit();
+  const rentReliefCredit = getRentReliefCredit();
+  const totalCredits = personalCredit + earnedCredit + medicalInsuranceCredit + rentReliefCredit;
 
   // Tax cannot be negative after credits
   const finalTax = Math.max(0, tax - totalCredits);
@@ -67,6 +72,8 @@ function calculatePayeTaxWithDetails(
     creditsApplied: {
       personal: personalCredit,
       earned: earnedCredit,
+      medicalInsurance: medicalInsuranceCredit,
+      rentRelief: rentReliefCredit,
       total: totalCredits,
     },
   };
@@ -133,7 +140,9 @@ export function calculatePayeTax(taxableIncome: number): number {
   // Apply tax credits
   const personalCredit = getPersonalTaxCredit();
   const earnedCredit = getEarnedIncomeCredit();
-  const totalCredits = personalCredit + earnedCredit;
+  const medicalInsuranceCredit = getMedicalInsuranceCredit();
+  const rentReliefCredit = getRentReliefCredit();
+  const totalCredits = personalCredit + earnedCredit + medicalInsuranceCredit + rentReliefCredit;
 
   // Tax cannot be negative after credits
   return Math.max(0, tax - totalCredits);
@@ -213,12 +222,12 @@ export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationRe
   const taxCredits = payeeTaxDetails.creditsApplied;
 
   // Calculate USC with band details
-  const uscDetails = calculateUSCWithDetails(taxableIncome);
+  const uscDetails = calculateUSCWithDetails(grossIncomeWithBIK);
   const usc = uscDetails.totalUSC;
   const uscBands = uscDetails.bands;
 
   // Calculate PRSI
-  const prsi = calculatePRSI(taxableIncome);
+  const prsi = calculatePRSI(grossIncomeWithBIK);
 
   // Total deductions
   const totalTax = payeTax + usc + prsi;
@@ -263,6 +272,57 @@ export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationRe
  */
 export function calculateMonthlyNetSalary(annualNetSalary: number): number {
   return annualNetSalary / 12;
+}
+
+/**
+ * Calculate the additional tax burden from end-of-year bonus
+ * Returns the tax amount that should be added in the month the bonus is received
+ * 
+ * The bonus tax burden is calculated as:
+ * additionalTax = tax(salaryTaxableIncome + bonusTaxableIncome) - tax(salaryTaxableIncome)
+ * 
+ * Pension relief is applied to both salary and bonus combined before tax calculation
+ */
+export function calculateBonusTaxBurden(
+  grossSalary: number,
+  bonusPercent: number,
+  pensionContributionPercent: number,
+  bikValue: number = 0
+): number {
+  if (bonusPercent <= 0) {
+    return 0;
+  }
+
+  // Calculate bonus amount and pension contribution on bonus
+  const bonusAmount = grossSalary * (bonusPercent / 100);
+  const pensionContributionAmount = (grossSalary * pensionContributionPercent) / 100;
+  const bonusPensionContribution = (bonusAmount * pensionContributionPercent) / 100;
+
+  // Calculate taxable income for salary only (salary + BIK - salary pension)
+  const salaryGrossIncomeWithBIK = grossSalary + bikValue;
+  const salaryTaxableIncome = calculateTaxableIncome(salaryGrossIncomeWithBIK, pensionContributionAmount);
+
+  // Calculate taxable income for salary + bonus (salary + bonus + BIK - combined pension)
+  const combinedGrossIncomeWithBIK = salaryGrossIncomeWithBIK + bonusAmount;
+  const combinedPensionContribution = pensionContributionAmount + bonusPensionContribution;
+  const combinedTaxableIncome = calculateTaxableIncome(combinedGrossIncomeWithBIK, combinedPensionContribution);
+
+  // Calculate tax on salary only
+  const salaryPayeTax = calculatePayeTax(salaryTaxableIncome);
+  const salaryUSC = calculateUSC(salaryGrossIncomeWithBIK);
+  const salaryPRSI = calculatePRSI(salaryGrossIncomeWithBIK);
+  const salaryTotalTax = salaryPayeTax + salaryUSC + salaryPRSI;
+
+  // Calculate tax on salary + bonus
+  const combinedPayeTax = calculatePayeTax(combinedTaxableIncome);
+  const combinedUSC = calculateUSC(combinedGrossIncomeWithBIK);
+  const combinedPRSI = calculatePRSI(combinedGrossIncomeWithBIK);
+  const combinedTotalTax = combinedPayeTax + combinedUSC + combinedPRSI;
+
+  // Additional tax burden from bonus
+  const bonusTaxBurden = Math.max(0, combinedTotalTax - salaryTotalTax);
+
+  return bonusTaxBurden;
 }
 
 /**
@@ -330,4 +390,25 @@ export function calculateBrokerageCapitalGainsTax(withdrawal: number): {
     cgt,
     netWithdrawal,
   };
+}
+
+/**
+ * Calculate Deposit Interest Retention Tax (DIRT) on savings interest
+ * DIRT is a flat tax of 33% on interest earned on savings accounts
+ * 
+ * @param interest - The gross interest amount earned
+ * @returns The DIRT tax amount
+ */
+export function calculateDirtTax(interest: number): number {
+  return interest * DIRT_RATE;
+}
+
+/**
+ * Calculate net interest after DIRT tax deduction
+ * 
+ * @param interest - The gross interest amount earned
+ * @returns The interest amount after DIRT tax
+ */
+export function getNetInterestAfterDirt(interest: number): number {
+  return interest - calculateDirtTax(interest);
 }

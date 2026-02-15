@@ -4,9 +4,18 @@ import { formatCurrency, formatPercentage } from '../utils/formatters';
 interface TaxSummaryProps {
   result: TaxCalculationResult;
   showDetail?: boolean;
+  bonusTaxBurden?: number;
+  bonusPercent?: number;
 }
 
-export default function TaxSummary({ result, showDetail = true }: TaxSummaryProps) {
+export default function TaxSummary({ result, showDetail = true, bonusTaxBurden = 0, bonusPercent = 0 }: TaxSummaryProps) {
+  const baseMonthlyNetSalary = result.monthlyNetSalary;
+  // December includes the annual bonus
+  const bonusGross = result.grossSalary * (bonusPercent / 100);
+  const bonusPension = bonusGross * (result.pendingContribution / result.grossSalary);
+  const netBonus = bonusGross - bonusPension - bonusTaxBurden;
+  const decemberMonthlyNetSalary = baseMonthlyNetSalary + netBonus;
+
   return (
     <div className="rounded-lg border border-gray-300 bg-white p-6 shadow-sm dark:border-gray-600 dark:bg-gray-800">
       <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
@@ -28,6 +37,32 @@ export default function TaxSummary({ result, showDetail = true }: TaxSummaryProp
           </p>
         </div>
       </div>
+
+      {/* Bonus Tax Information */}
+      {bonusPercent > 0 && bonusTaxBurden > 0 && (
+        <div className="mb-6 rounded-md bg-amber-50 p-4 dark:bg-amber-900 dark:bg-opacity-20">
+          <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 mb-3">
+            End-of-Year Bonus ({bonusPercent.toFixed(1)}% of salary)
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-amber-700 dark:text-amber-400">Months Jan-Nov</p>
+              <p className="text-base font-bold text-amber-900 dark:text-amber-200">
+                {formatCurrency(baseMonthlyNetSalary)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-amber-700 dark:text-amber-400">December (with bonus tax)</p>
+              <p className="text-base font-bold text-amber-900 dark:text-amber-200">
+                {formatCurrency(decemberMonthlyNetSalary)}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
+            Additional tax in December: {formatCurrency(bonusTaxBurden)}
+          </p>
+        </div>
+      )}
 
       {/* Detailed Breakdown */}
       {showDetail && (
@@ -89,6 +124,14 @@ export default function TaxSummary({ result, showDetail = true }: TaxSummaryProp
             <div className="ml-2 flex justify-between text-sm text-gray-700 dark:text-gray-300">
               <span>Earned Income Credit</span>
               <span className="font-mono">€{result.taxCreditsApplied.earned.toFixed(2)}</span>
+            </div>
+            <div className="ml-2 flex justify-between text-sm text-gray-700 dark:text-gray-300">
+              <span>Medical Insurance Credit</span>
+              <span className="font-mono">€{result.taxCreditsApplied.medicalInsurance.toFixed(2)}</span>
+            </div>
+            <div className="ml-2 flex justify-between text-sm text-gray-700 dark:text-gray-300">
+              <span>Rent Relief Credit</span>
+              <span className="font-mono">€{result.taxCreditsApplied.rentRelief.toFixed(2)}</span>
             </div>
             <div className="ml-2 flex justify-between border-t border-green-200 pt-1 dark:border-green-700 text-sm font-semibold text-green-700 dark:text-green-400">
               <span>PAYE Tax (after credits)</span>

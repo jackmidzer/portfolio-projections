@@ -35,6 +35,7 @@ export interface MonthlyBreakdown {
   startingBalance: number;
   contribution: number;
   interest: number;
+  interestTax?: number; // DIRT tax on interest (for Savings accounts only)
   withdrawal: number; // amount withdrawn (pension or brokerage withdrawal)
   endingBalance: number;
   monthlyNetSalary: number; // net income after taxes and pension contributions
@@ -51,6 +52,7 @@ export interface YearlyBreakdown {
   startingBalance: number;
   contributions: number;
   interestEarned: number;
+  interestTaxPaid?: number; // total DIRT tax paid during the year (for Savings accounts)
   endingBalance: number;
   monthlyData: MonthlyBreakdown[];
   withdrawal: number; // amount withdrawn from pension at start of year
@@ -152,6 +154,8 @@ export interface TaxCalculationResult {
   taxCreditsApplied: {
     personal: number;
     earned: number;
+    medicalInsurance: number;
+    rentRelief: number;
     total: number;
   };
   payeTaxBands: Array<{

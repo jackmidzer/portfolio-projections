@@ -335,7 +335,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                                 let monthlyDisplayTax = month.monthlyTax || 0;
                                 let monthlyDisplayNet = month.monthlyNetSalary;
                                 
-                                if ((isInEarlyRetirement || isInPension) && monthlyDisplayIncome > 0 && results.enableTaxCalculation && results.taxInputs) {
+                                if ((isInEarlyRetirement || isInPension) && monthlyDisplayIncome > 0 && results.taxInputs) {
                                   // Show monthly share of the annual tax calculated above
                                   monthlyDisplayTax = annualTax / 12;
                                   monthlyDisplayNet = annualNetIncome / 12;

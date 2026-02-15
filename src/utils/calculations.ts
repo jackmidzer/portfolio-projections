@@ -1,5 +1,5 @@
 import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot } from '../types';
-import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax } from './taxCalculations';
+import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateDirtTax } from './taxCalculations';
 import { isWorkingPhase, isEarlyRetirementPhase, isPensionPhase } from './phaseHelpers';
 
 /**
@@ -112,7 +112,6 @@ export function calculateAccountGrowth(
   houseDepositFromBrokerageRate?: number,
   enablePensionLumpSum?: boolean,
   taxInputs?: TaxInputs,
-  enableTaxCalculation?: boolean,
   pensionAgeBracketContributions?: AgeBracketContributions
 ): AccountResults {
   const monthlyRate = account.expectedReturn / 100 / 12;
@@ -337,7 +336,16 @@ export function calculateAccountGrowth(
 
     // Apply interest
     const monthInterest = currentBalance * monthlyRate;
-    currentBalance += monthInterest + monthlyContribution;
+    let monthInterestTax = 0;
+    let netMonthInterest = monthInterest;
+    
+    // Apply DIRT tax (33%) on interest for Savings accounts only
+    if (account.name === 'Savings' && monthInterest > 0) {
+      monthInterestTax = calculateDirtTax(monthInterest);
+      netMonthInterest = monthInterest - monthInterestTax;
+    }
+    
+    currentBalance += netMonthInterest + monthlyContribution;
 
     // Format month/year as 'FEB 2026'
     const monthLabel = monthDate.toLocaleString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
@@ -396,7 +404,10 @@ export function calculateAccountGrowth(
     // and uses tax calculation results when enabled
     let monthlyNetSalary = 0;
     let monthlyTax = 0;
-    if (salaryAtMonth > 0 && enableTaxCalculation && taxInputs) {
+    let monthlyGrossIncome = 0;
+    let monthlyPensionDeduction = 0;
+    
+    if (salaryAtMonth > 0 && taxInputs) {
       // Use tax calculation: calculate annual net salary then divide by 12
       // Calculate dynamic pension contribution based on current age and pension age brackets
       let dynamicPensionContribution = taxInputs.pensionContribution;
@@ -412,22 +423,61 @@ export function calculateAccountGrowth(
         pensionContribution: dynamicPensionContribution,
         bikValue: taxInputs.bikValue || 0,
       });
-      monthlyNetSalary = annualTaxResult.monthlyNetSalary;
-      // Monthly tax = (PAYE + USC + PRSI) / 12
-      monthlyTax = (annualTaxResult.payeTax + annualTaxResult.usc + annualTaxResult.prsi) / 12;
+      
+      // Monthly tax = (PAYE + USC + PRSI) / 12, except in December when bonus is included
+      const baseMonthlyTax = (annualTaxResult.payeTax + annualTaxResult.usc + annualTaxResult.prsi) / 12;
+      const baseMonthlySalaryPension = dynamicPensionContribution / 12;
+      
+      // Check if this is December and bonus should be applied
+      const isDecemberMonth = monthDate.getMonth() === 11;
+      const hasBonusPercent = bonusPercent !== undefined && bonusPercent > 0;
+      
+      monthlyGrossIncome = salaryAtMonth / 12;
+      monthlyPensionDeduction = baseMonthlySalaryPension;
+      
+      if (isDecemberMonth && hasBonusPercent) {
+        // Calculate additional tax burden from bonus in December
+        const pensionPercent = pensionAgeBracketContributions
+          ? getAgeBracketPercentage(ageAtStartOfCurrentYear, pensionAgeBracketContributions)
+          : (dynamicPensionContribution / salaryAtMonth) * 100;
+        
+        const bonusTaxBurden = calculateBonusTaxBurden(
+          salaryAtMonth,
+          bonusPercent,
+          pensionPercent,
+          taxInputs.bikValue || 0
+        );
+        
+        monthlyTax = baseMonthlyTax + bonusTaxBurden;
+        
+        // Include full bonus amount in the gross income for December
+        const bonusAmount = salaryAtMonth * (bonusPercent / 100);
+        monthlyGrossIncome = salaryAtMonth / 12 + bonusAmount;
+        
+        // Include bonus pension deduction in December
+        const bonusPensionDeduction = (bonusAmount * pensionPercent) / 100;
+        monthlyPensionDeduction = baseMonthlySalaryPension + bonusPensionDeduction;
+      } else {
+        monthlyTax = baseMonthlyTax;
+      }
+      
+      monthlyNetSalary = monthlyGrossIncome - monthlyTax - monthlyPensionDeduction;
     } else if (salaryAtMonth > 0) {
       // Simple case: show gross salary as net income (no tax applied)
+      monthlyGrossIncome = salaryAtMonth / 12;
       monthlyNetSalary = salaryAtMonth / 12;
       monthlyTax = 0;
+      monthlyPensionDeduction = 0;
     }
 
     allMonthlyData.push({
       month: month + 1,
       monthYear: monthLabel,
-      salary: salaryAtMonth / 12,
+      salary: monthlyGrossIncome,
       startingBalance: monthStartBalance,
       contribution: monthlyContribution,
       interest: monthInterest,
+      interestTax: monthInterestTax,
       withdrawal: monthWithdrawal,
       endingBalance: currentBalance,
       monthlyNetSalary,
@@ -474,6 +524,7 @@ export function calculateAccountGrowth(
     const yearEndingBalance = renumberedMonthlyData[renumberedMonthlyData.length - 1]?.endingBalance ?? currentBalance;
     const yearContributions = renumberedMonthlyData.reduce((sum, m) => sum + m.contribution, 0);
     const yearInterest = renumberedMonthlyData.reduce((sum, m) => sum + m.interest, 0);
+    const yearInterestTax = renumberedMonthlyData.reduce((sum, m) => sum + (m.interestTax || 0), 0);
     const yearWithdrawal = renumberedMonthlyData.reduce((sum, m) => sum + m.withdrawal, 0);
     const yearSalary = (renumberedMonthlyData[0]?.salary ?? 0) * 12; // Annual salary (convert from monthly)
     
@@ -492,6 +543,7 @@ export function calculateAccountGrowth(
       startingBalance: yearStartingBalance,
       contributions: yearContributions,
       interestEarned: yearInterest,
+      interestTaxPaid: yearInterestTax,
       endingBalance: yearEndingBalance,
       monthlyData: renumberedMonthlyData,
       withdrawal: yearWithdrawal,
@@ -536,8 +588,7 @@ export function calculatePortfolioGrowth(
   houseDepositPercent?: number,
   houseDepositFromBrokerageRate?: number,
   enablePensionLumpSum?: boolean,
-  taxInputs?: TaxInputs,
-  enableTaxCalculation?: boolean
+  taxInputs?: TaxInputs
 ): PortfolioResults {
   const pensionAgeValue = pensionAge ?? 65;
   const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
@@ -573,7 +624,6 @@ export function calculatePortfolioGrowth(
       houseDepositFromBrokerageRate,
       enablePensionLumpSum,
       taxInputs,
-      enableTaxCalculation,
       pensionAgeBracketContributions
     );
     
@@ -643,7 +693,6 @@ export function calculatePortfolioGrowth(
       houseDepositFromBrokerageRate,
       enablePensionLumpSum,
       taxInputs,
-      enableTaxCalculation,
       pensionAgeBracketContributions
     );
   });
@@ -698,7 +747,7 @@ export function calculatePortfolioGrowth(
     earlyRetirementSnapshot,
     pensionAgeSnapshot,
     taxInputs,
-    enableTaxCalculation,
+    enableTaxCalculation: true,
   };
 }
 

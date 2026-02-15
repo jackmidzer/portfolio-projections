@@ -12,13 +12,15 @@ export const PAYE_TAX_BANDS = [
 // Personal Tax Credits (annual)
 export const PERSONAL_TAX_CREDIT = 2000;  // Single person personal tax credit
 export const EARNED_INCOME_CREDIT = 2000; // Earned income credit (available to employees)
+export const MEDICAL_INSURANCE_CREDIT = 200; // Medical Insurance tax credit
+export const RENT_RELIEF_CREDIT = 1000; // Rent Relief tax credit
 
 // Universal Social Charge (USC) Rates
 export const USC_RATES = [
-  { threshold: 12012, rate: 0.005 },    // 0% up to €12,012
-  { threshold: 28700, rate: 0.02 },   // 2% from €12,012 to €22,238
-  { threshold: 70044, rate: 0.03 },   // 4% from €22,238 to €72,500
-  { threshold: Infinity, rate: 0.08 }, // 8% above €72,500
+  { threshold: 12012, rate: 0.005 },    // 0.5% up to €12,012
+  { threshold: 28700, rate: 0.02 },   // 2% from €12,012 to €28,700
+  { threshold: 70044, rate: 0.03 },   // 3% from €28,700 to €70,044
+  { threshold: Infinity, rate: 0.08 }, // 8% above €70,044
 ];
 
 // PRSI (Pay Related Social Insurance)
@@ -32,6 +34,10 @@ export const PENSION_TAX_RELIEF_CAP = 115000;
 
 // Capital Gains Tax (CGT) Rate
 export const CGT_RATE = 0.33; // 33% on brokerage withdrawals
+
+// Deposit Interest Retention Tax (DIRT) Rate
+// Tax on interest earned on savings accounts
+export const DIRT_RATE = 0.33; // 33% on savings interest
 
 // Pension Age Tax Credit
 // Additional tax credit available for pension withdrawals during pension phase
@@ -56,4 +62,18 @@ export function getPersonalTaxCredit(): number {
  */
 export function getEarnedIncomeCredit(): number {
   return EARNED_INCOME_CREDIT;
+}
+
+/**
+ * Get medical insurance tax credit
+ */
+export function getMedicalInsuranceCredit(): number {
+  return MEDICAL_INSURANCE_CREDIT;
+}
+
+/**
+ * Get rent relief tax credit
+ */
+export function getRentReliefCredit(): number {
+  return RENT_RELIEF_CREDIT;
 }
