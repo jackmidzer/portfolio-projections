@@ -570,6 +570,9 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               </div>
             </label>
           </div>
+          <p className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-gray-700">
+            <span className="font-semibold">Note:</span> Your chosen method applies until age 61. Forced minimum withdrawal rates apply thereafter: 4% withdrawal rate from age 61, and 5% withdrawal rate from age 71.
+          </p>
         </div>
       </div>
 

@@ -209,8 +209,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
                 annualTax = taxResult.cgt;
                 annualNetIncome = taxResult.netWithdrawal;
               } else if (isInPension && annualGrossIncome > 0) {
-                // Pension phase: ONLY pension withdrawal, taxed at income tax + €245 credit
-                const taxResult = calculatePensionWithdrawalTax(annualGrossIncome, true);
+                // Pension phase: ONLY pension withdrawal, taxed at income tax + PRSI (if age < 66) + €245 credit
+                const taxResult = calculatePensionWithdrawalTax(annualGrossIncome, true, row.age);
                 annualTax = taxResult.totalTax;
                 annualNetIncome = taxResult.netWithdrawal;
               } else if (!isInEarlyRetirement && !isInPension) {

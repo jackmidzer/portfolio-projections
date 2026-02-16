@@ -359,13 +359,15 @@ export function calculateNetBonus(
 
 /**
  * Calculate tax on pension withdrawals
- * Pension withdrawals use income tax (PAYE + USC only, no PRSI)
- * and include a €245 age tax credit when in pension phase (age 66+)
+ * Pension withdrawals use income tax (PAYE + USC)
+ * PRSI applies when age < 66 (state pension age)
+ * Includes a €245 age tax credit when in pension phase (age 66+)
  */
-export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPhase: boolean): {
+export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPhase: boolean, age: number): {
   grossWithdrawal: number;
   payeTax: number;
   usc: number;
+  prsi: number;
   totalTax: number;
   taxCredit: number;
   netWithdrawal: number;
@@ -379,17 +381,17 @@ export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPha
   const uscDetails = calculateUSCWithDetails(withdrawal);
   const usc = uscDetails.totalUSC;
 
-  // No PRSI on pension withdrawals (PRSI is employment tax only)
-  // Pocket pension withdrawals are already exempt from PRSI
+  // PRSI applies to pension withdrawals when age < 66 (state pension age)
+  const prsi = age < 66 ? withdrawal * 0.042375 : 0;
 
-  // Apply age tax credit (€245) if in pension phase
+  // Apply age tax credit (€245) if in pension phase and age >= 65
   let taxCredit = 0;
-  if (isInPensionPhase) {
+  if (isInPensionPhase && age >= 65) {
     taxCredit = PENSION_AGE_TAX_CREDIT;
   }
 
   // Total tax after applying credits
-  const totalTaxBefore = payeTax + usc;
+  const totalTaxBefore = payeTax + usc + prsi;
   const totalTax = Math.max(0, totalTaxBefore - taxCredit);
 
   // Net withdrawal is gross minus taxes
@@ -399,6 +401,7 @@ export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPha
     grossWithdrawal: withdrawal,
     payeTax,
     usc,
+    prsi,
     totalTax,
     taxCredit,
     netWithdrawal,

@@ -300,13 +300,26 @@ export function calculateAccountGrowth(
 
       // [PENSION PHASE] Calculate annual pension regular withdrawal
       if (isPensionAccount && isInPensionPhase) {
-        if (useSalaryReplacementForPension) {
-          // Use salary replacement approach
-          const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januarysSeen) : 0;
-          annualPensionWithdrawal = hypotheticalSalary * ((salaryReplacementRate ?? 80) / 100);
+        // Apply forced withdrawal rates at specific ages, otherwise use user's chosen method
+        let effectiveWithdrawalRate = withdrawalRateValue;
+        if (ageAtMonth >= 71) {
+          // Age 71+: forced 5% withdrawal rate
+          effectiveWithdrawalRate = 5;
+          annualPensionWithdrawal = monthStartBalance * (effectiveWithdrawalRate / 100);
+        } else if (ageAtMonth >= 61) {
+          // Age 61-70: forced 4% withdrawal rate
+          effectiveWithdrawalRate = 4;
+          annualPensionWithdrawal = monthStartBalance * (effectiveWithdrawalRate / 100);
         } else {
-          // Use withdrawal rate approach (4% rule)
-          annualPensionWithdrawal = monthStartBalance * (withdrawalRateValue / 100);
+          // Before age 61: use user's chosen method
+          if (useSalaryReplacementForPension) {
+            // Use salary replacement approach
+            const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januarysSeen) : 0;
+            annualPensionWithdrawal = hypotheticalSalary * ((salaryReplacementRate ?? 80) / 100);
+          } else {
+            // Use withdrawal rate approach
+            annualPensionWithdrawal = monthStartBalance * (withdrawalRateValue / 100);
+          }
         }
       }
 
@@ -441,8 +454,8 @@ export function calculateAccountGrowth(
       if (isPensionAccount && ageAtMonth >= pensionAgeValue && ageAtMonth < (pensionAgeValue + 1)) {
         withdrawalPhase = 'lumpSum';
         // Lump sum withdrawals typically have special tax treatment (not fully taxed)
-        // For now, apply standard income tax (PAYE + USC, no PRSI)
-        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, false);
+        // For now, apply standard income tax (PAYE + USC + PRSI if age < 66)
+        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, false, ageAtMonth);
         withdrawalTax = taxResult.totalTax;
         withdrawalNetAmount = taxResult.netWithdrawal;
       }
@@ -456,8 +469,8 @@ export function calculateAccountGrowth(
       // Pension phase withdrawal (regular pension withdrawals)
       else if (isPensionAccount && isInPensionPhase) {
         withdrawalPhase = 'pensionPhase';
-        // Pension withdrawals: PAYE + USC (no PRSI) + €245 age credit
-        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, true);
+        // Pension withdrawals: PAYE + USC + PRSI (if age < 66) + €245 age credit
+        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, true, ageAtMonth);
         withdrawalTax = taxResult.totalTax;
         withdrawalNetAmount = taxResult.netWithdrawal;
       }
