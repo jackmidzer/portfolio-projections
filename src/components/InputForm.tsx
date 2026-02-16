@@ -30,17 +30,17 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   ]);
 
   const [dateOfBirth, setDateOfBirth] = useState<string>('1997-10-03'); // Default to my date of birth
-  const [targetAge, setTargetAge] = useState<number | ''>(70);
+  const [targetAge, setTargetAge] = useState<number | ''>(75);
   const [currentSalary, setCurrentSalary] = useState<number | ''>(70000);
   const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(2);
   const [bonusPercent, setBonusPercent] = useState<number | ''>(15);
-  const [pensionAge, setPensionAge] = useState<number | ''>(55);
+  const [pensionAge, setPensionAge] = useState<number | ''>(60);
   const [withdrawalRate, setWithdrawalRate] = useState<number | ''>(4);
-  const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(45);
-  const [salaryReplacementRate, setSalaryReplacementRate] = useState<number | ''>(70);
+  const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(48);
+  const [salaryReplacementRate, setSalaryReplacementRate] = useState<number | ''>(80);
   const [lumpSumToBrokerageRate, setLumpSumToBrokerageRate] = useState<number | ''>(90);
   const [useSalaryReplacementForPension, setUseSalaryReplacementForPension] = useState<boolean>(false);
-  const [enablePensionLumpSum, setEnablePensionLumpSum] = useState<boolean>(false);
+  const [enablePensionLumpSum, setEnablePensionLumpSum] = useState<boolean>(true);
   const [houseWithdrawalAge, setHouseWithdrawalAge] = useState<number | ''>(34);
   const [enableHouseWithdrawal, setEnableHouseWithdrawal] = useState<boolean>(true);
   const [houseDepositPercent, setHouseDepositPercent] = useState<number | ''>(15);
