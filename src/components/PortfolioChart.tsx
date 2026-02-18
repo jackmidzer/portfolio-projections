@@ -142,6 +142,9 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
     // Collect all milestone ages to detect overlapping labels
     const milestoneAges = [
       results.earlyRetirementAge,
+      ...(results.enablePensionLumpSum !== false && results.pensionLumpSumAge !== undefined
+        ? [results.pensionLumpSumAge]
+        : []),
       results.pensionAge,
       ...(results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined 
         ? [results.houseWithdrawalAge] 
@@ -243,6 +246,14 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
               strokeDasharray="5 5"
               shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
             />
+            {results.enablePensionLumpSum !== false && results.pensionLumpSumAge !== undefined && (
+              <ReferenceLine
+                x={results.pensionLumpSumAge}
+                stroke="#f59e0b"
+                strokeDasharray="5 5"
+                shape={ShortenedReferenceLineWithLabel(`Lump Sum (${results.pensionLumpSumAge})`, '#f59e0b', results.pensionLumpSumAge, [results.earlyRetirementAge, results.pensionAge].filter(a => a === results.pensionLumpSumAge).length)}
+              />
+            )}
             {results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined && (
               <ReferenceLine
                 x={results.houseWithdrawalAge}
@@ -315,6 +326,14 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
             strokeDasharray="5 5"
             shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
           />
+          {results.enablePensionLumpSum !== false && results.pensionLumpSumAge !== undefined && (
+            <ReferenceLine
+              x={results.pensionLumpSumAge}
+              stroke="#8b5cf6"
+              strokeDasharray="5 5"
+              shape={ShortenedReferenceLineWithLabel(`Lump Sum (${results.pensionLumpSumAge})`, '#8b5cf6', results.pensionLumpSumAge, [results.earlyRetirementAge, results.pensionAge].filter(a => a === results.pensionLumpSumAge).length)}
+            />
+          )}
           {results.enableHouseWithdrawal && results.houseWithdrawalAge !== undefined && (
             <ReferenceLine
               x={results.houseWithdrawalAge}

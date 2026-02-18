@@ -112,7 +112,8 @@ export function calculateAccountGrowth(
   enablePensionLumpSum?: boolean,
   taxInputs?: TaxInputs,
   pensionAgeBracketContributions?: AgeBracketContributions,
-  netBonusValue?: number
+  netBonusValue?: number,
+  pensionLumpSumAge?: number
 ): AccountResults {
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
@@ -120,6 +121,7 @@ export function calculateAccountGrowth(
   const isPensionAccount = account.name === 'Pension';
   const isBrokerageAccount = account.name === 'Brokerage';
   const pensionAgeValue = pensionAge ?? 65;
+  const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
   const withdrawalRateValue = withdrawalRate ?? 4;
   const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
   const salaryReplacementRateValue = salaryReplacementRate ?? 80;
@@ -331,8 +333,8 @@ export function calculateAccountGrowth(
     }
 
     if (isJanuary) {
-      // [PENSION PHASE] Pension lump sum: withdraw 25% of balance (capped at 200k) at pensionAge - ONE TIME ONLY
-      if (isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= pensionAgeValue && ageAtMonth < (pensionAgeValue + 1)) {
+      // [PENSION PHASE] Pension lump sum: withdraw 25% of balance (capped at 200k) at pensionLumpSumAge - ONE TIME ONLY
+      if (isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= pensionLumpSumAgeValue && ageAtMonth < (pensionLumpSumAgeValue + 1)) {
         const lumpSumAmount = Math.min(monthStartBalance * 0.25, 200000);
         monthWithdrawal = lumpSumAmount;
         currentBalance -= monthWithdrawal;
@@ -355,8 +357,8 @@ export function calculateAccountGrowth(
         }
       }
       
-      // Savings/Brokerage: receive lump sum allocation at pensionAge (add to contributions + show as withdrawal) - only in January
-      if (!isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= pensionAgeValue && ageAtMonth < (pensionAgeValue + 1) && pensionLumpSumAmount !== undefined && pensionLumpSumAmount > 0) {
+      // Savings/Brokerage: receive lump sum allocation at pensionLumpSumAge (add to contributions + show as withdrawal) - only in January
+      if (!isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= pensionLumpSumAgeValue && ageAtMonth < (pensionLumpSumAgeValue + 1) && pensionLumpSumAmount !== undefined && pensionLumpSumAmount > 0) {
         lumpSumContribution = pensionLumpSumAmount;
         // Also track as withdrawal for display in withdrawal column (not subtracted from balance, separate from recurring withdrawals)
         monthWithdrawal = pensionLumpSumAmount;
@@ -618,9 +620,11 @@ export function calculatePortfolioGrowth(
   houseDepositPercent?: number,
   houseDepositFromBrokerageRate?: number,
   enablePensionLumpSum?: boolean,
-  taxInputs?: TaxInputs
+  taxInputs?: TaxInputs,
+  pensionLumpSumAge?: number
 ): PortfolioResults {
   const pensionAgeValue = pensionAge ?? 65;
+  const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
   const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
   const lumpSumToBrokerageRateValue = lumpSumToBrokerageRate ?? 80;
 
@@ -667,11 +671,12 @@ export function calculatePortfolioGrowth(
       enablePensionLumpSum,
       taxInputs,
       pensionAgeBracketContributions,
-      netBonusValue
+      netBonusValue,
+      pensionLumpSumAge
     );
     
     // Find the lump sum amount from the pension monthly data
-    // Look for the first month when age >= pensionAgeValue
+    // Look for the first month when age >= pensionLumpSumAgeValue
     const firstYearMonths = monthsUntilNextBirthday || 12;
     const totalMonths = firstYearMonths + (timeHorizon - 1) * 12;
     
@@ -681,7 +686,7 @@ export function calculatePortfolioGrowth(
       const monthIndexInYear = month >= firstYearMonths ? month - (firstYearMonths + (Math.floor((month - firstYearMonths) / 12)) * 12) : month;
       const isFirstMonthOfYear = monthIndexInYear === 0;
       
-      if (ageAtMonth >= pensionAgeValue && isFirstMonthOfYear) {
+      if (ageAtMonth >= pensionLumpSumAgeValue && isFirstMonthOfYear) {
         // Find this month's data in yearly breakdown and monthly data
         let yearIndex = 0;
         if (month >= firstYearMonths) {
@@ -736,7 +741,8 @@ export function calculatePortfolioGrowth(
       enablePensionLumpSum,
       taxInputs,
       pensionAgeBracketContributions,
-      netBonusValue
+      netBonusValue,
+      pensionLumpSumAge
     );
   });
 
@@ -784,6 +790,7 @@ export function calculatePortfolioGrowth(
     earlyRetirementAge: earlyRetirementAgeValue,
     pensionAge: pensionAgeValue,
     enablePensionLumpSum,
+    pensionLumpSumAge,
     houseWithdrawalAge,
     enableHouseWithdrawal,
     earlyRetirementSnapshot,

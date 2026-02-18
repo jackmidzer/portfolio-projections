@@ -53,7 +53,8 @@ function App() {
       inputs.houseDepositPercent,
       inputs.houseDepositFromBrokerageRate,
       inputs.enablePensionLumpSum,
-      inputs.taxInputs
+      inputs.taxInputs,
+      inputs.pensionLumpSumAge
     );
     setResults(calculatedResults);
     setBonusPercent(inputs.bonusPercent);

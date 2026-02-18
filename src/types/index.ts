@@ -81,6 +81,7 @@ export interface PortfolioInputs {
   salaryReplacementRate: number; // replacement rate for salary during early retirement (default 80)
   lumpSumToBrokerageRate: number; // allocation rate of lump sum to brokerage as % (default 80)
   enablePensionLumpSum?: boolean; // whether to enable pension lump sum withdrawal (default true)
+  pensionLumpSumAge?: number; // age when pension lump sum can be withdrawn (default 50, minimum 50, maximum pensionAge)
   useSalaryReplacementForPension?: boolean; // if true, use salary replacement at pension age instead of withdrawal rate
   houseWithdrawalAge?: number; // age to buy house and withdraw funds (default 34)
   enableHouseWithdrawal?: boolean; // whether to enable house withdrawal (default false)
@@ -114,6 +115,7 @@ export interface PortfolioResults {
   earlyRetirementAge: number; // age when early retirement withdrawals begin
   pensionAge: number; // age when pension withdrawals begin
   enablePensionLumpSum?: boolean; // whether pension lump sum withdrawal is enabled
+  pensionLumpSumAge?: number; // age when pension lump sum can be withdrawn
   houseWithdrawalAge?: number; // age when house purchase withdrawal occurs
   enableHouseWithdrawal?: boolean; // whether house withdrawal is enabled
   earlyRetirementSnapshot?: MilestoneSnapshot; // portfolio snapshot at early retirement age
