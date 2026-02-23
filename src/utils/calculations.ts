@@ -1,4 +1,4 @@
-import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot } from '../types';
+import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot, HouseDepositCalculation } from '../types';
 import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax } from './taxCalculations';
 import { isEarlyRetirementPhase, isPensionPhase } from './phaseHelpers';
 
@@ -103,11 +103,10 @@ export function calculateAccountGrowth(
   earlyRetirementAge?: number,
   salaryReplacementRate?: number,
   pensionLumpSumAmount?: number,
-  useSalaryReplacementForPension?: boolean,
   bonusPercent?: number,
   houseWithdrawalAge?: number,
   enableHouseWithdrawal?: boolean,
-  houseDepositPercent?: number,
+  houseDepositCalculation?: HouseDepositCalculation,
   houseDepositFromBrokerageRate?: number,
   enablePensionLumpSum?: boolean,
   taxInputs?: TaxInputs,
@@ -313,15 +312,8 @@ export function calculateAccountGrowth(
           effectiveWithdrawalRate = 4;
           annualPensionWithdrawal = monthStartBalance * (effectiveWithdrawalRate / 100);
         } else {
-          // Before age 61: use user's chosen method
-          if (useSalaryReplacementForPension) {
-            // Use salary replacement approach
-            const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januarysSeen) : 0;
-            annualPensionWithdrawal = hypotheticalSalary * ((salaryReplacementRate ?? 80) / 100);
-          } else {
-            // Use withdrawal rate approach
-            annualPensionWithdrawal = monthStartBalance * (withdrawalRateValue / 100);
-          }
+          // Before age 61: use percentage of balance strategy
+          annualPensionWithdrawal = monthStartBalance * (withdrawalRateValue / 100);
         }
       }
 
@@ -340,10 +332,8 @@ export function calculateAccountGrowth(
         currentBalance -= monthWithdrawal;
       }
       // House deposit withdrawal from Savings/Brokerage in January following houseWithdrawalAge - ONE TIME ONLY
-      else if (enableHouseWithdrawal && houseWithdrawalAge !== undefined && ageAtMonth >= houseWithdrawalAge && ageAtMonth < (houseWithdrawalAge + 1)) {
-        const projectedSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januarysSeen) : 0;
-        const projectedBonus = projectedSalary * ((bonusPercent ?? 0) / 100);
-        const totalHouseDeposit = (projectedSalary * 4 + projectedBonus * 2) * ((houseDepositPercent ?? 15) / 100);
+      else if (enableHouseWithdrawal && houseWithdrawalAge !== undefined && houseDepositCalculation && ageAtMonth >= houseWithdrawalAge && ageAtMonth < (houseWithdrawalAge + 1)) {
+        const totalHouseDeposit = houseDepositCalculation.depositRequired;
         const brokerageRate = houseDepositFromBrokerageRate ?? 50;
         
         if (isBrokerageAccount) {
@@ -613,15 +603,15 @@ export function calculatePortfolioGrowth(
   earlyRetirementAge?: number,
   salaryReplacementRate?: number,
   lumpSumToBrokerageRate?: number,
-  useSalaryReplacementForPension?: boolean,
   bonusPercent?: number,
   houseWithdrawalAge?: number,
   enableHouseWithdrawal?: boolean,
-  houseDepositPercent?: number,
+  houseDepositCalculation?: HouseDepositCalculation,
   houseDepositFromBrokerageRate?: number,
   enablePensionLumpSum?: boolean,
   taxInputs?: TaxInputs,
-  pensionLumpSumAge?: number
+  pensionLumpSumAge?: number,
+  mortgageExemption?: boolean
 ): PortfolioResults {
   const pensionAgeValue = pensionAge ?? 65;
   const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
@@ -662,11 +652,10 @@ export function calculatePortfolioGrowth(
       earlyRetirementAge,
       salaryReplacementRate,
       undefined,
-      useSalaryReplacementForPension,
       bonusPercent,
       houseWithdrawalAge,
       enableHouseWithdrawal,
-      houseDepositPercent,
+      houseDepositCalculation,
       houseDepositFromBrokerageRate,
       enablePensionLumpSum,
       taxInputs,
@@ -732,11 +721,10 @@ export function calculatePortfolioGrowth(
       earlyRetirementAge,
       salaryReplacementRate,
       lumpSumAllocation,
-      useSalaryReplacementForPension,
       bonusPercent,
       houseWithdrawalAge,
       enableHouseWithdrawal,
-      houseDepositPercent,
+      houseDepositCalculation,
       houseDepositFromBrokerageRate,
       enablePensionLumpSum,
       taxInputs,
@@ -777,6 +765,7 @@ export function calculatePortfolioGrowth(
 
   // Extract milestone snapshots
   const earlyRetirementSnapshot = extractMilestoneSnapshot(accountResults, earlyRetirementAgeValue);
+  const houseWithdrawalAgeSnapshot = houseWithdrawalAge && enableHouseWithdrawal ? extractMilestoneSnapshot(accountResults, houseWithdrawalAge) : undefined;
   const pensionAgeSnapshot = extractMilestoneSnapshot(accountResults, pensionAgeValue);
 
   return {
@@ -793,7 +782,10 @@ export function calculatePortfolioGrowth(
     pensionLumpSumAge,
     houseWithdrawalAge,
     enableHouseWithdrawal,
+    houseDepositCalculation,
+    mortgageExemption,
     earlyRetirementSnapshot,
+    houseWithdrawalAgeSnapshot,
     pensionAgeSnapshot,
     taxInputs,
     enableTaxCalculation: true,

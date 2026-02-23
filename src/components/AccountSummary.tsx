@@ -21,10 +21,10 @@ const AccountSummary: React.FC<AccountSummaryProps> = ({ results }) => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">Portfolio Summary</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Overall Summary</h2>
         {startAge && endAge && (
           <div className="text-sm text-gray-600">
-            Age projection: <strong>{startAge} → {endAge}</strong>
+            Projecting from age <strong>{startAge} to {endAge}</strong>
           </div>
         )}
       </div>

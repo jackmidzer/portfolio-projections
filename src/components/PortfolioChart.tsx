@@ -237,14 +237,14 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
               x={results.earlyRetirementAge}
               stroke="#f59e0b"
               strokeDasharray="5 5"
-              shape={ShortenedReferenceLineWithLabel(`Early Retirement (${results.earlyRetirementAge})`, '#d97706', results.earlyRetirementAge, 0)}
+              shape={ShortenedReferenceLineWithLabel(`Stop Working (${results.earlyRetirementAge})`, '#d97706', results.earlyRetirementAge, 0)}
             />
             {/* Early Retirement Phase ends / Pension Phase begins */}
             <ReferenceLine
               x={results.pensionAge}
               stroke="#f59e0b"
               strokeDasharray="5 5"
-              shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
+              shape={ShortenedReferenceLineWithLabel(`Access Pension (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
             />
             {results.enablePensionLumpSum !== false && results.pensionLumpSumAge !== undefined && (
               <ReferenceLine
@@ -318,13 +318,13 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
             x={results.earlyRetirementAge}
             stroke="#f59e0b"
             strokeDasharray="5 5"
-            shape={ShortenedReferenceLineWithLabel(`Early Retirement (${results.earlyRetirementAge})`, '#d97706', results.earlyRetirementAge, 0)}
+            shape={ShortenedReferenceLineWithLabel(`Stop Working (${results.earlyRetirementAge})`, '#d97706', results.earlyRetirementAge, 0)}
           />
           <ReferenceLine
             x={results.pensionAge}
             stroke="#f59e0b"
             strokeDasharray="5 5"
-            shape={ShortenedReferenceLineWithLabel(`Pension Age (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
+            shape={ShortenedReferenceLineWithLabel(`Access Pension (${results.pensionAge})`, '#f59e0b', results.pensionAge, results.pensionAge === results.earlyRetirementAge ? 1 : 0)}
           />
           {results.enablePensionLumpSum !== false && results.pensionLumpSumAge !== undefined && (
             <ReferenceLine
@@ -388,7 +388,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">Portfolio Growth</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Growth Over Time</h2>
         
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
           <select
@@ -436,7 +436,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              Balance
+              Total Value
             </button>
             <button
               onClick={() => setShowPrincipalInterest(true)}
@@ -446,7 +446,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              Principal vs Interest
+              Deposits vs Growth
             </button>
           </div>
         </div>
@@ -461,7 +461,7 @@ const PortfolioChart: React.FC<PortfolioChartProps> = ({ results }) => {
               onChange={(e) => setShowTotal(e.target.checked)}
               className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
             />
-            <span className="text-sm font-medium text-gray-700">Show Total Portfolio Line</span>
+            <span className="text-sm font-medium text-gray-700">Show Total Line</span>
           </label>
         </div>
       )}

@@ -94,7 +94,11 @@ const AccountInput: React.FC<AccountInputProps> = ({ account, onChange }) => {
               {account.isSalaryPercentage && <span className={`absolute right-4 top-3.5 ${colors.accent} font-semibold`}>%</span>}
             </div>
             <p className="mt-2 text-xs text-gray-600">
-              {account.isSalaryPercentage ? 'Percentage of monthly salary' : 'Fixed monthly amount'}
+              {account.isSalaryPercentage 
+                ? account.name === 'Pension' 
+                  ? 'Percentage of gross salary' 
+                  : 'Percentage of net salary'
+                : 'Fixed monthly amount'}
             </p>
           </div>
         )}
@@ -155,7 +159,7 @@ const AccountInput: React.FC<AccountInputProps> = ({ account, onChange }) => {
           </div>
           
             <p className="mt-2 text-xs text-gray-600">
-              Percentage of monthly salary by age bracket
+              Percentage of gross salary by age bracket
             </p>
           </div>
         )}
@@ -178,13 +182,13 @@ const AccountInput: React.FC<AccountInputProps> = ({ account, onChange }) => {
               />
               <span className={`absolute right-4 top-3.5 ${colors.accent} font-semibold`}>%</span>
             </div>
-            <p className="mt-2 text-xs text-gray-600">Employer contribution as % of salary</p>
+            <p className="mt-2 text-xs text-gray-600">Your employer matches this % of gross salary</p>
           </div>
         )}
 
         <div>
           <label className={`block text-xs font-semibold tracking-wide ${colors.text} mb-2 uppercase`}>
-            Expected Annual Return
+            Expected Annual Growth
           </label>
           <div className="relative">
             <input
@@ -231,7 +235,11 @@ const AccountInput: React.FC<AccountInputProps> = ({ account, onChange }) => {
             </div>
           )}
           {!isPensionWithBrackets && (
-            <p className="mt-2 text-xs text-gray-600">Percentage of bonus to contribute to this account</p>
+            <p className="mt-2 text-xs text-gray-600">
+              {account.name === 'Pension' 
+                ? 'Percentage of gross bonus (tax-deductible)'
+                : 'Percentage of net bonus'}
+            </p>
           )}
         </div>
       </div>

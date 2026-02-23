@@ -66,6 +66,14 @@ export interface AccountResults {
   finalBalance: number;
 }
 
+export interface HouseDepositCalculation {
+  projectedHousePrice: number; // house price at purchase age
+  projectedSalary: number; // projected annual salary at purchase age
+  projectedMortgage: number; // maximum mortgage available (salary*4 + bonus*2)
+  depositRequired: number; // deposit needed (house price - mortgage)
+  loanToValuePercent: number; // LTV as percentage (mortgage / house price * 100)
+}
+
 export interface PortfolioInputs {
   accounts: AccountInput[];
   dateOfBirth: Date;
@@ -82,11 +90,13 @@ export interface PortfolioInputs {
   lumpSumToBrokerageRate: number; // allocation rate of lump sum to brokerage as % (default 80)
   enablePensionLumpSum?: boolean; // whether to enable pension lump sum withdrawal (default true)
   pensionLumpSumAge?: number; // age when pension lump sum can be withdrawn (default 50, minimum 50, maximum pensionAge)
-  useSalaryReplacementForPension?: boolean; // if true, use salary replacement at pension age instead of withdrawal rate
   houseWithdrawalAge?: number; // age to buy house and withdraw funds (default 34)
   enableHouseWithdrawal?: boolean; // whether to enable house withdrawal (default false)
-  houseDepositPercent?: number; // percentage of (salary*4 + bonus*2) to withdraw for house deposit (default 15, minimum 10)
+  baseHousePrice?: number; // average house price at current date in EUR (default 387000)
+  houseAnnualPriceIncrease?: number; // annual house price increase as % (default 8)
+  houseDepositCalculation?: HouseDepositCalculation; // calculated house deposit metrics
   houseDepositFromBrokerageRate?: number; // allocation rate of house deposit from brokerage as % (default 50)
+  mortgageExemption?: boolean; // whether to apply mortgage exemption (default true)
   taxInputs?: TaxInputs; // optional Irish tax calculation inputs
   enableTaxCalculation?: boolean; // whether to show tax calculation
 }
@@ -118,7 +128,10 @@ export interface PortfolioResults {
   pensionLumpSumAge?: number; // age when pension lump sum can be withdrawn
   houseWithdrawalAge?: number; // age when house purchase withdrawal occurs
   enableHouseWithdrawal?: boolean; // whether house withdrawal is enabled
+  houseDepositCalculation?: HouseDepositCalculation; // calculated house deposit metrics
+  mortgageExemption?: boolean; // whether mortgage exemption is applied
   earlyRetirementSnapshot?: MilestoneSnapshot; // portfolio snapshot at early retirement age
+  houseWithdrawalAgeSnapshot?: MilestoneSnapshot; // portfolio snapshot at house purchase age
   pensionAgeSnapshot?: MilestoneSnapshot; // portfolio snapshot at pension age
   taxInputs?: TaxInputs; // optional Irish tax calculation inputs
   enableTaxCalculation?: boolean; // whether to show tax calculation

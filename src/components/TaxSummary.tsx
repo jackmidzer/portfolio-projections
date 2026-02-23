@@ -8,30 +8,24 @@ interface TaxSummaryProps {
   bonusPercent?: number;
 }
 
-export default function TaxSummary({ result, showDetail = true, bonusTaxBurden = 0, bonusPercent = 0 }: TaxSummaryProps) {
-  const baseMonthlyNetSalary = result.monthlyNetSalary;
-  // December includes the annual bonus
-  const bonusGross = result.grossSalary * (bonusPercent / 100);
-  const bonusPension = bonusGross * (result.pendingContribution / result.grossSalary);
-  const netBonus = bonusGross - bonusPension - bonusTaxBurden;
-  const decemberMonthlyNetSalary = baseMonthlyNetSalary + netBonus;
+export default function TaxSummary({ result, showDetail = true }: TaxSummaryProps) {
 
   return (
     <div className="rounded-lg border border-gray-300 bg-white p-6 shadow-sm dark:border-gray-600 dark:bg-gray-800">
       <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-        Irish Tax Calculation
+        How Your Salary Breaks Down (After Taxes and pension contributions)
       </h3>
 
       {/* Top Summary Line */}
       <div className="mb-6 grid grid-cols-2 gap-4 rounded-md bg-gray-50 p-4 dark:bg-gray-700">
         <div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Annual Net Salary</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Annual Take-Home</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {formatCurrency(result.netSalary)}
           </p>
         </div>
         <div>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Monthly Net Salary</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Monthly Take-Home</p>
           <p className="text-2xl font-bold text-green-600 dark:text-green-400">
             {formatCurrency(result.monthlyNetSalary)}
           </p>
@@ -39,10 +33,10 @@ export default function TaxSummary({ result, showDetail = true, bonusTaxBurden =
       </div>
 
       {/* Bonus Tax Information */}
-      {bonusPercent > 0 && bonusTaxBurden > 0 && (
+      {/* {bonusPercent > 0 && bonusTaxBurden > 0 && (
         <div className="mb-6 rounded-md bg-amber-50 p-4 dark:bg-amber-900 dark:bg-opacity-20">
           <p className="text-sm font-semibold text-amber-900 dark:text-amber-300 mb-3">
-            End-of-Year Bonus ({bonusPercent.toFixed(1)}% of salary)
+            End-of-Year Bonus ({bonusPercent.toFixed(1)}% of gross salary)
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -52,17 +46,17 @@ export default function TaxSummary({ result, showDetail = true, bonusTaxBurden =
               </p>
             </div>
             <div>
-              <p className="text-xs text-amber-700 dark:text-amber-400">December (with bonus tax)</p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">December</p>
               <p className="text-base font-bold text-amber-900 dark:text-amber-200">
                 {formatCurrency(decemberMonthlyNetSalary)}
               </p>
             </div>
           </div>
           <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
-            Additional tax in December: {formatCurrency(bonusTaxBurden)}
+            Your bonus is calculated as {bonusPercent.toFixed(1)}% of your gross salary. Pension contributions and taxes are deducted from the bonus before you receive it in December. Note: Pension bonus contributions use the gross bonus amount (they're tax-deductible), while Savings/Brokerage use your net bonus (what's left after deductions).
           </p>
         </div>
-      )}
+      )} */}
 
       {/* Detailed Breakdown */}
       {showDetail && (

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { AccountInput as AccountInputType, PortfolioInputs } from '../types';
+import React, { useState, useMemo } from 'react';
+import { AccountInput as AccountInputType, PortfolioInputs, HouseDepositCalculation } from '../types';
 import AccountInput from './AccountInput';
+import { calculateHouseMetrics } from '../utils/houseCalculations';
 
 interface InputFormProps {
   onCalculate: (inputs: PortfolioInputs) => void;
@@ -26,26 +27,29 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         age60plus: 40,
       }
     },
-    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 35, expectedReturn: 8, isSalaryPercentage: true, bonusContributionPercent: 70 },
+    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 35, expectedReturn: 8, isSalaryPercentage: true, bonusContributionPercent: 80 },
   ]);
 
   const [dateOfBirth, setDateOfBirth] = useState<string>('1997-10-03'); // Default to my date of birth
   const [targetAge, setTargetAge] = useState<number | ''>(75);
   const [currentSalary, setCurrentSalary] = useState<number | ''>(70000);
-  const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(2);
+  const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(3);
   const [bonusPercent, setBonusPercent] = useState<number | ''>(15);
-  const [pensionAge, setPensionAge] = useState<number | ''>(60);
+  const [pensionAge, setPensionAge] = useState<number | ''>(61);
   const [withdrawalRate, setWithdrawalRate] = useState<number | ''>(4);
-  const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(48);
+  const [earlyRetirementAge, setEarlyRetirementAge] = useState<number | ''>(50);
   const [salaryReplacementRate, setSalaryReplacementRate] = useState<number | ''>(80);
-  const [lumpSumToBrokerageRate, setLumpSumToBrokerageRate] = useState<number | ''>(90);
-  const [useSalaryReplacementForPension, setUseSalaryReplacementForPension] = useState<boolean>(false);
+  const [lumpSumToBrokerageRate, setLumpSumToBrokerageRate] = useState<number | ''>(100);
   const [enablePensionLumpSum, setEnablePensionLumpSum] = useState<boolean>(true);
   const [pensionLumpSumAge, setPensionLumpSumAge] = useState<number | ''>(50);
   const [houseWithdrawalAge, setHouseWithdrawalAge] = useState<number | ''>(34);
   const [enableHouseWithdrawal, setEnableHouseWithdrawal] = useState<boolean>(true);
-  const [houseDepositPercent, setHouseDepositPercent] = useState<number | ''>(15);
-  const [houseDepositFromBrokerageRate, setHouseDepositFromBrokerageRate] = useState<number | ''>(50);
+  const [houseDepositFromBrokerageRate, setHouseDepositFromBrokerageRate] = useState<number | ''>(80);
+  const [mortgageExemption, setMortgageExemption] = useState<boolean>(true);
+  
+  // House price configuration - these could be made configurable via advanced options in the future
+  const baseHousePrice = 387000; // EUR
+  const houseAnnualPriceIncrease = 7; // percentage
   
   // Tax Calculation State
   const [taxBikValue, setTaxBikValue] = useState<number | ''>(1700);
@@ -83,6 +87,32 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const currentAge = dateOfBirth ? calculateAgeFromDOB(dateOfBirth) : '';
   const monthsUntilBirthday = dateOfBirth ? calculateMonthsUntilBirthday(dateOfBirth) : 0;
 
+  // Calculate house deposit metrics when house age or salary changes
+  const houseDepositMetrics: HouseDepositCalculation | null = useMemo(() => {
+    if (!enableHouseWithdrawal || typeof currentAge !== 'number' || typeof houseWithdrawalAge !== 'number') {
+      return null;
+    }
+    
+    const salary = typeof currentSalary === 'number' ? currentSalary : (currentSalary === '' ? 0 : parseFloat(currentSalary));
+    const bonus = typeof bonusPercent === 'number' ? bonusPercent : (bonusPercent === '' ? 0 : parseFloat(bonusPercent));
+    const increase = typeof annualSalaryIncrease === 'number' ? annualSalaryIncrease : (annualSalaryIncrease === '' ? 0 : parseFloat(annualSalaryIncrease));
+    
+    // Project salary and bonus at the house purchase age
+    const yearsUntilPurchase = houseWithdrawalAge - currentAge;
+    const projectedSalary = salary * Math.pow(1 + (increase / 100), yearsUntilPurchase);
+    const projectedBonus = projectedSalary * (bonus / 100);
+    
+    return calculateHouseMetrics(
+      houseWithdrawalAge,
+      currentAge,
+      projectedSalary,
+      projectedBonus,
+      baseHousePrice,
+      houseAnnualPriceIncrease,
+      mortgageExemption
+    );
+  }, [enableHouseWithdrawal, currentAge, houseWithdrawalAge, currentSalary, bonusPercent, annualSalaryIncrease, mortgageExemption]);
+
   // Helper function to get pension contribution percentage based on age brackets
   const getPensionPercentForAge = (age: number): number => {
     const pensionAccount = accounts.find(acc => acc.name === 'Pension');
@@ -108,7 +138,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
   const isFormValid = (): boolean => {
     // Check if any field is empty
-    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '' || pensionAge === '' || withdrawalRate === '' || earlyRetirementAge === '' || salaryReplacementRate === '' || lumpSumToBrokerageRate === '' || pensionLumpSumAge === '' || houseWithdrawalAge === '' || houseDepositPercent === '' || houseDepositFromBrokerageRate === '') {
+    if (dateOfBirth === '' || targetAge === '' || currentSalary === '' || annualSalaryIncrease === '' || pensionAge === '' || withdrawalRate === '' || earlyRetirementAge === '' || salaryReplacementRate === '' || lumpSumToBrokerageRate === '' || pensionLumpSumAge === '' || houseWithdrawalAge === '' || houseDepositFromBrokerageRate === '') {
       return false;
     }
 
@@ -124,11 +154,10 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const brokerageRate = typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : parseFloat(lumpSumToBrokerageRate as string);
     const lumpSumAge = typeof pensionLumpSumAge === 'number' ? pensionLumpSumAge : parseInt(pensionLumpSumAge as string);
     const houseAge = typeof houseWithdrawalAge === 'number' ? houseWithdrawalAge : parseInt(houseWithdrawalAge);
-    const housePercent = typeof houseDepositPercent === 'number' ? houseDepositPercent : parseFloat(houseDepositPercent);
     const houseBrokerageRate = typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : parseFloat(houseDepositFromBrokerageRate);
 
     // Check for NaN
-    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase) || isNaN(pension) || isNaN(withdrawal) || isNaN(earlyRetirement) || isNaN(replacement) || isNaN(brokerageRate) || isNaN(lumpSumAge) || isNaN(houseAge) || isNaN(housePercent) || isNaN(houseBrokerageRate)) {
+    if (isNaN(age) || isNaN(future) || isNaN(salary) || isNaN(increase) || isNaN(pension) || isNaN(withdrawal) || isNaN(earlyRetirement) || isNaN(replacement) || isNaN(brokerageRate) || isNaN(lumpSumAge) || isNaN(houseAge) || isNaN(houseBrokerageRate)) {
       return false;
     }
 
@@ -144,7 +173,6 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     if (brokerageRate < 0 || brokerageRate > 100) return false;
     if (lumpSumAge < 50 || lumpSumAge > pension) return false;
     if (houseAge < 18 || houseAge > 100) return false;
-    if (housePercent < 10 || housePercent > 100) return false;
     if (houseBrokerageRate < 0 || houseBrokerageRate > 100) return false;
 
     return true;
@@ -167,7 +195,6 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     const brokerageRate = typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : parseFloat(lumpSumToBrokerageRate as string);
     const lumpSumAge = typeof pensionLumpSumAge === 'number' ? pensionLumpSumAge : parseInt(pensionLumpSumAge as string);
     const houseAge = typeof houseWithdrawalAge === 'number' ? houseWithdrawalAge : parseInt(houseWithdrawalAge);
-    const housePercent = typeof houseDepositPercent === 'number' ? houseDepositPercent : parseFloat(houseDepositPercent);
     const houseBrokerageRate = typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : parseFloat(houseDepositFromBrokerageRate);
 
     // Validation
@@ -206,12 +233,10 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     }
     if (brokerageRate < 0 || brokerageRate > 100) {
       newErrors.push('Lump sum brokerage allocation must be between 0% and 100%');
-    }    if (enableHouseWithdrawal) {
+    }
+    if (enableHouseWithdrawal) {
       if (houseAge < 18 || houseAge > 100) {
         newErrors.push('House withdrawal age must be between 18 and 100');
-      }
-      if (housePercent < 10 || housePercent > 100) {
-        newErrors.push('House deposit percentage must be between 10% and 100%');
       }
       if (houseBrokerageRate < 0 || houseBrokerageRate > 100) {
         newErrors.push('House deposit brokerage allocation must be between 0% and 100%');
@@ -235,6 +260,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
       };
 
       const lumpSumAge = typeof pensionLumpSumAge === 'number' ? pensionLumpSumAge : parseInt(pensionLumpSumAge as string);
+      
       onCalculate({
         accounts,
         dateOfBirth: new Date(dateOfBirth),
@@ -251,11 +277,13 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         lumpSumToBrokerageRate: brokerageRate,
         enablePensionLumpSum: enablePensionLumpSum,
         pensionLumpSumAge: lumpSumAge,
-        useSalaryReplacementForPension: useSalaryReplacementForPension,
         houseWithdrawalAge: houseAge,
         enableHouseWithdrawal: enableHouseWithdrawal,
-        houseDepositPercent: housePercent,
+        baseHousePrice: baseHousePrice,
+        houseAnnualPriceIncrease: houseAnnualPriceIncrease,
         houseDepositFromBrokerageRate: houseBrokerageRate,
+        houseDepositCalculation: houseDepositMetrics || undefined,
+        mortgageExemption: mortgageExemption,
         taxInputs: taxInputData,
         enableTaxCalculation: true,
       });
@@ -271,8 +299,8 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
             <span className="text-white text-lg">👤</span>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Personal Information</h2>
-            <p className="text-sm text-gray-600">Your age and planning timeline</p>
+            <h2 className="text-xl font-bold text-gray-900">Your Details</h2>
+            <p className="text-sm text-gray-600">Your age and how long you want to plan ahead</p>
           </div>
         </div>
         
@@ -301,7 +329,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
           
           <div>
             <label htmlFor="targetAge" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-              Target Age
+              Plan Until Age
             </label>
             <input
               type="number"
@@ -313,7 +341,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
               placeholder="80"
             />
-            <p className="mt-2 text-xs text-gray-600">Planning horizon end date</p>
+            <p className="mt-2 text-xs text-gray-600">How far ahead should we calculate?</p>
             {typeof targetAge === 'number' && typeof currentAge === 'number' && targetAge > currentAge && (
               <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-indigo-200">
                 <p className="text-sm font-bold text-indigo-900">Time Horizon: {targetAge - currentAge} years</p>
@@ -330,8 +358,8 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
             <span className="text-white text-lg">💵</span>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Income Details</h2>
-            <p className="text-sm text-gray-600">Your salary and compensation</p>
+            <h2 className="text-xl font-bold text-gray-900">Your Income</h2>
+            <p className="text-sm text-gray-600">Salary, raises, and bonuses</p>
           </div>
         </div>
         
@@ -353,12 +381,12 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                 placeholder="70000"
               />
             </div>
-            <p className="mt-2 text-xs text-gray-600">Your gross annual income</p>
+            <p className="mt-2 text-xs text-gray-600">Your gross income (before taxes)</p>
           </div>
           
           <div>
             <label htmlFor="salaryIncrease" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-              Annual Salary Increase
+              Average Annual Raise
             </label>
             <div className="relative">
               <input
@@ -374,7 +402,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               />
               <span className="absolute right-4 top-3.5 text-gray-600 font-semibold">%</span>
             </div>
-            <p className="mt-2 text-xs text-gray-600">Expected annual growth</p>
+            <p className="mt-2 text-xs text-gray-600">Year-on-year salary growth</p>
           </div>
 
           <div>
@@ -395,12 +423,12 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               />
               <span className="absolute right-4 top-3.5 text-gray-600 font-semibold">%</span>
             </div>
-            <p className="mt-2 text-xs text-gray-600">As % of salary</p>
+            <p className="mt-2 text-xs text-gray-600">As % of gross salary</p>
           </div>
 
           <div>
             <label htmlFor="bikValue" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-              Benefit in Kind (BIK)
+              Non-Cash Benefits
             </label>
             <div className="relative">
               <span className="absolute left-4 top-3.5 text-green-600 font-bold">€</span>
@@ -415,7 +443,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                 placeholder="1700"
               />
             </div>
-            <p className="mt-2 text-xs text-gray-600">Health insurance, car, etc.</p>
+            <p className="mt-2 text-xs text-gray-600">Health insurance, company car, etc.</p>
           </div>
         </div>
       </div>
@@ -427,8 +455,8 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
             <span className="text-white text-lg">📊</span>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Investment Accounts</h2>
-            <p className="text-sm text-gray-600">Configure your investment portfolio</p>
+            <h2 className="text-xl font-bold text-gray-900">Your Investments</h2>
+            <p className="text-sm text-gray-600">How much in savings, pension, and brokerage accounts</p>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -457,7 +485,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label htmlFor="earlyRetirementAge" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-              Early Retirement Age
+              When Could You Retire Early?
             </label>
             <input
               type="number"
@@ -469,12 +497,12 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
               placeholder="48"
             />
-            <p className="mt-2 text-xs text-gray-600">When you can withdraw from brokerage account</p>
+            <p className="mt-2 text-xs text-gray-600">Age you could start living off investments</p>
           </div>
 
           <div>
             <label htmlFor="pensionAge" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-              Pension Access Age
+              Pension Drawdown Age?
             </label>
             <input
               type="number"
@@ -486,7 +514,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
               placeholder="66"
             />
-            <p className="mt-2 text-xs text-gray-600">Legal retirement age to access pension</p>
+            <p className="mt-2 text-xs text-gray-600">Age you want to start drawing down your pension at</p>
           </div>
         </div>
       </div>
@@ -498,15 +526,15 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
             <span className="text-white text-lg">💳</span>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Withdrawal Strategy</h2>
-            <p className="text-sm text-gray-600">Configure your income distribution</p>
+            <h2 className="text-xl font-bold text-gray-900">Retirement Income</h2>
+            <p className="text-sm text-gray-600">How you'll withdraw money when you stop working</p>
           </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-7">
           <div>
             <label htmlFor="salaryReplacementRate" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-              Salary Replacement Rate
+              Income During Early Retirement
             </label>
             <div className="relative">
               <input
@@ -522,12 +550,12 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               />
               <span className="absolute right-4 top-3.5 text-gray-600 font-semibold">%</span>
             </div>
-            <p className="mt-2 text-xs text-gray-600">% of final salary withdrawn during early retirement</p>
+            <p className="mt-2 text-xs text-gray-600">What % of your final gross salary do you want to live on?</p>
           </div>
           
           <div>
             <label htmlFor="withdrawalRate" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-              Annual Withdrawal Rate
+              Annual Pension Withdrawal
             </label>
             <div className="relative">
               <input
@@ -543,46 +571,11 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               />
               <span className="absolute right-4 top-3.5 text-gray-600 font-semibold">%</span>
             </div>
-            <p className="mt-2 text-xs text-gray-600">% from pension account annually</p>
+            <p className="mt-2 text-xs text-gray-600">What % of your pension balance to withdraw each year?</p>
           </div>
         </div>
 
-        <div className="pt-6 border-t border-gray-200">
-          <label className="block text-xs font-semibold text-gray-700 mb-4 uppercase tracking-wide">
-            Pension Withdrawal Method
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="flex items-start gap-4 cursor-pointer p-4 rounded-lg hover:bg-gray-50 transition-colors duration-200 border border-gray-200">
-              <input
-                type="radio"
-                name="pensionWithdrawalMethod"
-                checked={useSalaryReplacementForPension}
-                onChange={() => setUseSalaryReplacementForPension(true)}
-                className="mt-1 w-5 h-5 text-rose-600 border-gray-300 rounded focus:ring-2 focus:ring-rose-500 cursor-pointer accent-current"
-              />
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Salary Replacement ({salaryReplacementRate || 80}%)</p>
-                <p className="text-xs text-gray-600 mt-1">Use {salaryReplacementRate || 80}% of hypothetical salary, continuing to grow annually</p>
-              </div>
-            </label>
-            <label className="flex items-start gap-4 cursor-pointer p-4 rounded-lg hover:bg-gray-50 transition-colors duration-200 border border-gray-200">
-              <input
-                type="radio"
-                name="pensionWithdrawalMethod"
-                checked={!useSalaryReplacementForPension}
-                onChange={() => setUseSalaryReplacementForPension(false)}
-                className="mt-1 w-5 h-5 text-rose-600 border-gray-300 rounded focus:ring-2 focus:ring-rose-500 cursor-pointer accent-current"
-              />
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Withdrawal Rate ({withdrawalRate || 4}% Rule)</p>
-                <p className="text-xs text-gray-600 mt-1">Withdraw {withdrawalRate || 4}% of pension balance annually</p>
-              </div>
-            </label>
-          </div>
-          <p className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-gray-700">
-            <span className="font-semibold">Note:</span> Your chosen method applies until age 61. Forced minimum withdrawal rates apply thereafter: 4% withdrawal rate from age 61, and 5% withdrawal rate from age 71.
-          </p>
-        </div>
+
       </div>
 
       {/* Advanced Options Section (Collapsible) */}
@@ -597,7 +590,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
               <span className="text-white text-lg">⚙️</span>
             </div>
             <div className="text-left">
-              <h2 className="text-xl font-bold text-gray-900">Advanced Options</h2>
+              <h2 className="text-xl font-bold text-gray-900">More Options</h2>
               <p className="text-sm text-gray-600">Pension lump sum & house purchase</p>
             </div>
           </div>
@@ -612,7 +605,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
             <div>
               <div className="flex items-center gap-2 mb-6">
                 <span className="text-lg">💰</span>
-                <h3 className="text-lg font-bold text-gray-900">Pension Lump Sum</h3>
+                <h3 className="text-lg font-bold text-gray-900">Pension Tax-Free Lump Sum</h3>
               </div>
               
               <div className="space-y-5">
@@ -624,8 +617,8 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                     className="mt-1 w-5 h-5 text-slate-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-slate-500 cursor-pointer accent-current"
                   />
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Enable pension lump sum withdrawal</p>
-                    <p className="text-xs text-gray-600 mt-1">Withdraw 25% of pension at specified age (capped at €200,000)</p>
+                    <p className="text-sm font-semibold text-gray-900">Take 25% tax-free at a chosen age</p>
+                    <p className="text-xs text-gray-600 mt-1">You can withdraw 25% of your pension tax-free (up to €200,000), leaving the rest to grow</p>
                   </div>
                 </label>
 
@@ -634,7 +627,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label htmlFor="pensionLumpSumAge" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                          Lump Sum Withdrawal Age
+                          Age for Lump Sum
                         </label>
                         <input
                           type="number"
@@ -646,48 +639,39 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
                           placeholder="50"
                         />
-                        <p className="mt-2 text-xs text-gray-600">Age when you take the 25% lump sum (min: 50, max: pension age)</p>
+                        <p className="mt-2 text-xs text-gray-600">You'll take the 25% lump sum in January of this year (minimum 50, maximum your pension age)</p>
                       </div>
-                    </div>
-                  </div>
-                )}
 
-                {enablePensionLumpSum && (
-                  <div className="mt-6 pt-6 border-t-2 border-gray-100 space-y-5">
-                    <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-4 uppercase tracking-wide">
-                          Account Allocation
+                          Lump Sum Allocation
                         </label>
-                        <div className="flex justify-between items-end gap-4">
-                          <div>
-                            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">Brokerage</p>
-                            <p className="text-2xl font-bold text-emerald-600">{typeof lumpSumToBrokerageRate === 'number' ? Math.round(lumpSumToBrokerageRate) : 80}%</p>
+                        <div>
+                          <div className="flex justify-between items-center mb-3">
+                            <div>
+                              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">Brokerage</p>
+                              <p className="text-2xl font-bold text-emerald-600">{typeof lumpSumToBrokerageRate === 'number' ? Math.round(lumpSumToBrokerageRate) : 80}%</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Savings</p>
+                              <p className="text-2xl font-bold text-blue-600">{typeof lumpSumToBrokerageRate === 'number' ? Math.round(100 - lumpSumToBrokerageRate) : 20}%</p>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setLumpSumToBrokerageRate(Math.max(0, (typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : 80) - 5))}
-                              className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm font-bold text-gray-700 transition-colors duration-200"
-                              aria-label="Decrease brokerage allocation"
-                            >
-                              −
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setLumpSumToBrokerageRate(Math.min(100, (typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : 80) + 5))}
-                              className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center text-sm font-bold text-white transition-colors duration-200"
-                              aria-label="Increase brokerage allocation"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Savings</p>
-                          <p className="text-2xl font-bold text-blue-600">{typeof lumpSumToBrokerageRate === 'number' ? Math.round(100 - lumpSumToBrokerageRate) : 20}%</p>
-                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="5"
+                            value={typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : 80}
+                            onChange={(e) => setLumpSumToBrokerageRate(parseInt(e.target.value))}
+                            className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-400"
+                            style={{
+                              background: `linear-gradient(to right, rgb(16, 185, 129) 0%, rgb(16, 185, 129) ${typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : 80}%, rgb(59, 130, 246) ${typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : 80}%, rgb(59, 130, 246) 100%)`
+                            }}
+                            aria-label="Lump sum brokerage allocation"
+                          />
                         </div>
-                        <p className="mt-3 text-xs text-gray-600">Click +/- to adjust allocation</p>
+                        <p className="mt-3 text-xs text-gray-600">Drag to adjust allocation</p>
                       </div>
                     </div>
                   </div>
@@ -711,85 +695,74 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                     className="mt-1 w-5 h-5 text-slate-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-slate-500 cursor-pointer accent-current"
                   />
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Enable house purchase withdrawal</p>
-                    <p className="text-xs text-gray-600 mt-1">Withdraw funds from savings account for house down payment</p>
+                    <p className="text-sm font-semibold text-gray-900">Plan a house purchase</p>
+                    <p className="text-xs text-gray-600 mt-1">Set aside money for a house down payment at a certain age</p>
                   </div>
                 </label>
 
                 {enableHouseWithdrawal && (
-                  <div className="mt-6 pt-6 border-t-2 border-gray-100">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="mt-6 pt-6 border-t-2 border-gray-100 space-y-6">
+                    <label className="flex items-start gap-4 cursor-pointer p-4 rounded-lg hover:bg-slate-50 transition-colors duration-200 border border-gray-200">
+                      <input
+                        type="checkbox"
+                        checked={mortgageExemption}
+                        onChange={(e) => setMortgageExemption(e.target.checked)}
+                        className="mt-1 w-5 h-5 text-slate-600 border-2 border-gray-300 rounded focus:ring-2 focus:ring-slate-500 cursor-pointer accent-current"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Mortgage Exemption</p>
+                        <p className="text-xs text-gray-600 mt-1">If applicable, increases your borrowing capacity from salary×4 to (salary + bonus÷2)×4.5</p>
+                      </div>
+                    </label>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label htmlFor="houseWithdrawalAge" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                          Age for House Purchase
+                          Purchase Age
                         </label>
                         <input
                           type="number"
                           id="houseWithdrawalAge"
-                          min="18"
+                          min={typeof currentAge === 'number' ? currentAge : '18'}
                           max="100"
                           value={houseWithdrawalAge}
                           onChange={(e) => setHouseWithdrawalAge(e.target.value === '' ? '' : parseInt(e.target.value) || 34)}
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
                           placeholder="34"
                         />
-                        <p className="mt-2 text-xs text-gray-600">Withdrawal occurs in January following the specified age</p>
-                      </div>
-
-                      <div>
-                        <label htmlFor="houseDepositPercent" className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                          Deposit Percentage
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            id="houseDepositPercent"
-                            min="10"
-                            max="100"
-                            step="0.1"
-                            value={houseDepositPercent}
-                            onChange={(e) => setHouseDepositPercent(e.target.value === '' ? '' : parseFloat(e.target.value) || 15)}
-                            className="w-full pr-10 pl-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                            placeholder="15"
-                          />
-                          <span className="absolute right-4 top-3.5 text-gray-600 font-semibold">%</span>
-                        </div>
-                        <p className="mt-2 text-xs text-gray-600">Withdrawal: (salary × 4 + bonus × 2) × {typeof houseDepositPercent === 'number' ? houseDepositPercent.toFixed(1) : '15'}%</p>
+                        <p className="mt-2 text-xs text-gray-600">We'll set aside money in January of this year</p>
                       </div>
 
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                          Account Allocation
+                          Account WIthdrawal Allocation
                         </label>
-                        <div className="flex justify-between items-end gap-2">
-                          <div>
-                            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">Brokerage</p>
-                            <p className="text-lg font-bold text-emerald-600">{typeof houseDepositFromBrokerageRate === 'number' ? Math.round(houseDepositFromBrokerageRate) : 50}%</p>
+                        <div>
+                          <div className="flex justify-between items-center mb-3">
+                            <div>
+                              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">Brokerage</p>
+                              <p className="text-lg font-bold text-emerald-600">{typeof houseDepositFromBrokerageRate === 'number' ? Math.round(houseDepositFromBrokerageRate) : 50}%</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Savings</p>
+                              <p className="text-lg font-bold text-blue-600">{typeof houseDepositFromBrokerageRate === 'number' ? Math.round(100 - houseDepositFromBrokerageRate) : 50}%</p>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setHouseDepositFromBrokerageRate(Math.max(0, (typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50) - 5))}
-                              className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-xs font-bold text-gray-700 transition-colors duration-200"
-                              aria-label="Decrease brokerage allocation"
-                            >
-                              −
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setHouseDepositFromBrokerageRate(Math.min(100, (typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50) + 5))}
-                              className="w-7 h-7 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center text-xs font-bold text-white transition-colors duration-200"
-                              aria-label="Increase brokerage allocation"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Savings</p>
-                            <p className="text-lg font-bold text-blue-600">{typeof houseDepositFromBrokerageRate === 'number' ? Math.round(100 - houseDepositFromBrokerageRate) : 50}%</p>
-                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="5"
+                            value={typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50}
+                            onChange={(e) => setHouseDepositFromBrokerageRate(parseInt(e.target.value))}
+                            className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-slate-400"
+                            style={{
+                              background: `linear-gradient(to right, rgb(16, 185, 129) 0%, rgb(16, 185, 129) ${typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50}%, rgb(59, 130, 246) ${typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50}%, rgb(59, 130, 246) 100%)`
+                            }}
+                            aria-label="House deposit brokerage allocation"
+                          />
                         </div>
-                        <p className="mt-2 text-xs text-gray-600">Click +/- to adjust</p>
+                        <p className="mt-2 text-xs text-gray-600">Drag to adjust allocation</p>
                       </div>
                     </div>
                   </div>
@@ -806,8 +779,8 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
           <div className="flex items-start gap-3 mb-3">
             <span className="text-2xl">⚠️</span>
             <div>
-              <h3 className="font-bold text-red-900">Validation Errors</h3>
-              <p className="text-sm text-red-800 mt-1">Please review the following issues:</p>
+              <h3 className="font-bold text-red-900">Please Fix These Issues</h3>
+              <p className="text-sm text-red-800 mt-1">We found {errors.length} {errors.length === 1 ? 'issue' : 'issues'}:</p>
             </div>
           </div>
           <ul className="space-y-2 mt-3">
@@ -827,7 +800,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
         disabled={!isFormValid()}
         className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed disabled:hover:from-gray-400 disabled:hover:to-gray-400 text-white font-bold py-4 px-6 rounded-xl transition duration-200 shadow-lg hover:shadow-xl disabled:shadow-none text-lg"
       >
-        Calculate Portfolio Growth
+        See My Projections
       </button>
     </form>
   );
