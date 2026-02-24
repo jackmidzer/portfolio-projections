@@ -42,7 +42,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
   const [lumpSumToBrokerageRate, setLumpSumToBrokerageRate] = useState<number | ''>(100);
   const [enablePensionLumpSum, setEnablePensionLumpSum] = useState<boolean>(true);
   const [pensionLumpSumAge, setPensionLumpSumAge] = useState<number | ''>(50);
-  const [houseWithdrawalAge, setHouseWithdrawalAge] = useState<number | ''>(34);
+  const [houseWithdrawalAge, setHouseWithdrawalAge] = useState<number | ''>(32);
   const [enableHouseWithdrawal, setEnableHouseWithdrawal] = useState<boolean>(true);
   const [houseDepositFromBrokerageRate, setHouseDepositFromBrokerageRate] = useState<number | ''>(80);
   const [mortgageExemption, setMortgageExemption] = useState<boolean>(true);
@@ -711,7 +711,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                       />
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Mortgage Exemption</p>
-                        <p className="text-xs text-gray-600 mt-1">If applicable, increases your borrowing capacity from salary×4 to (salary + bonus÷2)×4.5</p>
+                        <p className="text-xs text-gray-600 mt-1">If applicable, increases your borrowing capacity from x4 to ×4.5</p>
                       </div>
                     </label>
                     

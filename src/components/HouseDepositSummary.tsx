@@ -16,7 +16,7 @@ const HouseDepositSummary: React.FC<HouseDepositSummaryProps> = ({ age, houseMet
     <div className="bg-white rounded-lg shadow-md p-6 mt-4">
       <h3 className="text-lg font-bold text-gray-800 mb-4">House Purchase Summary at Age {age}</h3>
       
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg">
           <p className="text-sm font-medium text-green-800 mb-1">Projected Salary</p>
           <p className="text-xl font-bold text-green-900">{formatCurrency(houseMetrics.projectedSalary)}</p>
