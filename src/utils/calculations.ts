@@ -443,16 +443,15 @@ export function calculateAccountGrowth(
     // Determine withdrawal phase and apply account-specific tax
     if (monthWithdrawal > 0) {
       // Pension lump sum withdrawal
-      if (isPensionAccount && ageAtMonth >= pensionAgeValue && ageAtMonth < (pensionAgeValue + 1)) {
+      if (isPensionAccount && ageAtMonth >= pensionLumpSumAgeValue && ageAtMonth < (pensionLumpSumAgeValue + 1)) {
         withdrawalPhase = 'lumpSum';
-        // Lump sum withdrawals typically have special tax treatment (not fully taxed)
-        // For now, apply standard income tax (PAYE + USC + PRSI if age < 66)
-        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, false, ageAtMonth);
-        withdrawalTax = taxResult.totalTax;
-        withdrawalNetAmount = taxResult.netWithdrawal;
+        // Lump sum withdrawals typically have special tax treatment (e.g. first €200k tax-free).
+        // Here we treat the modeled lump sum as tax-free to avoid incorrectly applying full income tax.
+        withdrawalTax = 0;
+        withdrawalNetAmount = monthWithdrawal;
       }
       // Savings/Brokerage lump sum allocation from pension
-      else if (!isPensionAccount && ageAtMonth >= pensionAgeValue && ageAtMonth < (pensionAgeValue + 1) && lumpSumContribution > 0) {
+      else if (!isPensionAccount && ageAtMonth >= pensionLumpSumAgeValue && ageAtMonth < (pensionLumpSumAgeValue + 1) && lumpSumContribution > 0) {
         withdrawalPhase = 'lumpSum';
         // Lump sum allocation is not taxed (it's receiving funds from pension)
         withdrawalTax = 0;

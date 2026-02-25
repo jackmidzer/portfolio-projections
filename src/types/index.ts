@@ -146,7 +146,7 @@ export interface TaxInputs {
 
 export interface TaxCalculationResult {
   grossSalary: number;
-  pendingContribution: number;
+  pensionContribution: number;
   bikValue: number;
   taxableIncome: number; // After pension relief
   payeTax: number;

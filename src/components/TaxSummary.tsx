@@ -68,10 +68,10 @@ export default function TaxSummary({ result, showDetail = true }: TaxSummaryProp
             </span>
           </div>
 
-          {result.pendingContribution > 0 && (
+          {result.pensionContribution > 0 && (
             <div className="ml-4 flex justify-between text-sm text-gray-600 dark:text-gray-400">
               <span>Pension Contribution</span>
-              <span className="font-mono">{formatCurrency(result.pendingContribution)}</span>
+              <span className="font-mono">{formatCurrency(result.pensionContribution)}</span>
             </div>
           )}
 
