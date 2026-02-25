@@ -30,7 +30,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 35, expectedReturn: 8, isSalaryPercentage: true, bonusContributionPercent: 80 },
   ]);
 
-  const [dateOfBirth, setDateOfBirth] = useState<string>('1997-10-03'); // Default to my date of birth
+  const [dateOfBirth, setDateOfBirth] = useState<string>('1990-01-01'); // Default example date of birth
   const [targetAge, setTargetAge] = useState<number | ''>(75);
   const [currentSalary, setCurrentSalary] = useState<number | ''>(70000);
   const [annualSalaryIncrease, setAnnualSalaryIncrease] = useState<number | ''>(3);
@@ -244,9 +244,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
     }
 
     // Tax validation
-    const taxBik = typeof taxBikValue === 'number' ? taxBikValue : parseInt(taxBikValue as string);
-    
-    if (isNaN(taxBik) || taxBik < 0) {
+    if (typeof taxBikValue !== 'number' || taxBikValue < 0) {
       newErrors.push('BIK value must be a valid number');
     }
 
@@ -711,7 +709,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
                       />
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Mortgage Exemption</p>
-                        <p className="text-xs text-gray-600 mt-1">If applicable, increases your borrowing capacity from x4 to ×4.5</p>
+                        <p className="text-xs text-gray-600 mt-1">If applicable, increases your borrowing capacity from ×4 to ×4.5</p>
                       </div>
                     </label>
                     
@@ -735,7 +733,7 @@ const InputForm: React.FC<InputFormProps> = ({ onCalculate }) => {
 
                       <div>
                         <label className="block text-xs font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                          Account WIthdrawal Allocation
+                           Account Withdrawal Allocation
                         </label>
                         <div>
                           <div className="flex justify-between items-center mb-3">
