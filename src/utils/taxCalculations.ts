@@ -244,7 +244,7 @@ export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationRe
 
   return {
     grossSalary,
-    pendingContribution: pensionContribution,
+    pensionContribution: pensionContribution,
     bikValue,
     taxableIncome,
     payeTax,
@@ -382,7 +382,7 @@ export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPha
   const usc = uscDetails.totalUSC;
 
   // PRSI applies to pension withdrawals when age < 66 (state pension age)
-  const prsi = age < 66 ? withdrawal * 0.042375 : 0;
+  const prsi = age < 66 ? withdrawal * PRSI_SETTINGS.employeeRate : 0;
 
   // Apply age tax credit (€245) if in pension phase and age >= 65
   let taxCredit = 0;

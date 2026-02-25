@@ -50,7 +50,7 @@ export function formatCompactCurrency(value: number): string {
  */
 export function getMonthsUntilYearEnd(): number {
   const today = new Date();
-  const endOfYear = new Date(today.getFullYear(), 12, 31); // December 31 of current year
+  const endOfYear = new Date(today.getFullYear(), 11, 31); // December 31 of current year (month is 0-indexed)
   
   const monthsLeft = (endOfYear.getFullYear() - today.getFullYear()) * 12 + (endOfYear.getMonth() - today.getMonth());
   return Math.max(monthsLeft, 0); // Return 0 if we're past December 31
