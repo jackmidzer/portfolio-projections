@@ -1,0 +1,149 @@
+import { useState, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PortfolioResults } from '@/types';
+import {
+  useChartData,
+  PortfolioGrowthChart,
+  ContributionsGrowthChart,
+  AnnualFlowsChart,
+  IncomeTimelineChart,
+} from './charts';
+import { AgeRangeSlider } from './charts/AgeRangeSlider';
+// Ensure Chart.js registrations run
+import './charts/chartConfig';
+
+type ChartTab = 'growth' | 'deposits' | 'flows' | 'income';
+
+const TAB_LABELS: Record<ChartTab, string> = {
+  growth: 'Portfolio Growth',
+  deposits: 'Deposits vs Growth',
+  flows: 'Annual Flows',
+  income: 'Income',
+};
+
+interface ProjectionChartProps {
+  results: PortfolioResults;
+}
+
+const fadeVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+};
+
+export function ProjectionChart({ results }: ProjectionChartProps) {
+  const [activeTab, setActiveTab] = useState<ChartTab>('growth');
+
+  const {
+    combined,
+    phaseBands,
+    portfolioGrowthData,
+    contributionsGrowthData,
+    annualFlowsData,
+    incomeTimelineData,
+  } = useChartData(results);
+
+  const isFirstYearProRated = results.monthsUntilNextBirthday < 12;
+
+  const ages = useMemo(() => combined.map((d) => d.age), [combined]);
+  const minAge = ages[0] ?? 0;
+  const maxAge = ages[ages.length - 1] ?? 100;
+
+  const [ageRange, setAgeRange] = useState<[number, number]>([minAge, maxAge]);
+
+  // Keep slider in sync when data changes (e.g. user edits form)
+  const effectiveRange: [number, number] = useMemo(() => {
+    return [Math.max(ageRange[0], minAge), Math.min(ageRange[1], maxAge)];
+  }, [ageRange, minAge, maxAge]);
+
+  // Only pass ageRange to charts when it's actually narrower than full range
+  const isSliced = effectiveRange[0] > minAge || effectiveRange[1] < maxAge;
+  const chartAgeRange = isSliced ? effectiveRange : undefined;
+
+  const handleRangeChange = useCallback((range: [number, number]) => {
+    setAgeRange(range);
+  }, []);
+
+  const sharedProps = {
+    combined,
+    phaseBands,
+    isFirstYearProRated,
+    ageRange: chartAgeRange,
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-base">Growth Over Time</CardTitle>
+          <div className="flex items-center gap-2">
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => {
+                setActiveTab(v as ChartTab);
+              }}
+            >
+              <TabsList className="h-8">
+                {(Object.keys(TAB_LABELS) as ChartTab[]).map((key) => (
+                  <TabsTrigger key={key} value={key} className="px-2.5 text-xs">
+                    {TAB_LABELS[key]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="px-2 pb-4 pt-0 sm:px-4">
+        <AnimatePresence mode="wait">
+          {activeTab === 'growth' && (
+            <motion.div key="growth" variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
+              <PortfolioGrowthChart
+                data={portfolioGrowthData}
+                {...sharedProps}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'deposits' && (
+            <motion.div key="deposits" variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
+              <ContributionsGrowthChart
+                data={contributionsGrowthData}
+                {...sharedProps}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'flows' && (
+            <motion.div key="flows" variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
+              <AnnualFlowsChart
+                data={annualFlowsData}
+                {...sharedProps}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'income' && (
+            <motion.div key="income" variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
+              <IncomeTimelineChart
+                data={incomeTimelineData}
+                {...sharedProps}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AgeRangeSlider
+          ages={ages}
+          fireAge={results.fireAge}
+          pensionAge={results.pensionAge}
+          value={effectiveRange}
+          onChange={handleRangeChange}
+        />
+      </CardContent>
+    </Card>
+  );
+}

@@ -1,0 +1,351 @@
+import { create } from 'zustand';
+import { AccountInput as AccountInputType, PortfolioResults, TaxCalculationResult, HouseDepositCalculation } from '@/types';
+import { calculatePortfolioGrowth } from '@/utils/calculations';
+import { calculateNetSalary, calculateBonusTaxBurden } from '@/utils/taxCalculations';
+import { calculateHouseMetrics } from '@/utils/houseCalculations';
+
+// ─── Form Inputs Slice ───────────────────────────────────────────────
+
+interface FormInputs {
+  // Personal
+  dateOfBirth: string;
+  targetAge: number | '';
+
+  // Income
+  currentSalary: number | '';
+  annualSalaryIncrease: number | '';
+  bonusPercent: number | '';
+  taxBikValue: number | '';
+
+  // Accounts
+  accounts: AccountInputType[];
+
+  // Retirement
+  pensionAge: number | '';
+  fireAge: number | '';
+  withdrawalRate: number | '';
+  salaryReplacementRate: number | '';
+  enablePensionLumpSum: boolean;
+  pensionLumpSumAge: number | '';
+  lumpSumToBrokerageRate: number | '';
+
+  // House
+  enableHouseWithdrawal: boolean;
+  houseWithdrawalAge: number | '';
+  houseDepositFromBrokerageRate: number | '';
+  mortgageExemption: boolean;
+  baseHousePrice: number;
+  houseAnnualPriceIncrease: number;
+}
+
+// ─── UI State Slice ──────────────────────────────────────────────────
+
+interface UIState {
+  sidebarOpen: boolean;
+  sidebarCollapsed: boolean;
+  expandedSections: Set<string>;
+  showAdvancedOptions: boolean;
+}
+
+// ─── Results Slice ───────────────────────────────────────────────────
+
+interface ResultsState {
+  results: PortfolioResults | null;
+  taxCalculationResult: TaxCalculationResult | null;
+  bonusTaxBurden: number;
+  lastCalculatedBonusPercent: number;
+}
+
+// ─── Combined Store ──────────────────────────────────────────────────
+
+interface ProjectionStore extends FormInputs, UIState, ResultsState {
+  // Form actions
+  updateField: <K extends keyof FormInputs>(field: K, value: FormInputs[K]) => void;
+  updateAccount: (index: number, account: AccountInputType) => void;
+  resetForm: () => void;
+
+  // UI actions
+  toggleSidebar: () => void;
+  setSidebarOpen: (open: boolean) => void;
+  toggleSidebarCollapse: () => void;
+  toggleSection: (section: string) => void;
+  setShowAdvancedOptions: (show: boolean) => void;
+
+  // Calculation actions
+  calculate: () => { errors: string[] };
+
+  // Computed helpers
+  getCurrentAge: () => number | '';
+  getMonthsUntilBirthday: () => number;
+  getHouseDepositMetrics: () => HouseDepositCalculation | null;
+  getCurrentPensionPercent: () => number;
+}
+
+const defaultFormInputs: FormInputs = {
+  dateOfBirth: '1997-10-03',
+  targetAge: 75,
+  currentSalary: 70000,
+  annualSalaryIncrease: 3,
+  bonusPercent: 15,
+  taxBikValue: 1700,
+  accounts: [
+    { name: 'Savings', currentBalance: 10000, monthlyContribution: 10, expectedReturn: 2, isSalaryPercentage: true, bonusContributionPercent: 10 },
+    {
+      name: 'Pension',
+      currentBalance: 27500,
+      monthlyContribution: 0,
+      expectedReturn: 7,
+      isSalaryPercentage: true,
+      employerContributionPercent: 8,
+      bonusContributionPercent: -1,
+      ageBracketContributions: {
+        under30: 15,
+        age30to39: 20,
+        age40to49: 25,
+        age50to54: 30,
+        age55to59: 35,
+        age60plus: 40,
+      }
+    },
+    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 35, expectedReturn: 8, isSalaryPercentage: true, bonusContributionPercent: 80 },
+  ],
+  pensionAge: 61,
+  fireAge: 50,
+  withdrawalRate: 4,
+  salaryReplacementRate: 80,
+  enablePensionLumpSum: true,
+  pensionLumpSumAge: 50,
+  lumpSumToBrokerageRate: 100,
+  enableHouseWithdrawal: true,
+  houseWithdrawalAge: 32,
+  houseDepositFromBrokerageRate: 80,
+  mortgageExemption: true,
+  baseHousePrice: 387000,
+  houseAnnualPriceIncrease: 7,
+};
+
+// ─── Helper Functions ────────────────────────────────────────────────
+
+function calculateAgeFromDOB(dob: string): number {
+  const today = new Date();
+  const birthDate = new Date(dob);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+function calculateMonthsUntilBirthday(dob: string): number {
+  const today = new Date();
+  const birthDate = new Date(dob);
+  const nextBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+  if (nextBirthday < today) {
+    nextBirthday.setFullYear(nextBirthday.getFullYear() + 1);
+  }
+  const monthsLeft = (nextBirthday.getFullYear() - today.getFullYear()) * 12 + (nextBirthday.getMonth() - today.getMonth());
+  return monthsLeft;
+}
+
+function getPensionPercentForAge(age: number, accounts: AccountInputType[]): number {
+  const pensionAccount = accounts.find(acc => acc.name === 'Pension');
+  if (!pensionAccount || !pensionAccount.ageBracketContributions) return 0;
+  const brackets = pensionAccount.ageBracketContributions;
+  if (age < 30) return brackets.under30;
+  if (age < 40) return brackets.age30to39;
+  if (age < 50) return brackets.age40to49;
+  if (age < 55) return brackets.age50to54;
+  if (age < 60) return brackets.age55to59;
+  return brackets.age60plus;
+}
+
+// ─── Store ───────────────────────────────────────────────────────────
+
+export const useProjectionStore = create<ProjectionStore>((set, get) => ({
+  // Default form inputs
+  ...defaultFormInputs,
+
+  // Default UI state
+  sidebarOpen: false,
+  sidebarCollapsed: false,
+  expandedSections: new Set(['personal', 'income', 'accounts']),
+  showAdvancedOptions: false,
+
+  // Default results
+  results: null,
+  taxCalculationResult: null,
+  bonusTaxBurden: 0,
+  lastCalculatedBonusPercent: 0,
+
+  // ─── Form Actions ──────────────────────────────────────────────
+  updateField: (field, value) => set({ [field]: value }),
+
+  updateAccount: (index, account) => set(state => {
+    const newAccounts = [...state.accounts];
+    newAccounts[index] = account;
+    return { accounts: newAccounts };
+  }),
+
+  resetForm: () => set({
+    ...defaultFormInputs,
+    results: null,
+    taxCalculationResult: null,
+    bonusTaxBurden: 0,
+    lastCalculatedBonusPercent: 0,
+  }),
+
+  // ─── UI Actions ────────────────────────────────────────────────
+  toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  toggleSidebarCollapse: () => set(state => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  toggleSection: (section) => set(state => {
+    const newSet = new Set(state.expandedSections);
+    if (newSet.has(section)) {
+      newSet.delete(section);
+    } else {
+      newSet.add(section);
+    }
+    return { expandedSections: newSet };
+  }),
+  setShowAdvancedOptions: (show) => set({ showAdvancedOptions: show }),
+
+  // ─── Computed Helpers ──────────────────────────────────────────
+  getCurrentAge: () => {
+    const { dateOfBirth } = get();
+    return dateOfBirth ? calculateAgeFromDOB(dateOfBirth) : '';
+  },
+
+  getMonthsUntilBirthday: () => {
+    const { dateOfBirth } = get();
+    return dateOfBirth ? calculateMonthsUntilBirthday(dateOfBirth) : 0;
+  },
+
+  getHouseDepositMetrics: () => {
+    const state = get();
+    const currentAge = state.getCurrentAge();
+    if (!state.enableHouseWithdrawal || typeof currentAge !== 'number' || typeof state.houseWithdrawalAge !== 'number') {
+      return null;
+    }
+    const salary = typeof state.currentSalary === 'number' ? state.currentSalary : 0;
+    const bonus = typeof state.bonusPercent === 'number' ? state.bonusPercent : 0;
+    const increase = typeof state.annualSalaryIncrease === 'number' ? state.annualSalaryIncrease : 0;
+    const yearsUntilPurchase = state.houseWithdrawalAge - currentAge;
+    const projectedSalary = salary * Math.pow(1 + (increase / 100), yearsUntilPurchase);
+    const projectedBonus = projectedSalary * (bonus / 100);
+    return calculateHouseMetrics(
+      state.houseWithdrawalAge,
+      currentAge,
+      projectedSalary,
+      projectedBonus,
+      state.baseHousePrice,
+      state.houseAnnualPriceIncrease,
+      state.mortgageExemption
+    );
+  },
+
+  getCurrentPensionPercent: () => {
+    const state = get();
+    const currentAge = state.getCurrentAge();
+    return typeof currentAge === 'number' ? getPensionPercentForAge(currentAge, state.accounts) : 0;
+  },
+
+  // ─── Calculation ───────────────────────────────────────────────
+  calculate: () => {
+    const state = get();
+    const currentAge = state.getCurrentAge();
+    const monthsUntilBirthday = state.getMonthsUntilBirthday();
+    const houseDepositMetrics = state.getHouseDepositMetrics();
+    const currentPensionPercent = state.getCurrentPensionPercent();
+
+    const errors: string[] = [];
+
+    // Parse values
+    const age = typeof currentAge === 'number' ? currentAge : NaN;
+    const future = typeof state.targetAge === 'number' ? state.targetAge : NaN;
+    const salary = typeof state.currentSalary === 'number' ? state.currentSalary : NaN;
+    const increase = typeof state.annualSalaryIncrease === 'number' ? state.annualSalaryIncrease : NaN;
+    const bonus = typeof state.bonusPercent === 'number' ? state.bonusPercent : 0;
+    const pension = typeof state.pensionAge === 'number' ? state.pensionAge : NaN;
+    const withdrawal = typeof state.withdrawalRate === 'number' ? state.withdrawalRate : NaN;
+    const fireAge = typeof state.fireAge === 'number' ? state.fireAge : NaN;
+    const replacement = typeof state.salaryReplacementRate === 'number' ? state.salaryReplacementRate : NaN;
+    const brokerageRate = typeof state.lumpSumToBrokerageRate === 'number' ? state.lumpSumToBrokerageRate : NaN;
+    const lumpSumAge = typeof state.pensionLumpSumAge === 'number' ? state.pensionLumpSumAge : NaN;
+    const houseAge = typeof state.houseWithdrawalAge === 'number' ? state.houseWithdrawalAge : NaN;
+    const houseBrokerageRate = typeof state.houseDepositFromBrokerageRate === 'number' ? state.houseDepositFromBrokerageRate : NaN;
+
+    // Validation
+    if (!state.dateOfBirth) errors.push('Date of birth is required');
+    if (isNaN(age) || age < 18 || age > 100) errors.push('Current age must be between 18 and 100');
+    if (isNaN(future) || future <= age) errors.push('Target age must be greater than current age');
+    if (future > 150) errors.push('Target age cannot exceed 150');
+    if (isNaN(salary) || salary <= 0) errors.push('Current salary must be greater than 0');
+    if (isNaN(increase) || increase < 0 || increase > 20) errors.push('Annual salary increase must be between 0% and 20%');
+    if (isNaN(pension) || pension < 18 || pension > 100) errors.push('Pension age must be between 18 and 100');
+    if (state.enablePensionLumpSum && (isNaN(lumpSumAge) || lumpSumAge < 50 || lumpSumAge > pension)) {
+      errors.push('Pension lump sum age must be between 50 and your pension age');
+    }
+    if (isNaN(withdrawal) || withdrawal <= 0 || withdrawal > 20) errors.push('Withdrawal rate must be between 0% and 20%');
+    if (isNaN(fireAge) || fireAge < 18 || fireAge > 100) errors.push('FIRE age must be between 18 and 100');
+    if (isNaN(replacement) || replacement <= 0 || replacement > 100) errors.push('Salary replacement rate must be between 0% and 100%');
+    if (isNaN(brokerageRate) || brokerageRate < 0 || brokerageRate > 100) errors.push('Lump sum brokerage allocation must be between 0% and 100%');
+    if (state.enableHouseWithdrawal) {
+      if (isNaN(houseAge) || houseAge < 18 || houseAge > 100) errors.push('House withdrawal age must be between 18 and 100');
+      if (isNaN(houseBrokerageRate) || houseBrokerageRate < 0 || houseBrokerageRate > 100) errors.push('House deposit brokerage allocation must be between 0% and 100%');
+    }
+
+    if (errors.length > 0) {
+      return { errors };
+    }
+
+    // Run calculation
+    const timeHorizon = future - age + 1;
+    const taxInputData = {
+      grossSalary: salary,
+      pensionContribution: (salary * currentPensionPercent) / 100,
+      bikValue: typeof state.taxBikValue === 'number' ? state.taxBikValue : 0,
+    };
+
+    const calculatedResults = calculatePortfolioGrowth(
+      state.accounts,
+      timeHorizon,
+      age,
+      salary,
+      increase,
+      monthsUntilBirthday,
+      new Date(state.dateOfBirth),
+      pension,
+      withdrawal,
+      fireAge,
+      replacement,
+      brokerageRate,
+      bonus,
+      houseAge,
+      state.enableHouseWithdrawal,
+      houseDepositMetrics || undefined,
+      houseBrokerageRate,
+      state.enablePensionLumpSum,
+      taxInputData,
+      lumpSumAge,
+      state.mortgageExemption
+    );
+
+    // Calculate tax
+    let taxResult: TaxCalculationResult | null = null;
+    let bonusTax = 0;
+    taxResult = calculateNetSalary(taxInputData);
+    if (bonus > 0) {
+      bonusTax = calculateBonusTaxBurden(salary, bonus, currentPensionPercent, taxInputData.bikValue);
+    }
+
+    set({
+      results: calculatedResults,
+      taxCalculationResult: taxResult,
+      bonusTaxBurden: bonusTax,
+      lastCalculatedBonusPercent: bonus,
+    });
+
+    return { errors: [] };
+  },
+}));

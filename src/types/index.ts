@@ -2,11 +2,11 @@ export type AccountType = 'Savings' | 'Pension' | 'Brokerage';
 
 /**
  * Phase type for the financial lifecycle
- * - 'working': period of earning salary and making contributions
- * - 'earlyRetirement': period of no salary but portfolio withdrawals (between earlyRetirementAge and pensionAge)
- * - 'pension': period of pension withdrawals (from pensionAge onward)
+ * - 'working': working phase - earning salary and making contributions
+ * - 'bridging': bridging phase between FIRE age and pension drawdown age
+ * - 'drawdown': drawdown phase with pension withdrawals
  */
-export type PhaseType = 'working' | 'earlyRetirement' | 'pension';
+export type PhaseType = 'working' | 'bridging' | 'drawdown';
 
 export interface AgeBracketContributions {
   under30: number;       // percentage for ages < 30
@@ -40,7 +40,7 @@ export interface MonthlyBreakdown {
   endingBalance: number;
   monthlyNetSalary: number; // net income after taxes and pension contributions
   monthlyTax?: number; // monthly tax paid (PAYE + USC + PRSI)
-  withdrawalPhase?: 'lumpSum' | 'earlyRetirement' | 'pensionPhase'; // type of withdrawal if any
+  withdrawalPhase?: 'lumpSum' | 'bridging' | 'drawdown'; // type of withdrawal if any
   withdrawalTax?: number; // tax paid on withdrawal (CGT for brokerage, income tax for pension)
   withdrawalNetAmount?: number; // net withdrawal amount after tax
 }
@@ -85,7 +85,7 @@ export interface PortfolioInputs {
   bonusPercent: number; // bonus as percentage of salary (e.g., 15 for 15%)
   pensionAge: number; // age when pension withdrawals can start (default 66)
   withdrawalRate: number; // annual withdrawal percent for pension (default 4)
-  earlyRetirementAge: number; // age when early retirement withdrawals can start (default 50)
+  fireAge: number; // age when FIRE begins (default 50)
   salaryReplacementRate: number; // replacement rate for salary during early retirement (default 80)
   lumpSumToBrokerageRate: number; // allocation rate of lump sum to brokerage as % (default 80)
   enablePensionLumpSum?: boolean; // whether to enable pension lump sum withdrawal (default true)
@@ -122,17 +122,17 @@ export interface PortfolioResults {
   finalSalary: number; // projected salary at future age
   bonusSalary: number; // projected bonus salary at future age
   monthsUntilNextBirthday: number; // for identifying pro-rated first year
-  earlyRetirementAge: number; // age when early retirement withdrawals begin
-  pensionAge: number; // age when pension withdrawals begin
+  fireAge: number; // age when FIRE begins
+  pensionAge: number; // age when pension drawdown begins
   enablePensionLumpSum?: boolean; // whether pension lump sum withdrawal is enabled
   pensionLumpSumAge?: number; // age when pension lump sum can be withdrawn
   houseWithdrawalAge?: number; // age when house purchase withdrawal occurs
   enableHouseWithdrawal?: boolean; // whether house withdrawal is enabled
   houseDepositCalculation?: HouseDepositCalculation; // calculated house deposit metrics
   mortgageExemption?: boolean; // whether mortgage exemption is applied
-  earlyRetirementSnapshot?: MilestoneSnapshot; // portfolio snapshot at early retirement age
+  fireSnapshot?: MilestoneSnapshot; // portfolio snapshot at FIRE age
   houseWithdrawalAgeSnapshot?: MilestoneSnapshot; // portfolio snapshot at house purchase age
-  pensionAgeSnapshot?: MilestoneSnapshot; // portfolio snapshot at pension age
+  pensionDrawdownSnapshot?: MilestoneSnapshot; // portfolio snapshot at pension drawdown age
   taxInputs?: TaxInputs; // optional Irish tax calculation inputs
   enableTaxCalculation?: boolean; // whether to show tax calculation
 }

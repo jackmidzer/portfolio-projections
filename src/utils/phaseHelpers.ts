@@ -2,63 +2,63 @@
  * Phase detection utilities for portfolio lifecycle phases
  *
  * The financial lifecycle is divided into three distinct phases:
- * 1. Working Phase: age < earlyRetirementAge - earning salary, making contributions
- * 2. Early Retirement Phase: earlyRetirementAge <= age < pensionAge - no salary/contributions, brokerage withdrawals
- * 3. Pension Phase: age >= pensionAge - pension withdrawals
+ * 1. Working Phase: age < fireAge - earning salary, making contributions
+ * 2. Bridging Phase: fireAge <= age < pensionAge - no salary/contributions, brokerage withdrawals
+ * 3. Drawdown Phase: age >= pensionAge - pension withdrawals
  */
 
 /**
  * Determines if a given age falls within the Working phase
  * @param age - The person's current age
- * @param earlyRetirementAge - The age at which early retirement begins
- * @returns true if age < earlyRetirementAge
+ * @param fireAge - The FIRE age at which working phase ends
+ * @returns true if age < fireAge
  */
-export const isWorkingPhase = (age: number, earlyRetirementAge: number): boolean => {
-  return age < earlyRetirementAge;
+export const isWorkingPhase = (age: number, fireAge: number): boolean => {
+  return age < fireAge;
 };
 
 /**
- * Determines if a given age falls within the Early Retirement phase
+ * Determines if a given age falls within the Bridging phase
  * @param age - The person's current age
- * @param earlyRetirementAge - The age at which early retirement begins
- * @param pensionAge - The age at which pension withdrawals begin
- * @returns true if earlyRetirementAge <= age < pensionAge
+ * @param fireAge - The FIRE age at which the bridging phase begins
+ * @param pensionAge - The age at which pension drawdown begins
+ * @returns true if fireAge <= age < pensionAge
  */
-export const isEarlyRetirementPhase = (
+export const isBridgingPhase = (
   age: number,
-  earlyRetirementAge: number,
+  fireAge: number,
   pensionAge: number
 ): boolean => {
-  return age >= earlyRetirementAge && age < pensionAge;
+  return age >= fireAge && age < pensionAge;
 };
 
 /**
- * Determines if a given age falls within the Pension phase
+ * Determines if a given age falls within the Drawdown phase
  * @param age - The person's current age
- * @param pensionAge - The age at which pension withdrawals begin
+ * @param pensionAge - The age at which pension drawdown begins
  * @returns true if age >= pensionAge
  */
-export const isPensionPhase = (age: number, pensionAge: number): boolean => {
+export const isDrawdownPhase = (age: number, pensionAge: number): boolean => {
   return age >= pensionAge;
 };
 
 /**
  * Returns the name of the phase for a given age
  * @param age - The person's current age
- * @param earlyRetirementAge - The age at which early retirement begins
- * @param pensionAge - The age at which pension withdrawals begin
- * @returns The phase name: 'working', 'earlyRetirement', or 'pension'
+ * @param fireAge - The FIRE age at which the bridging phase begins
+ * @param pensionAge - The age at which pension drawdown begins
+ * @returns The phase name: 'working', 'bridging', or 'drawdown'
  */
 export const getPhaseType = (
   age: number,
-  earlyRetirementAge: number,
+  fireAge: number,
   pensionAge: number
-): 'working' | 'earlyRetirement' | 'pension' => {
-  if (isWorkingPhase(age, earlyRetirementAge)) {
+): 'working' | 'bridging' | 'drawdown' => {
+  if (isWorkingPhase(age, fireAge)) {
     return 'working';
-  } else if (isEarlyRetirementPhase(age, earlyRetirementAge, pensionAge)) {
-    return 'earlyRetirement';
+  } else if (isBridgingPhase(age, fireAge, pensionAge)) {
+    return 'bridging';
   } else {
-    return 'pension';
+    return 'drawdown';
   }
 };
