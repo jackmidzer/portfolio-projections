@@ -1,4 +1,4 @@
-import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot, HouseDepositCalculation } from '../types';
+import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot, HouseDepositCalculation } from '../types';
 import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax } from './taxCalculations';
 import { isBridgingPhase, isDrawdownPhase, getPhaseType } from './phaseHelpers';
 
@@ -12,6 +12,20 @@ function getAgeBracketPercentage(age: number, brackets: AgeBracketContributions)
   if (age < 55) return brackets.age50to54;
   if (age < 60) return brackets.age55to59;
   return brackets.age60plus;
+}
+
+/**
+ * Get the employer contribution percentage for a given age from employer age bracket contributions
+ */
+function getEmployerAgeBracketPercentage(age: number, brackets: EmployerAgeBracketContributions): number {
+  if (age < 25) return brackets.under25;
+  if (age < 30) return brackets.age25to29;
+  if (age < 35) return brackets.age30to34;
+  if (age < 40) return brackets.age35to39;
+  if (age < 45) return brackets.age40to44;
+  if (age < 50) return brackets.age45to49;
+  if (age < 55) return brackets.age50to54;
+  return brackets.age55plus;
 }
 
 /**
@@ -384,9 +398,12 @@ export function calculateAccountGrowth(
         const contributionBase = isPensionAccount ? (salaryAtMonth / 12) : baseMonthlyNetSalary;
         monthlyContribution = contributionBase * (contributionPercentage / 100);
         
-        // Add employer contribution if present (Pension only, uses gross salary)
-        if (account.employerContributionPercent !== undefined && account.employerContributionPercent > 0) {
-          monthlyContribution += (salaryAtMonth / 12) * (account.employerContributionPercent / 100);
+        // Add employer contribution if present (Pension only, uses gross salary, age-bracket-based)
+        if (account.employerAgeBracketContributions) {
+          const employerPercent = getEmployerAgeBracketPercentage(ageAtStartOfCurrentYear, account.employerAgeBracketContributions);
+          if (employerPercent > 0) {
+            monthlyContribution += (salaryAtMonth / 12) * (employerPercent / 100);
+          }
         }
       } else {
         // Fixed monthly contribution

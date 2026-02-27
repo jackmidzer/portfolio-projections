@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useProjectionStore } from '@/store/useProjectionStore';
-import { AccountInput as AccountInputType, AccountType, AgeBracketContributions } from '@/types';
+import { AccountInput as AccountInputType, AccountType, AgeBracketContributions, EmployerAgeBracketContributions } from '@/types';
 import { cn } from '@/lib/utils';
 
 const accountMeta: Record<AccountType, { color: string; borderColor: string; bgColor: string }> = {
@@ -30,6 +30,17 @@ function AccountCard({ account, onChange }: { account: AccountInputType; onChang
       onChange({
         ...account,
         ageBracketContributions: { ...account.ageBracketContributions, [bracket]: parseFloat(value) || 0 },
+      });
+    }
+  };
+
+  const [showEmployerBrackets, setShowEmployerBrackets] = useState(false);
+
+  const handleEmployerBracketChange = (bracket: keyof EmployerAgeBracketContributions, value: string) => {
+    if (account.employerAgeBracketContributions) {
+      onChange({
+        ...account,
+        employerAgeBracketContributions: { ...account.employerAgeBracketContributions, [bracket]: parseFloat(value) || 0 },
       });
     }
   };
@@ -115,18 +126,56 @@ function AccountCard({ account, onChange }: { account: AccountInputType; onChang
         </div>
       )}
 
-      {isPensionWithBrackets && (
-        <NumberField
-          label="Employer Contribution"
-          id={`${account.name}-employer`}
-          value={account.employerContributionPercent || 0}
-          onChange={(v) => handleChange('employerContributionPercent', String(v))}
-          suffix="%"
-          min={0}
-          max={100}
-          step={0.1}
-          hint="Employer matches this % of gross"
-        />
+      {isPensionWithBrackets && account.employerAgeBracketContributions && (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setShowEmployerBrackets(!showEmployerBrackets)}
+            className="flex items-center justify-between w-full text-xs font-medium text-pension hover:text-pension/80 transition-colors"
+          >
+            <span>Employer Age Bracket Contributions</span>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showEmployerBrackets && "rotate-180")} />
+          </button>
+          <AnimatePresence>
+            {showEmployerBrackets && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-2 pt-2 border-t">
+                  {([
+                    ['under25', 'Under 25'],
+                    ['age25to29', '25–29'],
+                    ['age30to34', '30–34'],
+                    ['age35to39', '35–39'],
+                    ['age40to44', '40–44'],
+                    ['age45to49', '45–49'],
+                    ['age50to54', '50–54'],
+                    ['age55plus', '55+'],
+                  ] as const).map(([bracket, label]) => (
+                    <div key={bracket} className="flex items-center gap-2">
+                      <Label className="text-[11px] text-muted-foreground w-16 flex-shrink-0">{label}</Label>
+                      <div className="relative flex-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.1}
+                          value={account.employerAgeBracketContributions?.[bracket] || ''}
+                          onChange={(e) => handleEmployerBracketChange(bracket, e.target.value)}
+                          className="h-8 text-xs pr-6"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       )}
 
       <NumberField

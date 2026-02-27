@@ -96,7 +96,16 @@ const defaultFormInputs: FormInputs = {
       monthlyContribution: 0,
       expectedReturn: 7,
       isSalaryPercentage: true,
-      employerContributionPercent: 8,
+      employerAgeBracketContributions: {
+        under25: 5,
+        age25to29: 8,
+        age30to34: 11,
+        age35to39: 12,
+        age40to44: 14,
+        age45to49: 16,
+        age50to54: 18,
+        age55plus: 20,
+      },
       bonusContributionPercent: -1,
       ageBracketContributions: {
         under30: 15,

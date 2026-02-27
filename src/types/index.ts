@@ -17,6 +17,17 @@ export interface AgeBracketContributions {
   age60plus: number;     // percentage for ages 60+
 }
 
+export interface EmployerAgeBracketContributions {
+  under25: number;       // percentage for ages < 25
+  age25to29: number;     // percentage for ages 25-29
+  age30to34: number;     // percentage for ages 30-34
+  age35to39: number;     // percentage for ages 35-39
+  age40to44: number;     // percentage for ages 40-44
+  age45to49: number;     // percentage for ages 45-49
+  age50to54: number;     // percentage for ages 50-54
+  age55plus: number;     // percentage for ages 55+
+}
+
 export interface AccountInput {
   name: AccountType;
   currentBalance: number;
@@ -24,7 +35,7 @@ export interface AccountInput {
   expectedReturn: number; // as percentage (e.g., 7 for 7%)
   isSalaryPercentage?: boolean; // if true, monthlyContribution is treated as % of monthly salary
   ageBracketContributions?: AgeBracketContributions; // for Pension: contribution % by age bracket
-  employerContributionPercent?: number; // for Pension: employer contribution as % of salary
+  employerAgeBracketContributions?: EmployerAgeBracketContributions; // for Pension: employer contribution % by age bracket
   bonusContributionPercent?: number; // optional: contribution percent from bonus salary
 }
 
