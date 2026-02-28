@@ -46,6 +46,7 @@ interface UIState {
   sidebarCollapsed: boolean;
   expandedSections: Set<string>;
   showAdvancedOptions: boolean;
+  isCalculating: boolean;
 }
 
 // ─── Results Slice ───────────────────────────────────────────────────
@@ -71,6 +72,7 @@ interface ProjectionStore extends FormInputs, UIState, ResultsState {
   toggleSidebarCollapse: () => void;
   toggleSection: (section: string) => void;
   setShowAdvancedOptions: (show: boolean) => void;
+  setIsCalculating: (value: boolean) => void;
 
   // Calculation actions
   calculate: () => { errors: string[] };
@@ -107,7 +109,7 @@ const defaultFormInputs: FormInputs = {
         age50to54: 18,
         age55plus: 20,
       },
-      bonusContributionPercent: -1,
+      bonusContributionPercent: 'age-bracket',
       ageBracketContributions: {
         under30: 15,
         age30to39: 20,
@@ -182,6 +184,7 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
   sidebarCollapsed: false,
   expandedSections: new Set(['personal', 'income', 'accounts']),
   showAdvancedOptions: false,
+  isCalculating: false,
 
   // Default results
   results: null,
@@ -220,6 +223,7 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
     return { expandedSections: newSet };
   }),
   setShowAdvancedOptions: (show) => set({ showAdvancedOptions: show }),
+  setIsCalculating: (value) => set({ isCalculating: value }),
 
   // ─── Computed Helpers ──────────────────────────────────────────
   getCurrentAge: () => {

@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { PortfolioResults, AccountType } from '@/types';
+import { PortfolioResults, AccountType, YearlyBreakdown, MonthlyBreakdown } from '@/types';
 import { formatCurrency } from '@/utils/formatters';
 import {
   isWorkingPhase,
@@ -224,7 +224,7 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
 function MonthlyDetail({
   row, isBridging, isDrawdown, selectedAccount, results, annualTax, annualNetIncome
 }: {
-  row: any; isBridging: boolean; isDrawdown: boolean;
+  row: YearlyBreakdown; isBridging: boolean; isDrawdown: boolean;
   selectedAccount: AccountType | 'All'; results: PortfolioResults;
   annualTax: number; annualNetIncome: number;
 }) {
@@ -247,7 +247,7 @@ function MonthlyDetail({
             </tr>
           </thead>
           <tbody>
-            {row.monthlyData.map((month: any) => {
+            {row.monthlyData.map((month: MonthlyBreakdown) => {
               let monthlyDisplayIncome = month.salary;
               if (isBridging) {
                 if (selectedAccount === 'All') {
@@ -301,13 +301,13 @@ function MonthlyDetail({
 
 // ─── Helper: compute annual income/tax/net ─────────────────
 function computeAnnuals(
-  row: any,
+  row: YearlyBreakdown,
   isBridging: boolean,
   isDrawdown: boolean,
   selectedAccount: AccountType | 'All',
   results: PortfolioResults,
 ) {
-  const annualIncome = row.monthlyData.reduce((sum: number, month: any) => {
+  const annualIncome = row.monthlyData.reduce((sum: number, month: MonthlyBreakdown) => {
     let inc = month.salary;
     if (isBridging) {
       if (selectedAccount === 'All') {
@@ -342,8 +342,8 @@ function computeAnnuals(
     annualTax = taxR.totalTax;
     annualNetIncome = taxR.netWithdrawal;
   } else if (!isBridging && !isDrawdown) {
-    annualTax = row.monthlyData.reduce((s: number, m: any) => s + (m.monthlyTax || 0), 0);
-    annualNetIncome = row.monthlyData.reduce((s: number, m: any) => s + m.monthlyNetSalary, 0);
+    annualTax = row.monthlyData.reduce((s: number, m: MonthlyBreakdown) => s + (m.monthlyTax || 0), 0);
+    annualNetIncome = row.monthlyData.reduce((s: number, m: MonthlyBreakdown) => s + m.monthlyNetSalary, 0);
   }
 
   return { annualIncome, annualTax, annualNetIncome };

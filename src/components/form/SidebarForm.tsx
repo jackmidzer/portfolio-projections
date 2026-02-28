@@ -68,7 +68,7 @@ export function SidebarForm({ onCalculated }: SidebarFormProps) {
 
       {/* Actions */}
       <div className="flex gap-2 pt-2">
-        <Button type="submit" className="flex-1" size="sm">
+        <Button type="submit" className="flex-1" variant="outline" size="sm">
           <Calculator className="h-4 w-4 mr-2" />
           Calculate
         </Button>

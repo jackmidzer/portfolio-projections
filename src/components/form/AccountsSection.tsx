@@ -22,7 +22,11 @@ function AccountCard({ account, onChange }: { account: AccountInputType; onChang
   const isPensionWithBrackets = account.name === 'Pension' && account.ageBracketContributions;
 
   const handleChange = (field: keyof Omit<AccountInputType, 'name'>, value: string) => {
-    onChange({ ...account, [field]: parseFloat(value) || 0 });
+    if (value === 'age-bracket') {
+      onChange({ ...account, [field]: 'age-bracket' });
+    } else {
+      onChange({ ...account, [field]: parseFloat(value) || 0 });
+    }
   };
 
   const handleBracketChange = (bracket: keyof AgeBracketContributions, value: string) => {
@@ -193,8 +197,8 @@ function AccountCard({ account, onChange }: { account: AccountInputType; onChang
         <FormField label="Bonus Contribution" id={`${account.name}-bonus`}>
           <div className="flex items-center gap-2">
             <Switch
-              checked={account.bonusContributionPercent !== 0}
-              onCheckedChange={(checked) => handleChange('bonusContributionPercent', checked ? '-1' : '0')}
+              checked={account.bonusContributionPercent === 'age-bracket'}
+              onCheckedChange={(checked) => handleChange('bonusContributionPercent', checked ? 'age-bracket' : '0')}
             />
             <span className="text-xs text-muted-foreground">Use age brackets</span>
           </div>

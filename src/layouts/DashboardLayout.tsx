@@ -8,12 +8,15 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { SidebarForm } from '@/components/form/SidebarForm';
 import { DashboardContent } from '@/components/dashboard/DashboardContent';
 import { useProjectionStore } from '@/store/useProjectionStore';
+import { useAutoCalculate } from '@/hooks/useAutoCalculate';
 import { cn } from '@/lib/utils';
 
 export function DashboardLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const results = useProjectionStore(s => s.results);
+  const isCalculating = useProjectionStore(s => s.isCalculating);
+  useAutoCalculate();
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -48,7 +51,12 @@ export function DashboardLayout() {
       {/* Main Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="flex items-center justify-between border-b px-4 h-14 bg-background flex-shrink-0">
+        <header className="relative flex items-center justify-between border-b px-4 h-14 bg-background flex-shrink-0">
+          {isCalculating && (
+            <div className="absolute bottom-0 inset-x-0 h-0.5 overflow-hidden">
+              <div className="h-full bg-primary animate-pulse" />
+            </div>
+          )}
           <div className="flex items-center gap-2">
             {/* Mobile menu button */}
             <Button

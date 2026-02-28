@@ -33,37 +33,6 @@
 
 ---
 
-## Prompt 6: Replace `any` Types in ProjectionTable
-
-**Goal:** Replace all `any` type annotations in `ProjectionTable.tsx` with proper types.
-
-**Context:** There are 4 instances of `any` at `ProjectionTable.tsx:226`, `ProjectionTable.tsx:254`, `ProjectionTable.tsx:300`, and `ProjectionTable.tsx:305`. Also one `any` in `combineYearlyData` at `calculations.ts:935`.
-
-**Steps:**
-
-1. Determine the actual shape of the `row` objects passed to `MonthlyDetail` and `computeAnnuals`. These are likely `YearlyBreakdown` from `index.ts:58`.
-2. Replace `row: any` at lines 226 and 300 with `row: YearlyBreakdown`.
-3. Replace `month: any` at lines 254 and 305 with `month: MonthlyBreakdown`.
-4. In `calculations.ts:935`, replace `(m: any)` with the proper `MonthlyBreakdown` type.
-5. Fix any resulting type errors — if the row shape doesn't exactly match `YearlyBreakdown`, create an extended type or adjust the existing one.
-
----
-
-## Prompt 7: Replace Magic Number `-1` for Bonus Contribution
-
-**Goal:** Replace the magic number `-1` used for pension bonus contribution with a type-safe sentinel.
-
-**Context:** The pension account uses `bonusContributionPercent: -1` to mean "use the current age-bracket percentage for bonus contributions". This is fragile and undocumented.
-
-**Steps:**
-
-1. In `types/index.ts`, change the `bonusContributionPercent` field in `AccountInput` from `number` to `number | 'age-bracket'`.
-2. In `calculations.ts`, find all checks for `bonusContributionPercent === -1` and replace with `=== 'age-bracket'`.
-3. In `useProjectionStore.ts`, update the default value for the pension account's `bonusContributionPercent` from `-1` to `'age-bracket'`.
-4. Update any form components that read/write this field (likely in `AccountsSection.tsx`) to handle the union type.
-
----
-
 ## Prompt 8: Eliminate Double Pension Calculation
 
 **Goal:** Remove the redundant first pension calculation that exists solely to determine the lump sum amount.
@@ -105,25 +74,6 @@
 5. Handle the `dateOfBirth` field carefully — `Date` objects don't serialise/deserialise cleanly in JSON. Add a custom `storage` option or use `onRehydrate` to convert the date string back to a `Date` object.
 6. Add a version number to the persisted state and a `migrate` function for future schema changes.
 7. Consider adding a "Reset to defaults" button in the UI that calls `resetForm()` and clears localStorage.
-
----
-
-## Prompt 11: Add Vitest and Unit Tests for Calculations
-
-**Goal:** Set up Vitest and create comprehensive unit tests for all financial calculation and tax utilities.
-
-**Steps:**
-
-1. Install dev dependencies: `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`.
-2. Add test config to `vite.config.ts` or create a `vitest.config.ts` with `environment: 'jsdom'` and path aliases matching `tsconfig.json`.
-3. Add a `"test"` script to `package.json`: `"test": "vitest"` and `"test:ci": "vitest run"`.
-4. Create test files:
-   - `src/utils/_tests/taxcalculations.test.ts` — Test all 12 exported functions from `taxCalculations.ts`. Key cases: PAYE band boundaries, USC thresholds, PRSI calculation, pension relief cap at €115k, bonus marginal tax, pension withdrawal tax with/without PRSI (age 65/66), CGT at 33%, DIRT at 33%.
-   - `src/utils/_tests/calculations.test.ts` — Test `calculateAccountGrowth` for each account type. Key cases: monthly compounding, salary growth timing (January), age-bracket pension contribution changes, pro-rated first year months, `combineYearlyData` aggregation.
-   - `src/utils/_tests/houseCalculations.test.ts` — Test house price projection, mortgage calculation, deposit computation, LTV.
-   - `src/utils/_tests/formatters.test.ts` — Test `formatCurrency`, `formatPercent`, other formatters.
-   - `src/utils/_tests/phaseHelpers.test.ts` — Test phase determination logic.
-5. Use snapshot or golden-value tests for full portfolio projections with known inputs.
 
 ---
 

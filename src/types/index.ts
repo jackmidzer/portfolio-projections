@@ -36,7 +36,7 @@ export interface AccountInput {
   isSalaryPercentage?: boolean; // if true, monthlyContribution is treated as % of monthly salary
   ageBracketContributions?: AgeBracketContributions; // for Pension: contribution % by age bracket
   employerAgeBracketContributions?: EmployerAgeBracketContributions; // for Pension: employer contribution % by age bracket
-  bonusContributionPercent?: number; // optional: contribution percent from bonus salary
+  bonusContributionPercent?: number | 'age-bracket'; // optional: contribution percent from bonus salary; 'age-bracket' means use the current age-bracket percentage
 }
 
 export interface MonthlyBreakdown {

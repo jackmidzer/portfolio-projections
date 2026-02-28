@@ -420,16 +420,17 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
         const isSavingsOrBrokerage = account.name === 'Savings' || account.name === 'Brokerage';
         const annualBonus = isSavingsOrBrokerage && netBonusValue !== undefined ? netBonusValue : salaryAtMonth * (bonusPercent / 100);
         
-        let bonusContributionPercent = account.bonusContributionPercent;
-        
-        // Handle pension bonus checkbox: -1 means enabled, use age bracket percentage
-        if (account.bonusContributionPercent === -1 && account.ageBracketContributions) {
+        // Handle 'age-bracket' sentinel: resolve to the current age-bracket percentage
+        let bonusContributionPercent: number | undefined =
+          typeof account.bonusContributionPercent === 'number' ? account.bonusContributionPercent : undefined;
+
+        if (account.bonusContributionPercent === 'age-bracket' && account.ageBracketContributions) {
           // Use age at start of calendar year to defer bracket increases until January
           bonusContributionPercent = getAgeBracketPercentage(ageAtStartOfCurrentYear, account.ageBracketContributions);
         }
         
         // Only add bonus contribution if percentage is positive
-        if (bonusContributionPercent > 0) {
+        if (bonusContributionPercent !== undefined && bonusContributionPercent > 0) {
           const bonusContribution = annualBonus * (bonusContributionPercent / 100);
           monthlyContribution += bonusContribution;
         }
@@ -939,7 +940,7 @@ export function combineYearlyData(
       // Working phase: sum monthlyNetSalary from the first account
       const firstYd = accountResults[0]?.yearlyData[year];
       if (firstYd?.monthlyData) {
-        firstYd.monthlyData.forEach((m: any) => {
+        firstYd.monthlyData.forEach((m: MonthlyBreakdown) => {
           netIncome += m.monthlyNetSalary || 0;
         });
       }
