@@ -131,7 +131,7 @@ const defaultFormInputs: FormInputs = {
   pensionAge: 61,
   fireAge: 50,
   withdrawalRate: 4,
-  salaryReplacementRate: 80,
+  salaryReplacementRate: 60,
   enablePensionLumpSum: true,
   pensionLumpSumAge: 50,
   pensionLumpSumMaxAmount: 200000,

@@ -64,7 +64,7 @@ function buildOpts(
     pensionAge: 65,
     withdrawalRate: 4,
     fireAge: 50,
-    salaryReplacementRate: 80,
+    salaryReplacementRate: 60,
     bonusPercent: 0,
     enableHouseWithdrawal: false,
     enablePensionLumpSum: false,
@@ -193,7 +193,7 @@ describe('calculateAccountGrowth – Brokerage', () => {
       fireAge: 50,
       pensionAge: 65,
       timeHorizon: 5,
-      salaryReplacementRate: 80,
+      salaryReplacementRate: 60,
     });
     const result = calculateAccountGrowth(opts);
     // Some year after fire age should have withdrawals

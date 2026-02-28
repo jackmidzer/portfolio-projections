@@ -81,6 +81,7 @@ export function RetirementSection() {
                   value={statePensionWeeklyAmount}
                   onChange={(v) => updateField('statePensionWeeklyAmount', v)}
                   min={0}
+                  step={0.01}
                   placeholder="299.30"
                   hint="~€15,564/yr at €299.30/wk"
                 />

@@ -143,7 +143,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
   const pensionLumpSumMaxAmountValue = pensionLumpSumMaxAmount ?? Infinity;
   const withdrawalRateValue = withdrawalRate ?? 4;
   const fireAgeValue = fireAge ?? 50;
-  const salaryReplacementRateValue = salaryReplacementRate ?? 80;
+  const salaryReplacementRateValue = salaryReplacementRate ?? 60;
   const statePensionAgeValue = statePensionAge ?? 66;
   const statePensionWeekly = statePensionWeeklyAmount ?? 299.30;
   const statePensionAnnual = statePensionWeekly * 52;

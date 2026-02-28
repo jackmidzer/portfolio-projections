@@ -1,4 +1,4 @@
-import { DollarSign } from 'lucide-react';
+import { EuroIcon } from 'lucide-react';
 import { FormSection } from './FormSection';
 import { NumberField } from './FormField';
 import { useProjectionStore } from '@/store/useProjectionStore';
@@ -14,7 +14,7 @@ export function IncomeSection() {
   const salaryStr = typeof currentSalary === 'number' ? `€${currentSalary.toLocaleString()}` : '';
 
   return (
-    <FormSection id="income" title="Your Income" icon={DollarSign} description={salaryStr}>
+    <FormSection id="income" title="Your Income" icon={EuroIcon} description={salaryStr}>
       <div className="grid grid-cols-2 gap-3">
         <NumberField
           label="Annual Salary"

@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { SidebarForm } from '@/components/form/SidebarForm';
 import { DashboardContent } from '@/components/dashboard/DashboardContent';
+import { NegativeBalanceBanner } from '@/components/dashboard/NegativeBalanceBanner';
 import { useProjectionStore } from '@/store/useProjectionStore';
 import { useAutoCalculate } from '@/hooks/useAutoCalculate';
 import { cn } from '@/lib/utils';
@@ -103,6 +104,7 @@ export function DashboardLayout() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">
+          <NegativeBalanceBanner />
           <div className="p-6 max-w-7xl mx-auto">
             {results ? (
               <DashboardContent />
