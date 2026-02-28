@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PortfolioResults } from '@/types';
+import type { AccountType, PortfolioResults } from '@/types';
 import {
   useChartData,
   PortfolioGrowthChart,
@@ -15,6 +15,7 @@ import { AgeRangeSlider } from './charts/AgeRangeSlider';
 import './charts/chartConfig';
 
 type ChartTab = 'growth' | 'deposits' | 'flows' | 'income';
+type AccountFilter = 'all' | AccountType;
 
 const TAB_LABELS: Record<ChartTab, string> = {
   growth: 'Portfolio Growth',
@@ -35,6 +36,13 @@ const fadeVariants = {
 
 export function ProjectionChart({ results }: ProjectionChartProps) {
   const [activeTab, setActiveTab] = useState<ChartTab>('growth');
+  const [depositsAccount, setDepositsAccount] = useState<AccountFilter>('all');
+  const [flowsAccount, setFlowsAccount] = useState<AccountFilter>('all');
+
+  const accountNames = useMemo(
+    () => results.accountResults.map((a) => a.accountName),
+    [results],
+  );
 
   const {
     combined,
@@ -43,6 +51,8 @@ export function ProjectionChart({ results }: ProjectionChartProps) {
     contributionsGrowthData,
     annualFlowsData,
     incomeTimelineData,
+    perAccountContributionsGrowthData,
+    perAccountAnnualFlowsData,
   } = useChartData(results);
 
   const isFirstYearProRated = results.monthsUntilNextBirthday < 12;
@@ -73,12 +83,38 @@ export function ProjectionChart({ results }: ProjectionChartProps) {
     ageRange: chartAgeRange,
   };
 
+  const depositsData =
+    depositsAccount !== 'all' && perAccountContributionsGrowthData[depositsAccount]
+      ? perAccountContributionsGrowthData[depositsAccount]!
+      : contributionsGrowthData;
+
+  const flowsData =
+    flowsAccount !== 'all' && perAccountAnnualFlowsData[flowsAccount]
+      ? perAccountAnnualFlowsData[flowsAccount]!
+      : annualFlowsData;
+
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">Growth Over Time</CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {(activeTab === 'deposits' || activeTab === 'flows') && (
+              <select
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                value={activeTab === 'deposits' ? depositsAccount : flowsAccount}
+                onChange={(e) => {
+                  const val = e.target.value as AccountFilter;
+                  if (activeTab === 'deposits') setDepositsAccount(val);
+                  else setFlowsAccount(val);
+                }}
+              >
+                <option value="all">All Accounts</option>
+                {accountNames.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            )}
             <Tabs
               value={activeTab}
               onValueChange={(v) => {
@@ -109,18 +145,18 @@ export function ProjectionChart({ results }: ProjectionChartProps) {
           )}
 
           {activeTab === 'deposits' && (
-            <motion.div key="deposits" variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
+            <motion.div key={`deposits-${depositsAccount}`} variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
               <ContributionsGrowthChart
-                data={contributionsGrowthData}
+                data={depositsData}
                 {...sharedProps}
               />
             </motion.div>
           )}
 
           {activeTab === 'flows' && (
-            <motion.div key="flows" variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
+            <motion.div key={`flows-${flowsAccount}`} variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
               <AnnualFlowsChart
-                data={annualFlowsData}
+                data={flowsData}
                 {...sharedProps}
               />
             </motion.div>

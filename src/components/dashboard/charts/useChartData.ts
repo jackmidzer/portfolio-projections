@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { ChartData } from 'chart.js';
-import type { PortfolioResults } from '@/types';
+import type { AccountType, PortfolioResults } from '@/types';
 import { combineYearlyData } from '@/utils/calculations';
 import {
   getAccountColor,
@@ -145,6 +145,100 @@ export function useChartData(results: PortfolioResults) {
     [combined, ages, themeKey],
   );
 
+  // ── 3a. Deposits vs Growth — per-account view ─────────────────────────────
+  const perAccountContributionsGrowthData = useMemo(() => {
+    const map: Partial<Record<AccountType, ChartData<'line'>>> = {};
+    for (const acct of results.accountResults) {
+      const labels: number[] = [];
+      const principalData: number[] = [];
+      const interestData: number[] = [];
+      let cumPrincipal = 0;
+      let cumInterest = 0;
+      for (const yr of acct.yearlyData) {
+        labels.push(yr.age);
+        cumPrincipal += yr.contributions;
+        cumInterest += yr.interestEarned;
+        principalData.push(cumPrincipal);
+        interestData.push(cumInterest);
+      }
+      map[acct.accountName] = {
+        labels,
+        datasets: [
+          {
+            label: 'Deposits (Principal)',
+            data: principalData,
+            borderColor: getPrincipalColor(),
+            backgroundColor: getPrincipalColor(0.35),
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHitRadius: 8,
+            order: 1,
+          },
+          {
+            label: 'Growth (Interest)',
+            data: interestData,
+            borderColor: getInterestColor(),
+            backgroundColor: getInterestColor(0.35),
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+            pointHitRadius: 8,
+            order: 2,
+          },
+        ],
+      };
+    }
+    return map;
+  }, [results, themeKey]);
+
+  // ── 3b. Annual Flows — per-account view ────────────────────────────────────
+  const perAccountAnnualFlowsData = useMemo(() => {
+    const map: Partial<Record<AccountType, ChartData<'bar'>>> = {};
+    for (const acct of results.accountResults) {
+      const labels: number[] = [];
+      const contributionsData: number[] = [];
+      const interestData: number[] = [];
+      const withdrawalsData: number[] = [];
+      for (const yr of acct.yearlyData) {
+        labels.push(yr.age);
+        contributionsData.push(yr.contributions);
+        interestData.push(yr.interestEarned);
+        withdrawalsData.push(yr.withdrawal > 0 ? -yr.withdrawal : 0);
+      }
+      map[acct.accountName] = {
+        labels,
+        datasets: [
+          {
+            label: 'Contributions',
+            data: contributionsData,
+            backgroundColor: getAccountColor('Pension', 0.7),
+            borderColor: getAccountColor('Pension'),
+            borderWidth: 1,
+            borderRadius: 2,
+          },
+          {
+            label: 'Interest Earned',
+            data: interestData,
+            backgroundColor: getInterestColor(0.7),
+            borderColor: getInterestColor(),
+            borderWidth: 1,
+            borderRadius: 2,
+          },
+          {
+            label: 'Withdrawals',
+            data: withdrawalsData,
+            backgroundColor: 'hsla(0, 72%, 51%, 0.6)',
+            borderColor: 'hsl(0, 72%, 51%)',
+            borderWidth: 1,
+            borderRadius: 2,
+          },
+        ],
+      };
+    }
+    return map;
+  }, [results, themeKey]);
+
   // ── 4. Income Timeline (line chart) ─────────────────────────────────────────
   const incomeTimelineData: ChartData<'line'> = useMemo(() => {
     return {
@@ -173,5 +267,7 @@ export function useChartData(results: PortfolioResults) {
     contributionsGrowthData,
     annualFlowsData,
     incomeTimelineData,
+    perAccountContributionsGrowthData,
+    perAccountAnnualFlowsData,
   };
 }
