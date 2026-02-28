@@ -213,7 +213,7 @@ function AccountCard({ account, onChange, errors = {} }: {
         <NumberField
           label="Bonus Contribution"
           id={`${account.name}-bonus`}
-          value={account.bonusContributionPercent || 0}
+          value={typeof account.bonusContributionPercent === 'number' ? account.bonusContributionPercent : 0}
           onChange={(v) => handleChange('bonusContributionPercent', String(v))}
           suffix="%"
           min={0}

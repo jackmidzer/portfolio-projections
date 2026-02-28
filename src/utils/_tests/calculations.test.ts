@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { calculateAccountGrowth, combineYearlyData, CombinedYearData } from '../calculations';
-import { AccountInput, AccountGrowthOptions, AccountResults } from '../../types';
+import { calculateAccountGrowth, combineYearlyData } from '../calculations';
+import { AccountInput, AccountGrowthOptions } from '../../types';
 
 // ---------------------------------------------------------------------------
 // Helpers
