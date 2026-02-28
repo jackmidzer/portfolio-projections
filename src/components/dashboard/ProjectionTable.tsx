@@ -307,7 +307,12 @@ function computeAnnuals(
   selectedAccount: AccountType | 'All',
   results: PortfolioResults,
 ) {
-  const annualIncome = row.monthlyData.reduce((sum: number, month: MonthlyBreakdown) => {
+  // Extract annual state pension from stored monthly data (same value on all accounts)
+  const annualStatePension = row.monthlyData.reduce(
+    (s: number, m: MonthlyBreakdown) => s + (m.statePensionIncome || 0), 0
+  );
+
+  const withdrawalIncome = row.monthlyData.reduce((sum: number, month: MonthlyBreakdown) => {
     let inc = month.salary;
     if (isBridging) {
       if (selectedAccount === 'All') {
@@ -325,7 +330,12 @@ function computeAnnuals(
     return sum + inc;
   }, 0);
 
-  let annualGrossIncome = annualIncome;
+  // Include state pension in the displayed income for retirement phases (All or relevant account)
+  const showStatePension = (isBridging && (selectedAccount === 'All' || selectedAccount === 'Brokerage'))
+    || (isDrawdown && (selectedAccount === 'All' || selectedAccount === 'Pension'));
+  const annualIncome = withdrawalIncome + (showStatePension ? annualStatePension : 0);
+
+  let annualGrossIncome = withdrawalIncome;
   if ((isBridging && selectedAccount !== 'All' && selectedAccount !== 'Brokerage') ||
       (isDrawdown && selectedAccount !== 'All' && selectedAccount !== 'Pension')) {
     annualGrossIncome = 0;
@@ -334,19 +344,22 @@ function computeAnnuals(
   let annualTax = 0;
   let annualNetIncome = 0;
   if (isBridging && annualGrossIncome > 0) {
-    // Read the pre-computed withdrawalTax from brokerage monthly data (already uses cost-basis gain ratio).
-    // row.year is the array index into yearlyData, NOT the calendar year.
+    // CGT tax on brokerage withdrawal (pre-computed, using cost-basis gain ratio)
     const brokerageYd = results.accountResults
       .find(r => r.accountName === 'Brokerage')
       ?.yearlyData[row.year];
     const sourceMonths = brokerageYd?.monthlyData ?? [];
-    annualTax = sourceMonths.reduce((s: number, m: MonthlyBreakdown) => s + (m.withdrawalTax || 0), 0);
-    annualNetIncome = annualGrossIncome - annualTax;
+    const brokerageTax = sourceMonths.reduce((s: number, m: MonthlyBreakdown) => s + (m.withdrawalTax || 0), 0);
+    // PAYE/USC on state pension (taxable income)
+    const spTax = annualStatePension > 0 && showStatePension
+      ? calculatePensionWithdrawalTax(annualStatePension, true, row.age).totalTax
+      : 0;
+    annualTax = brokerageTax + spTax;
+    annualNetIncome = annualIncome - annualTax;
   } else if (isDrawdown && annualGrossIncome > 0) {
-    // Pension withdrawal tax must be calculated on the full annual amount so that
-    // progressive bands (PAYE, USC) are applied correctly. Per-month stored values
-    // are computed on 1/12 of the annual figure and would understate the tax rate.
-    const taxR = calculatePensionWithdrawalTax(annualGrossIncome, true, row.age);
+    // Pension + state pension combined tax (progressive PAYE/USC applied to total taxable income)
+    const totalTaxableIncome = annualGrossIncome + (showStatePension ? annualStatePension : 0);
+    const taxR = calculatePensionWithdrawalTax(totalTaxableIncome, true, row.age);
     annualTax = taxR.totalTax;
     annualNetIncome = taxR.netWithdrawal;
   } else if (!isBridging && !isDrawdown) {

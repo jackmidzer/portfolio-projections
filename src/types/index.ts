@@ -55,6 +55,7 @@ export interface MonthlyBreakdown {
   withdrawalTax?: number; // tax paid on withdrawal (CGT for brokerage, income tax for pension)
   withdrawalNetAmount?: number; // net withdrawal amount after tax
   costBasis?: number; // cumulative cost basis for brokerage account (contributions, for CGT tracking)
+  statePensionIncome?: number; // monthly Irish contributory state pension income (if eligible)
 }
 
 export interface YearlyBreakdown {
@@ -113,6 +114,10 @@ export interface AccountGrowthOptions {
   netBonusValue?: number;
   pensionLumpSumAge?: number;
   pensionLumpSumMaxAmount?: number;
+  /** State pension options */
+  includeStatePension?: boolean;
+  statePensionAge?: number;
+  statePensionWeeklyAmount?: number;
 }
 
 /** Options object for calculatePortfolioGrowth */
@@ -139,6 +144,10 @@ export interface PortfolioGrowthOptions {
   pensionLumpSumAge?: number;
   mortgageExemption?: boolean;
   pensionLumpSumMaxAmount?: number;
+  /** State pension options */
+  includeStatePension?: boolean;
+  statePensionAge?: number;
+  statePensionWeeklyAmount?: number;
 }
 
 export interface MilestoneSnapshot {

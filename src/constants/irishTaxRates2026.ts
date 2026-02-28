@@ -50,6 +50,11 @@ export const PENSION_LUMP_SUM_STANDARD_RATE_THRESHOLD = 500000; // €200,001–
 export const PENSION_LUMP_SUM_STANDARD_RATE = 0.20;            // 20% rate on middle band
 export const PENSION_LUMP_SUM_MARGINAL_RATE = 0.40;            // 40% marginal rate above €500,000
 
+// Irish State Pension (Contributory) - 2026 rates
+export const STATE_PENSION_WEEKLY = 277.30;  // Weekly payment (historical reference rate)
+export const STATE_PENSION_AGE = 66;          // Eligibility age
+export const STATE_PENSION_ANNUAL = 299.30 * 52; // Annual amount at current rate (~€15,564/yr)
+
 /**
  * Get applicable tax bands (single filer)
  */

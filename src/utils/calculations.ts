@@ -129,6 +129,9 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     netBonusValue,
     pensionLumpSumAge,
     pensionLumpSumMaxAmount,
+    includeStatePension,
+    statePensionAge,
+    statePensionWeeklyAmount,
   } = options;
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
@@ -141,6 +144,10 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
   const withdrawalRateValue = withdrawalRate ?? 4;
   const fireAgeValue = fireAge ?? 50;
   const salaryReplacementRateValue = salaryReplacementRate ?? 80;
+  const statePensionAgeValue = statePensionAge ?? 66;
+  const statePensionWeekly = statePensionWeeklyAmount ?? 299.30;
+  const statePensionAnnual = statePensionWeekly * 52;
+  const statePensionMonthly = statePensionAnnual / 12;
 
   // Store all monthly data throughout the entire time horizon
   const allMonthlyData: MonthlyBreakdown[] = [];
@@ -322,18 +329,18 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
 
       // [DRAWDOWN PHASE] Calculate annual pension regular withdrawal
       if (isPensionAccount && isInDrawdownPhase) {
-        // Apply forced withdrawal rates at specific ages, otherwise use user's chosen method
+        // Apply forced withdrawal rates at specific ages as minimums, otherwise use user's chosen rate
         let effectiveWithdrawalRate = withdrawalRateValue;
         if (ageAtMonth >= 71) {
-          // Age 71+: forced 5% withdrawal rate
-          effectiveWithdrawalRate = 5;
+          // Age 71+: forced 5% minimum withdrawal rate
+          effectiveWithdrawalRate = Math.max(withdrawalRateValue, 5);
           annualPensionWithdrawal = monthStartBalance * (effectiveWithdrawalRate / 100);
         } else if (ageAtMonth >= 61) {
-          // Age 61-70: forced 4% withdrawal rate
-          effectiveWithdrawalRate = 4;
+          // Age 61-70: forced 4% minimum withdrawal rate
+          effectiveWithdrawalRate = Math.max(withdrawalRateValue, 4);
           annualPensionWithdrawal = monthStartBalance * (effectiveWithdrawalRate / 100);
         } else {
-          // Before age 61: use percentage of balance strategy
+          // Before age 61: use user's chosen withdrawal rate
           annualPensionWithdrawal = monthStartBalance * (withdrawalRateValue / 100);
         }
       }
@@ -341,7 +348,10 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       // [BRIDGING PHASE] Calculate annual brokerage withdrawal
       if (isBrokerageAccount && month >= fireYearStartMonth && isInBridgingPhase) {
         const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januarysSeen) : 0;
-        annualBridgingWithdrawal = hypotheticalSalary * (salaryReplacementRateValue / 100);
+        const targetIncome = hypotheticalSalary * (salaryReplacementRateValue / 100);
+        // Reduce withdrawal by state pension income if eligible (state pension provides supplemental income)
+        const statePensionOffset = (includeStatePension && ageAtMonth >= statePensionAgeValue) ? statePensionAnnual : 0;
+        annualBridgingWithdrawal = Math.max(0, targetIncome - statePensionOffset);
       }
     }
 
@@ -532,6 +542,9 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
 
 
 
+    // Compute monthly state pension income for this month
+    const monthStatePensionIncome = (includeStatePension && ageAtMonth >= statePensionAgeValue) ? statePensionMonthly : 0;
+
     allMonthlyData.push({
       month: month + 1,
       monthYear: monthLabel,
@@ -548,6 +561,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       withdrawalTax,
       withdrawalNetAmount,
       costBasis: isBrokerageAccount ? costBasis : undefined,
+      statePensionIncome: monthStatePensionIncome > 0 ? monthStatePensionIncome : undefined,
     });
 
     // Advance to next month
@@ -655,6 +669,9 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
     pensionLumpSumAge,
     mortgageExemption,
     pensionLumpSumMaxAmount,
+    includeStatePension,
+    statePensionAge,
+    statePensionWeeklyAmount,
   } = options;
   const pensionAgeValue = pensionAge ?? 65;
   const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
@@ -707,6 +724,9 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
       netBonusValue,
       pensionLumpSumAge,
       pensionLumpSumMaxAmount: pensionLumpSumMaxAmountValue,
+      includeStatePension,
+      statePensionAge,
+      statePensionWeeklyAmount,
     });
     
     // Find the lump sum amount from the pension monthly data
@@ -789,6 +809,9 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
       netBonusValue,
       pensionLumpSumAge,
       pensionLumpSumMaxAmount: pensionLumpSumMaxAmountValue,
+      includeStatePension,
+      statePensionAge,
+      statePensionWeeklyAmount,
     });
   });
 
@@ -874,6 +897,8 @@ export interface CombinedYearData {
   salary: number;
   /** Phase at this age */
   phase: 'working' | 'bridging' | 'drawdown';
+  /** Annual Irish state pension income (if eligible) */
+  statePensionIncome: number;
 }
 
 /**
@@ -936,10 +961,19 @@ export function combineYearlyData(
       if (yd?.salary) salary = yd.salary;
     });
 
+    // Aggregate annual state pension income from first account's monthly data
+    let annualStatePensionIncome = 0;
+    const firstYdForPension = accountResults[0]?.yearlyData[year];
+    if (firstYdForPension?.monthlyData) {
+      firstYdForPension.monthlyData.forEach((m: MonthlyBreakdown) => {
+        annualStatePensionIncome += m.statePensionIncome || 0;
+      });
+    }
+
     // Compute net income to match the table's computeAnnuals logic:
     // - Working: sum of monthlyNetSalary from first account
-    // - Early retirement: brokerage annual withdrawal run through CGT calculator
-    // - Pension: pension annual withdrawal run through pension withdrawal tax calculator
+    // - Early retirement: brokerage annual withdrawal run through CGT calculator (+ state pension net of PAYE)
+    // - Pension: pension annual withdrawal run through pension withdrawal tax calculator (incl. state pension)
     const phase = getPhaseType(age, fireAge, pensionAge);
     if (phase === 'bridging') {
       const brokerage = accountResults.find((r) => r.accountName === 'Brokerage');
@@ -952,13 +986,19 @@ export function combineYearlyData(
         );
         netIncome = annualWithdrawal - annualTax;
       }
+      // Add state pension net of PAYE/USC (state pension is taxable income)
+      if (annualStatePensionIncome > 0) {
+        const spTaxR = calculatePensionWithdrawalTax(annualStatePensionIncome, true, age);
+        netIncome += spTaxR.netWithdrawal;
+      }
     } else if (phase === 'drawdown') {
       const pension = accountResults.find((r) => r.accountName === 'Pension');
       const pensionYd = pension?.yearlyData[year];
       const annualWithdrawal = pensionYd?.withdrawal || 0;
-      if (annualWithdrawal > 0) {
-        // Calculate tax on the full annual amount so progressive bands are applied correctly.
-        const taxR = calculatePensionWithdrawalTax(annualWithdrawal, true, age);
+      // Calculate tax on combined pension withdrawal + state pension so progressive bands apply correctly
+      const totalTaxableIncome = annualWithdrawal + annualStatePensionIncome;
+      if (totalTaxableIncome > 0) {
+        const taxR = calculatePensionWithdrawalTax(totalTaxableIncome, true, age);
         netIncome = taxR.netWithdrawal;
       }
     } else {
@@ -986,6 +1026,7 @@ export function combineYearlyData(
       netIncome,
       salary,
       phase: getPhaseType(age, fireAge, pensionAge),
+      statePensionIncome: annualStatePensionIncome,
     });
   }
 

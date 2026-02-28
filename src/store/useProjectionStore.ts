@@ -38,6 +38,11 @@ export interface FormInputs {
   mortgageExemption: boolean;
   baseHousePrice: number;
   houseAnnualPriceIncrease: number;
+
+  // State Pension
+  includeStatePension: boolean;
+  statePensionAge: number | '';
+  statePensionWeeklyAmount: number | '';
 }
 
 // ─── UI State Slice ──────────────────────────────────────────────────
@@ -137,6 +142,11 @@ const defaultFormInputs: FormInputs = {
   mortgageExemption: true,
   baseHousePrice: 387000,
   houseAnnualPriceIncrease: 7,
+
+  // State Pension
+  includeStatePension: true,
+  statePensionAge: 66,
+  statePensionWeeklyAmount: 299.30,
 };
 
 // ─── Helper Functions ────────────────────────────────────────────────
@@ -356,6 +366,9 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
       pensionLumpSumAge: lumpSumAge,
       mortgageExemption: state.mortgageExemption,
       pensionLumpSumMaxAmount: lumpSumMaxAmount,
+      includeStatePension: state.includeStatePension,
+      statePensionAge: typeof state.statePensionAge === 'number' ? state.statePensionAge : 66,
+      statePensionWeeklyAmount: typeof state.statePensionWeeklyAmount === 'number' ? state.statePensionWeeklyAmount : 299.30,
     });
 
     // Calculate tax
