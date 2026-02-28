@@ -11,6 +11,8 @@ export function HousePurchaseSection() {
   const houseWithdrawalAge = useProjectionStore(s => s.houseWithdrawalAge);
   const houseDepositFromBrokerageRate = useProjectionStore(s => s.houseDepositFromBrokerageRate);
   const mortgageExemption = useProjectionStore(s => s.mortgageExemption);
+  const baseHousePrice = useProjectionStore(s => s.baseHousePrice);
+  const houseAnnualPriceIncrease = useProjectionStore(s => s.houseAnnualPriceIncrease);
   const updateField = useProjectionStore(s => s.updateField);
 
   const houseBrokerageRate = typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50;
@@ -38,6 +40,29 @@ export function HousePurchaseSection() {
               className="overflow-hidden"
             >
               <div className="space-y-3 pt-2">
+                <NumberField
+                  label="Estimated House Price"
+                  id="baseHousePrice"
+                  value={baseHousePrice}
+                  onChange={(v) => updateField('baseHousePrice', v === '' ? 0 : Math.max(1, v))}
+                  prefix="€"
+                  min={1}
+                  step={1000}
+                  placeholder="387000"
+                />
+
+                <NumberField
+                  label="Annual Price Increase"
+                  id="houseAnnualPriceIncrease"
+                  value={houseAnnualPriceIncrease}
+                  onChange={(v) => updateField('houseAnnualPriceIncrease', v === '' ? 0 : Math.min(20, Math.max(0, v)))}
+                  suffix="%"
+                  min={0}
+                  max={20}
+                  step={0.1}
+                  placeholder="7"
+                />
+
                 <div className="flex items-center justify-between">
                   <Label htmlFor="mortgageExemption" className="text-xs text-muted-foreground cursor-pointer">
                     Mortgage Exemption (×4.5)

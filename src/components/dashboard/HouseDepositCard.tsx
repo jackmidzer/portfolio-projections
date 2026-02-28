@@ -42,7 +42,7 @@ export function HouseDepositCard({ age, houseMetrics, mortgageExemption = true }
 
         <div className="rounded-md bg-muted/50 p-3">
           <p className="text-xs text-muted-foreground">
-            <span className="font-medium">Note:</span> Mortgage calculated as {formulaText}. This is the maximum amount a bank will lend based on projected income at age {age}.
+            <span className="font-medium">Note:</span> Mortgage calculated as {formulaText}. This is the maximum amount a bank will lend based on projected income at age {age}. Capped at 90% LTV.
           </p>
         </div>
       </CardContent>

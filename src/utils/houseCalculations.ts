@@ -30,13 +30,17 @@ export const calculateHouseMetrics = (
   // If exemption: (salary + bonus/2) × 4.5
   // If no exemption: (salary + bonus/2) × 4
   const mortgageMultiplier = mortgageExemption ? 4.5 : 4;
-  const projectedMortgage = (projectedSalary + projectedBonus / 2) * mortgageMultiplier;
-  
-  // Deposit is the difference between house price and mortgage
-  const depositRequired = Math.max(0, projectedHousePrice - projectedMortgage);
-  
-  // Calculate LTV: (mortgage / house price) × 100
-  const loanToValuePercent = (projectedMortgage / projectedHousePrice) * 100;
+  const uncappedMortgage = (projectedSalary + projectedBonus / 2) * mortgageMultiplier;
+
+  // Irish lending rules require a minimum 10% deposit (max 90% LTV), so cap the mortgage accordingly
+  const maxMortgage = projectedHousePrice * 0.9;
+  const projectedMortgage = Math.min(uncappedMortgage, maxMortgage);
+
+  // Deposit is always at least 10% of the house price
+  const depositRequired = projectedHousePrice - projectedMortgage;
+
+  // Calculate LTV: (mortgage / house price) × 100, capped at 90%
+  const loanToValuePercent = Math.min((projectedMortgage / projectedHousePrice) * 100, 90);
   
   return {
     projectedHousePrice,

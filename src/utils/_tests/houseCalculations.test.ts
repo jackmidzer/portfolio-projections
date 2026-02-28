@@ -59,10 +59,10 @@ describe('calculateHouseMetrics', () => {
       expect(result.depositRequired).toBeCloseTo(expectedDeposit, 2);
     });
 
-    it('deposit is 0 when mortgage covers entire house price', () => {
-      // Very high salary relative to house price
+    it('deposit is always at least 10% of house price (minimum deposit rule)', () => {
+      // Very high salary relative to house price — mortgage would exceed price without cap
       const result = calculateHouseMetrics(30, 30, 200000, 50000, 100000, 0, true);
-      expect(result.depositRequired).toBe(0);
+      expect(result.depositRequired).toBeCloseTo(100000 * 0.1, 2);
     });
 
     it('deposit is positive when house price exceeds mortgage', () => {
@@ -86,10 +86,10 @@ describe('calculateHouseMetrics', () => {
       expect(result.loanToValuePercent).toBeLessThan(100);
     });
 
-    it('LTV can exceed 100% when mortgage exceeds house price (no cap)', () => {
-      // Very high salary, low house price
+    it('LTV is capped at 90% even when income-based mortgage exceeds 90% of house price', () => {
+      // Very high salary, low house price — uncapped mortgage would exceed house price
       const result = calculateHouseMetrics(30, 30, 200000, 50000, 100000, 0, true);
-      expect(result.loanToValuePercent).toBeGreaterThan(100);
+      expect(result.loanToValuePercent).toBeCloseTo(90, 2);
     });
   });
 

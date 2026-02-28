@@ -108,22 +108,6 @@
 
 ---
 
-## Prompt 14: Expose Hidden House Price Inputs
-
-**Goal:** Let users configure `baseHousePrice` and `houseAnnualPriceIncrease` through the UI.
-
-**Context:** These fields exist in the store at `useProjectionStore.ts:124-125` with defaults of €387,000 and 7%, but `HousePurchaseSection.tsx` has no controls for them.
-
-**Steps:**
-
-1. In `HousePurchaseSection.tsx`, add two new `FormField` components (matching the existing pattern in the file):
-   - "Estimated house price" — number input bound to `baseHousePrice`, formatted as currency.
-   - "Annual price increase %" — number input bound to `houseAnnualPriceIncrease`, with a `%` suffix.
-2. Place these fields after the "Enable House Purchase" toggle and before the "Purchase Age" field, only visible when `enableHouseWithdrawal` is true.
-3. Add sensible validation: `baseHousePrice > 0`, `houseAnnualPriceIncrease >= 0 && <= 20`.
-
----
-
 ## Prompt 15: Add Data Export (CSV/PDF)
 
 **Goal:** Allow users to export projection results as CSV or PDF.
@@ -153,25 +137,6 @@
 4. Create `src/components/dashboard/ScenarioComparison.tsx` — a view that renders two scenarios' `SummaryCards` and key metrics side by side with delta indicators (e.g., "+€42,000" in green).
 5. Add a scenario management UI: a dropdown or tabs in the header area of `DashboardLayout.tsx` showing saved scenarios with save/load/delete actions.
 6. In the comparison view, overlay two portfolio growth lines on the same chart using Chart.js multi-dataset support.
-
----
-
-## Prompt 17: Add Auto-Calculate with Debounce
-
-**Goal:** Automatically recalculate projections when form inputs change, with debouncing to avoid excessive computation.
-
-**Context:** Currently the user must click "Calculate" at `useProjectionStore.ts:268`. The `calculate` method runs synchronously.
-
-**Steps:**
-
-1. Create a custom hook `src/hooks/useAutoCalculate.ts`:
-   - Subscribe to all `FormInputs` fields from the store using a shallow equality selector.
-   - Use a `useEffect` with a `setTimeout` debounce (400ms) that calls `store.calculate()` when inputs change.
-   - Clean up the timeout on unmount and on subsequent changes.
-2. Mount `useAutoCalculate()` in `DashboardContent.tsx` or `DashboardLayout.tsx`.
-3. Keep the "Calculate" button as a manual trigger but make it secondary (or remove it).
-4. Add a subtle loading indicator (e.g., a thin progress bar or skeleton pulse on the summary cards) during the debounce delay.
-5. If calculation is slow (>100ms), consider wrapping it in `requestIdleCallback` or a Web Worker to avoid blocking the UI thread.
 
 ---
 
