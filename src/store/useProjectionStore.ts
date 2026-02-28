@@ -27,6 +27,7 @@ interface FormInputs {
   salaryReplacementRate: number | '';
   enablePensionLumpSum: boolean;
   pensionLumpSumAge: number | '';
+  pensionLumpSumMaxAmount: number | '';
   lumpSumToBrokerageRate: number | '';
 
   // House
@@ -124,6 +125,7 @@ const defaultFormInputs: FormInputs = {
   salaryReplacementRate: 80,
   enablePensionLumpSum: true,
   pensionLumpSumAge: 50,
+  pensionLumpSumMaxAmount: 200000,
   lumpSumToBrokerageRate: 100,
   enableHouseWithdrawal: true,
   houseWithdrawalAge: 32,
@@ -281,6 +283,7 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
     const replacement = typeof state.salaryReplacementRate === 'number' ? state.salaryReplacementRate : NaN;
     const brokerageRate = typeof state.lumpSumToBrokerageRate === 'number' ? state.lumpSumToBrokerageRate : NaN;
     const lumpSumAge = typeof state.pensionLumpSumAge === 'number' ? state.pensionLumpSumAge : NaN;
+    const lumpSumMaxAmount = typeof state.pensionLumpSumMaxAmount === 'number' ? state.pensionLumpSumMaxAmount : NaN;
     const houseAge = typeof state.houseWithdrawalAge === 'number' ? state.houseWithdrawalAge : NaN;
     const houseBrokerageRate = typeof state.houseDepositFromBrokerageRate === 'number' ? state.houseDepositFromBrokerageRate : NaN;
 
@@ -294,6 +297,9 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
     if (isNaN(pension) || pension < 18 || pension > 100) errors.push('Pension age must be between 18 and 100');
     if (state.enablePensionLumpSum && (isNaN(lumpSumAge) || lumpSumAge < 50 || lumpSumAge > pension)) {
       errors.push('Pension lump sum age must be between 50 and your pension age');
+    }
+    if (state.enablePensionLumpSum && (isNaN(lumpSumMaxAmount) || lumpSumMaxAmount <= 0)) {
+      errors.push('Pension lump sum max amount must be greater than 0');
     }
     if (isNaN(withdrawal) || withdrawal <= 0 || withdrawal > 20) errors.push('Withdrawal rate must be between 0% and 20%');
     if (isNaN(fireAge) || fireAge < 18 || fireAge > 100) errors.push('FIRE age must be between 18 and 100');
@@ -337,7 +343,8 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
       state.enablePensionLumpSum,
       taxInputData,
       lumpSumAge,
-      state.mortgageExemption
+      state.mortgageExemption,
+      lumpSumMaxAmount
     );
 
     // Calculate tax

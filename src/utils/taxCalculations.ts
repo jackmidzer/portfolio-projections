@@ -10,6 +10,10 @@ import {
   CGT_RATE,
   DIRT_RATE,
   PENSION_AGE_TAX_CREDIT,
+  PENSION_LUMP_SUM_TAX_FREE_THRESHOLD,
+  PENSION_LUMP_SUM_STANDARD_RATE_THRESHOLD,
+  PENSION_LUMP_SUM_STANDARD_RATE,
+  PENSION_LUMP_SUM_MARGINAL_RATE,
   getTaxBands,
   getPersonalTaxCredit,
   getEarnedIncomeCredit,
@@ -424,6 +428,49 @@ export function calculateBrokerageCapitalGainsTax(withdrawal: number): {
     grossWithdrawal: withdrawal,
     cgt,
     netWithdrawal,
+  };
+}
+
+/**
+ * Calculate Irish pension retirement lump sum tax.
+ * Rules (Revenue.ie):
+ *   - First €200,000: tax-free
+ *   - €200,001 – €500,000: taxed at 20% (standard rate)
+ *   - Above €500,000: taxed at 40% (marginal/higher rate)
+ *
+ * @param lumpSumAmount - The gross lump sum amount (e.g. 25% of pension balance)
+ */
+export function calculatePensionLumpSumTax(lumpSumAmount: number): {
+  taxFreeAmount: number;
+  standardRateAmount: number;
+  standardRateTax: number;
+  marginalAmount: number;
+  marginalTax: number;
+  totalTax: number;
+  netLumpSum: number;
+} {
+  const taxFreeAmount = Math.min(lumpSumAmount, PENSION_LUMP_SUM_TAX_FREE_THRESHOLD);
+
+  const standardRateAmount = Math.min(
+    Math.max(0, lumpSumAmount - PENSION_LUMP_SUM_TAX_FREE_THRESHOLD),
+    PENSION_LUMP_SUM_STANDARD_RATE_THRESHOLD - PENSION_LUMP_SUM_TAX_FREE_THRESHOLD
+  );
+  const standardRateTax = standardRateAmount * PENSION_LUMP_SUM_STANDARD_RATE;
+
+  const marginalAmount = Math.max(0, lumpSumAmount - PENSION_LUMP_SUM_STANDARD_RATE_THRESHOLD);
+  const marginalTax = marginalAmount * PENSION_LUMP_SUM_MARGINAL_RATE;
+
+  const totalTax = standardRateTax + marginalTax;
+  const netLumpSum = lumpSumAmount - totalTax;
+
+  return {
+    taxFreeAmount,
+    standardRateAmount,
+    standardRateTax,
+    marginalAmount,
+    marginalTax,
+    totalTax,
+    netLumpSum,
   };
 }
 

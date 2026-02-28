@@ -9,6 +9,7 @@ import { useProjectionStore } from '@/store/useProjectionStore';
 export function LumpSumSection() {
   const enablePensionLumpSum = useProjectionStore(s => s.enablePensionLumpSum);
   const pensionLumpSumAge = useProjectionStore(s => s.pensionLumpSumAge);
+  const pensionLumpSumMaxAmount = useProjectionStore(s => s.pensionLumpSumMaxAmount);
   const lumpSumToBrokerageRate = useProjectionStore(s => s.lumpSumToBrokerageRate);
   const pensionAge = useProjectionStore(s => s.pensionAge);
   const updateField = useProjectionStore(s => s.updateField);
@@ -20,7 +21,7 @@ export function LumpSumSection() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label htmlFor="enablePensionLumpSum" className="text-xs text-muted-foreground cursor-pointer">
-            Take 25% tax-free
+            Take pension lump sum
           </Label>
           <Switch
             id="enablePensionLumpSum"
@@ -38,6 +39,16 @@ export function LumpSumSection() {
               className="overflow-hidden"
             >
               <div className="space-y-3 pt-2">
+                <NumberField
+                  label="Max Lump Sum (€)"
+                  id="pensionLumpSumMaxAmount"
+                  value={pensionLumpSumMaxAmount}
+                  onChange={(v) => updateField('pensionLumpSumMaxAmount', v)}
+                  min={1}
+                  placeholder="200000"
+                  hint="Cap on amount taken (25% of balance if lower)"
+                />
+
                 <NumberField
                   label="Lump Sum Age"
                   id="pensionLumpSumAge"

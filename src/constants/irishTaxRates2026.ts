@@ -43,6 +43,13 @@ export const DIRT_RATE = 0.33; // 33% on savings interest
 // Additional tax credit available for pension withdrawals during pension phase
 export const PENSION_AGE_TAX_CREDIT = 245; // €245 age credit
 
+// Pension Lump Sum Tax Thresholds
+// Irish Revenue rules for tax-free/taxed portions of pension retirement lump sums
+export const PENSION_LUMP_SUM_TAX_FREE_THRESHOLD = 200000;    // First €200,000 is tax-free
+export const PENSION_LUMP_SUM_STANDARD_RATE_THRESHOLD = 500000; // €200,001–€500,000 taxed at standard rate
+export const PENSION_LUMP_SUM_STANDARD_RATE = 0.20;            // 20% rate on middle band
+export const PENSION_LUMP_SUM_MARGINAL_RATE = 0.40;            // 40% marginal rate above €500,000
+
 /**
  * Get applicable tax bands (single filer)
  */

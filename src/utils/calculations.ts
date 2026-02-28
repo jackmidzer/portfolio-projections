@@ -1,5 +1,5 @@
-import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot, HouseDepositCalculation } from '../types';
-import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax } from './taxCalculations';
+import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot, HouseDepositCalculation, PensionLumpSumTaxBreakdown } from '../types';
+import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax, calculatePensionLumpSumTax } from './taxCalculations';
 import { isBridgingPhase, isDrawdownPhase, getPhaseType } from './phaseHelpers';
 
 /**
@@ -126,7 +126,8 @@ export function calculateAccountGrowth(
   taxInputs?: TaxInputs,
   pensionAgeBracketContributions?: AgeBracketContributions,
   netBonusValue?: number,
-  pensionLumpSumAge?: number
+  pensionLumpSumAge?: number,
+  pensionLumpSumMaxAmount?: number
 ): AccountResults {
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
@@ -135,6 +136,7 @@ export function calculateAccountGrowth(
   const isBrokerageAccount = account.name === 'Brokerage';
   const pensionAgeValue = pensionAge ?? 65;
   const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
+  const pensionLumpSumMaxAmountValue = pensionLumpSumMaxAmount ?? Infinity;
   const withdrawalRateValue = withdrawalRate ?? 4;
   const fireAgeValue = fireAge ?? 50;
   const salaryReplacementRateValue = salaryReplacementRate ?? 80;
@@ -339,9 +341,9 @@ export function calculateAccountGrowth(
     }
 
     if (isJanuary) {
-      // [PENSION PHASE] Pension lump sum: withdraw 25% of balance (capped at 200k) at pensionLumpSumAge - ONE TIME ONLY
+      // [PENSION PHASE] Pension lump sum: withdraw up to 25% of balance (capped at user max) at pensionLumpSumAge - ONE TIME ONLY
       if (isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= pensionLumpSumAgeValue && ageAtMonth < (pensionLumpSumAgeValue + 1)) {
-        const lumpSumAmount = Math.min(monthStartBalance * 0.25, 200000);
+        const lumpSumAmount = Math.min(monthStartBalance * 0.25, pensionLumpSumMaxAmountValue);
         monthWithdrawal = lumpSumAmount;
         currentBalance -= monthWithdrawal;
       }
@@ -627,12 +629,14 @@ export function calculatePortfolioGrowth(
   enablePensionLumpSum?: boolean,
   taxInputs?: TaxInputs,
   pensionLumpSumAge?: number,
-  mortgageExemption?: boolean
+  mortgageExemption?: boolean,
+  pensionLumpSumMaxAmount?: number
 ): PortfolioResults {
   const pensionAgeValue = pensionAge ?? 65;
   const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
   const fireAgeValue = fireAge ?? 50;
   const lumpSumToBrokerageRateValue = lumpSumToBrokerageRate ?? 80;
+  const pensionLumpSumMaxAmountValue = pensionLumpSumMaxAmount ?? Infinity;
 
   // Extract pension account's age bracket contributions for use in tax calculations
   const pensionAccount = accounts.find((a) => a.name === 'Pension');
@@ -677,7 +681,8 @@ export function calculatePortfolioGrowth(
       taxInputs,
       pensionAgeBracketContributions,
       netBonusValue,
-      pensionLumpSumAge
+      pensionLumpSumAge,
+      pensionLumpSumMaxAmountValue
     );
     
     // Find the lump sum amount from the pension monthly data
@@ -703,7 +708,7 @@ export function calculatePortfolioGrowth(
           const monthZeroIndex = 0; // First month of the year
           if (monthZeroIndex < yearData.monthlyData.length) {
             const monthData = yearData.monthlyData[monthZeroIndex];
-            lumpSumAmount = Math.min(monthData.startingBalance * 0.25, 200000);
+            lumpSumAmount = Math.min(monthData.startingBalance * 0.25, pensionLumpSumMaxAmountValue);
           }
         }
         break;
@@ -711,16 +716,28 @@ export function calculatePortfolioGrowth(
     }
   }
 
+  // Apply pension lump sum tax tiers and compute net amount for distribution
+  let lumpSumTaxBreakdown: PensionLumpSumTaxBreakdown | undefined;
+  let netLumpSumForDistribution = 0;
+  if (lumpSumAmount > 0 && enablePensionLumpSum !== false) {
+    const taxResult = calculatePensionLumpSumTax(lumpSumAmount);
+    netLumpSumForDistribution = taxResult.netLumpSum;
+    lumpSumTaxBreakdown = {
+      grossLumpSum: lumpSumAmount,
+      ...taxResult,
+    };
+  }
+
   // Calculate all accounts with lump sum information
   const accountResults = accounts.map((account) => {
     let lumpSumAllocation = 0;
     
-    // Determine lump sum allocation for this account
-    if (lumpSumAmount > 0 && account.name !== 'Pension') {
+    // Determine lump sum allocation for this account (use net after-tax amount)
+    if (netLumpSumForDistribution > 0 && account.name !== 'Pension') {
       if (account.name === 'Brokerage') {
-        lumpSumAllocation = lumpSumAmount * (lumpSumToBrokerageRateValue / 100);
+        lumpSumAllocation = netLumpSumForDistribution * (lumpSumToBrokerageRateValue / 100);
       } else if (account.name === 'Savings') {
-        lumpSumAllocation = lumpSumAmount * ((100 - lumpSumToBrokerageRateValue) / 100);
+        lumpSumAllocation = netLumpSumForDistribution * ((100 - lumpSumToBrokerageRateValue) / 100);
       }
     }
     
@@ -746,7 +763,8 @@ export function calculatePortfolioGrowth(
       taxInputs,
       pensionAgeBracketContributions,
       netBonusValue,
-      pensionLumpSumAge
+      pensionLumpSumAge,
+      pensionLumpSumMaxAmountValue
     );
   });
 
@@ -805,6 +823,7 @@ export function calculatePortfolioGrowth(
     pensionDrawdownSnapshot,
     taxInputs,
     enableTaxCalculation: true,
+    lumpSumTaxBreakdown,
   };
 }
 

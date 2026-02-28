@@ -101,6 +101,8 @@ export interface PortfolioInputs {
   lumpSumToBrokerageRate: number; // allocation rate of lump sum to brokerage as % (default 80)
   enablePensionLumpSum?: boolean; // whether to enable pension lump sum withdrawal (default true)
   pensionLumpSumAge?: number; // age when pension lump sum can be withdrawn (default 50, minimum 50, maximum pensionAge)
+  pensionLumpSumPercent?: number; // percentage of pension balance to withdraw as lump sum (default 25, max 25)
+  pensionLumpSumMaxAmount?: number; // maximum euro amount to withdraw as lump sum (default 200000)
   houseWithdrawalAge?: number; // age to buy house and withdraw funds (default 34)
   enableHouseWithdrawal?: boolean; // whether to enable house withdrawal (default false)
   baseHousePrice?: number; // average house price at current date in EUR (default 387000)
@@ -125,6 +127,17 @@ export interface MilestoneSnapshot {
   totalInterest: number;
 }
 
+export interface PensionLumpSumTaxBreakdown {
+  grossLumpSum: number;
+  taxFreeAmount: number;
+  standardRateAmount: number;
+  standardRateTax: number;
+  marginalAmount: number;
+  marginalTax: number;
+  totalTax: number;
+  netLumpSum: number;
+}
+
 export interface PortfolioResults {
   accountResults: AccountResults[];
   totalFinalBalance: number;
@@ -146,6 +159,7 @@ export interface PortfolioResults {
   pensionDrawdownSnapshot?: MilestoneSnapshot; // portfolio snapshot at pension drawdown age
   taxInputs?: TaxInputs; // optional Irish tax calculation inputs
   enableTaxCalculation?: boolean; // whether to show tax calculation
+  lumpSumTaxBreakdown?: PensionLumpSumTaxBreakdown; // pension lump sum tax breakdown
 }
 
 // Irish Tax Calculation Types

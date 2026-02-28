@@ -20,64 +20,56 @@ Open the URL shown in terminal (usually http://localhost:5173)
 
 ## 📋 What's Included
 
-✅ Complete React + TypeScript setup with Vite
-✅ Pre-configured Tailwind CSS
-✅ Recharts for data visualization
+✅ Complete React 18 + TypeScript setup with Vite
+✅ Pre-configured Tailwind CSS with shadcn/ui-style primitives
+✅ Chart.js / react-chartjs-2 for data visualisation (4 chart views)
+✅ Zustand for state management
 ✅ Three account types: Savings, Pension, Brokerage
-✅ Compound interest calculations with monthly contributions
-✅ Interactive charts (Line & Area)
-✅ Year-by-year breakdown table
-✅ Responsive design for all devices
-
----
-
-## 🎯 Default Example Values
-
-The app comes pre-filled with sample data:
-
-**Savings Account**
-- Current Balance: $10,000
-- Monthly Contribution: $500
-- Expected Return: 3%
-
-**Pension Account**
-- Current Balance: $50,000
-- Monthly Contribution: $1,000
-- Expected Return: 7%
-
-**Brokerage Account**
-- Current Balance: $25,000
-- Monthly Contribution: $750
-- Expected Return: 8%
-
-**Time Horizon**: 20 years
+✅ Full Irish tax modelling (PAYE, USC, PRSI, DIRT, CGT, pension relief)
+✅ Compound interest calculations with monthly compounding
+✅ Early retirement (FIRE) and pension phase planning
+✅ House purchase deposit planning
+✅ Animated milestone timeline (Framer Motion)
+✅ Year-by-year expandable breakdown table
+✅ Responsive sidebar + mobile sheet layout
+✅ Dark mode with system preference detection
 
 ---
 
 ## 📁 Key Files to Know
 
-- `src/App.tsx` - Main application component
-- `src/components/InputForm.tsx` - Form for user inputs
-- `src/utils/calculations.ts` - Compound interest logic
-- `src/types/index.ts` - TypeScript interfaces
+- `src/App.tsx` — Root application component
+- `src/layouts/DashboardLayout.tsx` — Sidebar + main content responsive layout
+- `src/store/useProjectionStore.ts` — Zustand store (form state, calculation logic, results)
+- `src/components/form/SidebarForm.tsx` — Collapsible sidebar form with all input sections
+- `src/components/dashboard/DashboardContent.tsx` — Main results area (charts, table, cards)
+- `src/components/dashboard/ProjectionChart.tsx` — Tabbed chart container
+- `src/components/dashboard/ProjectionTable.tsx` — Year-by-year expandable table
+- `src/utils/calculations.ts` — Portfolio growth and compound interest logic
+- `src/utils/taxCalculations.ts` — Irish tax calculation logic
+- `src/types/index.ts` — TypeScript type definitions
 
 ---
 
 ## 🛠 Available Commands
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
+| Command             | Description                |
+| ------------------- | -------------------------- |
+| `npm run dev`       | Start development server   |
+| `npm run build`     | Type-check and build for production |
+| `npm run preview`   | Preview production build   |
+| `npm run lint`      | Run ESLint                 |
 
 ---
 
 ## 💡 Next Steps
 
-1. **Customize the defaults** in `InputForm.tsx`
-2. **Add more account types** by extending the `AccountType` in `types/index.ts`
-3. **Modify calculations** in `utils/calculations.ts`
-4. **Style changes** using Tailwind classes or modify `tailwind.config.js`
+1. **Customise default inputs** — edit initial state in `src/store/useProjectionStore.ts`
+2. **Add or modify account types** — extend `AccountType` in `src/types/index.ts`
+3. **Adjust tax rates** — update `src/constants/irishTaxRates2026.ts`
+4. **Modify calculations** — see `src/utils/calculations.ts` and `src/utils/taxCalculations.ts`
+5. **Style changes** — Tailwind classes throughout, or edit `tailwind.config.js`
+6. **Add new form sections** — create a component in `src/components/form/` and wire it into `SidebarForm.tsx`
 
 ---
 
@@ -85,8 +77,8 @@ The app comes pre-filled with sample data:
 
 Check the full README.md for:
 - Detailed project structure
-- How calculations work
-- Ideas for future features
-- Architecture notes for scaling
+- How the calculation pipeline works
+- Irish tax formula examples
+- Architecture notes
 
 Happy coding! 🎉
