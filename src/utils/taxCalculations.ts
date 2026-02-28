@@ -414,14 +414,17 @@ export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPha
 
 /**
  * Calculate Capital Gains Tax (CGT) on brokerage withdrawals
- * CGT is taxed at a flat rate of 33%
+ * CGT is only applied to the capital gain portion (withdrawal * gainRatio), not the full withdrawal.
+ * @param withdrawal - gross withdrawal amount
+ * @param gainRatio - proportion of the withdrawal that is capital gain (0–1); defaults to 1 for backward compatibility
  */
-export function calculateBrokerageCapitalGainsTax(withdrawal: number): {
+export function calculateBrokerageCapitalGainsTax(withdrawal: number, gainRatio: number = 1): {
   grossWithdrawal: number;
   cgt: number;
   netWithdrawal: number;
 } {
-  const cgt = withdrawal * CGT_RATE;
+  const taxableGain = withdrawal * Math.max(0, Math.min(1, gainRatio));
+  const cgt = taxableGain * CGT_RATE;
   const netWithdrawal = withdrawal - cgt;
 
   return {

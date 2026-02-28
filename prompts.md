@@ -2,22 +2,6 @@
 
 ---
 
-## Prompt 1: Fix CGT Cost-Basis Tracking
-
-**Goal:** Fix the bug where CGT is applied to the full brokerage withdrawal instead of only the capital gain.
-
-**Context:** `calculateBrokerageCapitalGainsTax` in `taxCalculations.ts:404-417` applies 33% CGT to the entire withdrawal amount. In reality, CGT only applies to the profit portion above the cost basis.
-
-**Steps:**
-
-1. In `types/index.ts`, add a `costBasis` field to `MonthlyBreakdown` (tracks cumulative contributions into brokerage) and a `totalCostBasis` field to `AccountResults`.
-2. In `calculateAccountGrowth` (`calculations.ts:107-127`), track a running `costBasis` accumulator. Increment it by contributions each month. When withdrawals occur, compute the gain proportion: `gainRatio = (currentBalance - costBasis) / currentBalance`. Reduce `costBasis` proportionally on withdrawal: `costBasis -= withdrawal * (costBasis / preWithdrawalBalance)`.
-3. Refactor `calculateBrokerageCapitalGainsTax` in `taxCalculations.ts:404-417` to accept `withdrawal` and `gainRatio` parameters. Apply 33% only to `withdrawal * gainRatio`.
-4. Update all call sites of `calculateBrokerageCapitalGainsTax`: bridging phase withdrawals at `calculations.ts:469-472` and house deposit withdrawal at `calculations.ts:493-497` — pass the computed `gainRatio` from the running cost basis.
-5. Store `costBasis` in monthly breakdown data so it's available for debugging/display.
-
----
-
 ## Prompt 2: Add CGT Annual Exemption (€1,270)
 
 **Goal:** Apply the Irish €1,270 annual CGT exemption before calculating capital gains tax.
@@ -137,23 +121,6 @@
 4. Create `src/components/dashboard/ScenarioComparison.tsx` — a view that renders two scenarios' `SummaryCards` and key metrics side by side with delta indicators (e.g., "+€42,000" in green).
 5. Add a scenario management UI: a dropdown or tabs in the header area of `DashboardLayout.tsx` showing saved scenarios with save/load/delete actions.
 6. In the comparison view, overlay two portfolio growth lines on the same chart using Chart.js multi-dataset support.
-
----
-
-## Prompt 18: Add Continuous Form Validation
-
-**Goal:** Show inline validation errors as users type, not only on submit.
-
-**Context:** Validation currently lives inside the `calculate` method at `useProjectionStore.ts:295-314` and only fires on submit.
-
-**Steps:**
-
-1. Create `src/utils/validation.ts` with a `validateInputs(inputs: FormInputs): Record<string, string>` function that returns a map of field name → error message. Extract the existing validation logic from the `calculate` method.
-2. In `useProjectionStore.ts`, add `validationErrors: Record<string, string>` to `UIState`. Call `validateInputs` inside `updateField` and `updateAccount` actions to update errors reactively.
-3. In `FormField.tsx`, accept an optional `error?: string` prop. Display it as red text below the input with an error icon.
-4. In each form section component (`PersonalSection.tsx`, `IncomeSection.tsx`, etc.), read `validationErrors` from the store and pass relevant errors to each `FormField`.
-5. Disable the "Calculate" button (or auto-calc) when there are validation errors.
-6. Validation rules to include: `dateOfBirth` must be in the past, `targetAge > currentAge`, `fireAge > currentAge`, `pensionAge >= fireAge`, `salaryReplacementRate` between 0–100, account balances >= 0, return rates reasonable (0–30%).
 
 ---
 

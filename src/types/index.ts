@@ -54,6 +54,7 @@ export interface MonthlyBreakdown {
   withdrawalPhase?: 'lumpSum' | 'bridging' | 'drawdown'; // type of withdrawal if any
   withdrawalTax?: number; // tax paid on withdrawal (CGT for brokerage, income tax for pension)
   withdrawalNetAmount?: number; // net withdrawal amount after tax
+  costBasis?: number; // cumulative cost basis for brokerage account (contributions, for CGT tracking)
 }
 
 export interface YearlyBreakdown {
@@ -75,6 +76,7 @@ export interface AccountResults {
   totalContributions: number;
   totalInterest: number;
   finalBalance: number;
+  totalCostBasis?: number; // final cost basis for brokerage account (for CGT tracking/debugging)
 }
 
 export interface HouseDepositCalculation {

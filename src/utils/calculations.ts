@@ -145,7 +145,11 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
   // Store all monthly data throughout the entire time horizon
   const allMonthlyData: MonthlyBreakdown[] = [];
   let currentBalance = account.currentBalance;
-  
+
+  // Track cost basis for brokerage account (cumulative contributions, proportionally reduced on withdrawal)
+  // Initialised to currentBalance — assumes the opening balance is entirely cost (no unrealised gain)
+  let costBasis = isBrokerageAccount ? account.currentBalance : 0;
+
   // Initialize date tracking
   let monthDate = new Date();
   if (dateOfBirth) {
@@ -384,6 +388,16 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       currentBalance -= monthWithdrawal;
     }
 
+    // Compute brokerage gain ratio (proportion of the withdrawal that is capital gain) and
+    // proportionally reduce the cost basis for any withdrawal this month.
+    // Must be done BEFORE adding contributions so the ratio uses the pre-withdrawal cost basis.
+    let brokerageGainRatio = 0;
+    if (isBrokerageAccount && monthWithdrawal > 0 && monthStartBalance > 0) {
+      brokerageGainRatio = Math.max(0, Math.min(1, (monthStartBalance - costBasis) / monthStartBalance));
+      // Reduce cost basis by the proportion of the balance that was withdrawn
+      costBasis = Math.max(0, costBasis - monthWithdrawal * (costBasis / monthStartBalance));
+    }
+
     // Calculate monthly contribution
     let monthlyContribution = 0;
     // [WORKING PHASE] Contributions are made during the working phase (before FIRE)
@@ -440,6 +454,11 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     // Add lump sum allocation to contributions
     monthlyContribution += lumpSumContribution;
 
+    // Increase brokerage cost basis by new contributions (they represent the cost of acquiring new units)
+    if (isBrokerageAccount && monthlyContribution > 0) {
+      costBasis += monthlyContribution;
+    }
+
     // Apply interest
     const monthInterest = currentBalance * monthlyRate;
     let monthInterestTax = 0;
@@ -489,8 +508,8 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       // Brokerage early retirement withdrawal
       else if (isBrokerageAccount && isInBridgingPhase) {
         withdrawalPhase = 'bridging';
-        // Brokerage withdrawals: 33% CGT
-        const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal);
+        // Brokerage withdrawals: 33% CGT on the gain portion only
+        const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal, brokerageGainRatio);
         withdrawalTax = taxResult.cgt;
         withdrawalNetAmount = taxResult.netWithdrawal;
       }
@@ -498,8 +517,8 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       else if (enableHouseWithdrawal && houseWithdrawalAge !== undefined && ageAtMonth >= houseWithdrawalAge && ageAtMonth < (houseWithdrawalAge + 1)) {
         if (isBrokerageAccount) {
           withdrawalPhase = 'bridging'; // Treat house withdrawal from brokerage as bridging withdrawal
-          // Brokerage withdrawals: 33% CGT
-          const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal);
+          // Brokerage withdrawals: 33% CGT on the gain portion only
+          const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal, brokerageGainRatio);
           withdrawalTax = taxResult.cgt;
           withdrawalNetAmount = taxResult.netWithdrawal;
         } else {
@@ -528,6 +547,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       withdrawalPhase,
       withdrawalTax,
       withdrawalNetAmount,
+      costBasis: isBrokerageAccount ? costBasis : undefined,
     });
 
     // Advance to next month
@@ -604,6 +624,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     totalContributions,
     totalInterest,
     finalBalance: currentBalance,
+    totalCostBasis: isBrokerageAccount ? costBasis : undefined,
   };
 }
 
@@ -925,14 +946,18 @@ export function combineYearlyData(
       const brokerageYd = brokerage?.yearlyData[year];
       const annualWithdrawal = brokerageYd?.withdrawal || 0;
       if (annualWithdrawal > 0) {
-        const taxR = calculateBrokerageCapitalGainsTax(annualWithdrawal);
-        netIncome = taxR.netWithdrawal;
+        // Read pre-computed withdrawalTax (which already uses the cost-basis gain ratio)
+        const annualTax = (brokerageYd?.monthlyData ?? []).reduce(
+          (s: number, m: MonthlyBreakdown) => s + (m.withdrawalTax || 0), 0
+        );
+        netIncome = annualWithdrawal - annualTax;
       }
     } else if (phase === 'drawdown') {
       const pension = accountResults.find((r) => r.accountName === 'Pension');
       const pensionYd = pension?.yearlyData[year];
       const annualWithdrawal = pensionYd?.withdrawal || 0;
       if (annualWithdrawal > 0) {
+        // Calculate tax on the full annual amount so progressive bands are applied correctly.
         const taxR = calculatePensionWithdrawalTax(annualWithdrawal, true, age);
         netIncome = taxR.netWithdrawal;
       }

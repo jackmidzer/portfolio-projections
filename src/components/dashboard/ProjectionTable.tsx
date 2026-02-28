@@ -10,7 +10,7 @@ import {
   isBridgingPhase,
   isDrawdownPhase,
 } from '@/utils/phaseHelpers';
-import { calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax } from '@/utils/taxCalculations';
+import { calculatePensionWithdrawalTax } from '@/utils/taxCalculations';
 import { cn } from '@/lib/utils';
 
 interface ProjectionTableProps {
@@ -334,10 +334,18 @@ function computeAnnuals(
   let annualTax = 0;
   let annualNetIncome = 0;
   if (isBridging && annualGrossIncome > 0) {
-    const taxR = calculateBrokerageCapitalGainsTax(annualGrossIncome);
-    annualTax = taxR.cgt;
-    annualNetIncome = taxR.netWithdrawal;
+    // Read the pre-computed withdrawalTax from brokerage monthly data (already uses cost-basis gain ratio).
+    // row.year is the array index into yearlyData, NOT the calendar year.
+    const brokerageYd = results.accountResults
+      .find(r => r.accountName === 'Brokerage')
+      ?.yearlyData[row.year];
+    const sourceMonths = brokerageYd?.monthlyData ?? [];
+    annualTax = sourceMonths.reduce((s: number, m: MonthlyBreakdown) => s + (m.withdrawalTax || 0), 0);
+    annualNetIncome = annualGrossIncome - annualTax;
   } else if (isDrawdown && annualGrossIncome > 0) {
+    // Pension withdrawal tax must be calculated on the full annual amount so that
+    // progressive bands (PAYE, USC) are applied correctly. Per-month stored values
+    // are computed on 1/12 of the annual figure and would understate the tax rate.
     const taxR = calculatePensionWithdrawalTax(annualGrossIncome, true, row.age);
     annualTax = taxR.totalTax;
     annualNetIncome = taxR.netWithdrawal;
