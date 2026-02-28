@@ -85,33 +85,58 @@ export interface HouseDepositCalculation {
   loanToValuePercent: number; // LTV as percentage (mortgage / house price * 100)
 }
 
-export interface PortfolioInputs {
-  accounts: AccountInput[];
-  dateOfBirth: Date;
+/** Options object for calculateAccountGrowth */
+export interface AccountGrowthOptions {
+  account: AccountInput;
+  timeHorizon: number;
   currentAge: number;
-  targetAge: number;
-  currentSalary: number;
-  annualSalaryIncrease: number; // as percentage (e.g., 3 for 3%)
-  monthsUntilNextBirthday: number; // for pro-rating first year
-  bonusPercent: number; // bonus as percentage of salary (e.g., 15 for 15%)
-  pensionAge: number; // age when pension withdrawals can start (default 66)
-  withdrawalRate: number; // annual withdrawal percent for pension (default 4)
-  fireAge: number; // age when FIRE begins (default 50)
-  salaryReplacementRate: number; // replacement rate for salary during early retirement (default 80)
-  lumpSumToBrokerageRate: number; // allocation rate of lump sum to brokerage as % (default 80)
-  enablePensionLumpSum?: boolean; // whether to enable pension lump sum withdrawal (default true)
-  pensionLumpSumAge?: number; // age when pension lump sum can be withdrawn (default 50, minimum 50, maximum pensionAge)
-  pensionLumpSumPercent?: number; // percentage of pension balance to withdraw as lump sum (default 25, max 25)
-  pensionLumpSumMaxAmount?: number; // maximum euro amount to withdraw as lump sum (default 200000)
-  houseWithdrawalAge?: number; // age to buy house and withdraw funds (default 34)
-  enableHouseWithdrawal?: boolean; // whether to enable house withdrawal (default false)
-  baseHousePrice?: number; // average house price at current date in EUR (default 387000)
-  houseAnnualPriceIncrease?: number; // annual house price increase as % (default 8)
-  houseDepositCalculation?: HouseDepositCalculation; // calculated house deposit metrics
-  houseDepositFromBrokerageRate?: number; // allocation rate of house deposit from brokerage as % (default 50)
-  mortgageExemption?: boolean; // whether to apply mortgage exemption (default true)
-  taxInputs?: TaxInputs; // optional Irish tax calculation inputs
-  enableTaxCalculation?: boolean; // whether to show tax calculation
+  currentSalary?: number;
+  annualSalaryIncrease?: number;
+  monthsUntilNextBirthday?: number;
+  dateOfBirth?: Date;
+  pensionAge?: number;
+  withdrawalRate?: number;
+  fireAge?: number;
+  salaryReplacementRate?: number;
+  /** Lump-sum allocation deposited into this account (e.g. pension lump-sum share) */
+  pensionLumpSumAmount?: number;
+  bonusPercent?: number;
+  houseWithdrawalAge?: number;
+  enableHouseWithdrawal?: boolean;
+  houseDepositCalculation?: HouseDepositCalculation;
+  houseDepositFromBrokerageRate?: number;
+  enablePensionLumpSum?: boolean;
+  taxInputs?: TaxInputs;
+  pensionAgeBracketContributions?: AgeBracketContributions;
+  netBonusValue?: number;
+  pensionLumpSumAge?: number;
+  pensionLumpSumMaxAmount?: number;
+}
+
+/** Options object for calculatePortfolioGrowth */
+export interface PortfolioGrowthOptions {
+  accounts: AccountInput[];
+  timeHorizon: number;
+  currentAge: number;
+  currentSalary?: number;
+  annualSalaryIncrease?: number;
+  monthsUntilNextBirthday?: number;
+  dateOfBirth?: Date;
+  pensionAge?: number;
+  withdrawalRate?: number;
+  fireAge?: number;
+  salaryReplacementRate?: number;
+  lumpSumToBrokerageRate?: number;
+  bonusPercent?: number;
+  houseWithdrawalAge?: number;
+  enableHouseWithdrawal?: boolean;
+  houseDepositCalculation?: HouseDepositCalculation;
+  houseDepositFromBrokerageRate?: number;
+  enablePensionLumpSum?: boolean;
+  taxInputs?: TaxInputs;
+  pensionLumpSumAge?: number;
+  mortgageExemption?: boolean;
+  pensionLumpSumMaxAmount?: number;
 }
 
 export interface MilestoneSnapshot {

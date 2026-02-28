@@ -1,4 +1,4 @@
-import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot, HouseDepositCalculation, PensionLumpSumTaxBreakdown } from '../types';
+import { AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, MilestoneSnapshot, PensionLumpSumTaxBreakdown, AccountGrowthOptions, PortfolioGrowthOptions } from '../types';
 import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax, calculatePensionLumpSumTax } from './taxCalculations';
 import { isBridgingPhase, isDrawdownPhase, getPhaseType } from './phaseHelpers';
 
@@ -104,31 +104,32 @@ function extractMilestoneSnapshot(accountResults: AccountResults[], targetAge: n
  * Calculate month-by-month breakdown for a single account with compound interest and monthly contributions
  * Results are then aggregated into yearly breakdowns while preserving monthly detail
  */
-export function calculateAccountGrowth(
-  account: AccountInput,
-  timeHorizon: number,
-  currentAge: number,
-  currentSalary?: number,
-  annualSalaryIncrease?: number,
-  monthsUntilNextBirthday?: number,
-  dateOfBirth?: Date,
-  pensionAge?: number,
-  withdrawalRate?: number,
-  fireAge?: number,
-  salaryReplacementRate?: number,
-  pensionLumpSumAmount?: number,
-  bonusPercent?: number,
-  houseWithdrawalAge?: number,
-  enableHouseWithdrawal?: boolean,
-  houseDepositCalculation?: HouseDepositCalculation,
-  houseDepositFromBrokerageRate?: number,
-  enablePensionLumpSum?: boolean,
-  taxInputs?: TaxInputs,
-  pensionAgeBracketContributions?: AgeBracketContributions,
-  netBonusValue?: number,
-  pensionLumpSumAge?: number,
-  pensionLumpSumMaxAmount?: number
-): AccountResults {
+export function calculateAccountGrowth(options: AccountGrowthOptions): AccountResults {
+  const {
+    account,
+    timeHorizon,
+    currentAge,
+    currentSalary,
+    annualSalaryIncrease,
+    monthsUntilNextBirthday,
+    dateOfBirth,
+    pensionAge,
+    withdrawalRate,
+    fireAge,
+    salaryReplacementRate,
+    pensionLumpSumAmount,
+    bonusPercent,
+    houseWithdrawalAge,
+    enableHouseWithdrawal,
+    houseDepositCalculation,
+    houseDepositFromBrokerageRate,
+    enablePensionLumpSum,
+    taxInputs,
+    pensionAgeBracketContributions,
+    netBonusValue,
+    pensionLumpSumAge,
+    pensionLumpSumMaxAmount,
+  } = options;
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
   let totalMonths = firstYearMonths + (timeHorizon - 1) * 12;
@@ -608,30 +609,31 @@ export function calculateAccountGrowth(
 /**
  * Calculate growth for all accounts in the portfolio
  */
-export function calculatePortfolioGrowth(
-  accounts: AccountInput[],
-  timeHorizon: number,
-  currentAge: number,
-  currentSalary?: number,
-  annualSalaryIncrease?: number,
-  monthsUntilNextBirthday?: number,
-  dateOfBirth?: Date,
-  pensionAge?: number,
-  withdrawalRate?: number,
-  fireAge?: number,
-  salaryReplacementRate?: number,
-  lumpSumToBrokerageRate?: number,
-  bonusPercent?: number,
-  houseWithdrawalAge?: number,
-  enableHouseWithdrawal?: boolean,
-  houseDepositCalculation?: HouseDepositCalculation,
-  houseDepositFromBrokerageRate?: number,
-  enablePensionLumpSum?: boolean,
-  taxInputs?: TaxInputs,
-  pensionLumpSumAge?: number,
-  mortgageExemption?: boolean,
-  pensionLumpSumMaxAmount?: number
-): PortfolioResults {
+export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): PortfolioResults {
+  const {
+    accounts,
+    timeHorizon,
+    currentAge,
+    currentSalary,
+    annualSalaryIncrease,
+    monthsUntilNextBirthday,
+    dateOfBirth,
+    pensionAge,
+    withdrawalRate,
+    fireAge,
+    salaryReplacementRate,
+    lumpSumToBrokerageRate,
+    bonusPercent,
+    houseWithdrawalAge,
+    enableHouseWithdrawal,
+    houseDepositCalculation,
+    houseDepositFromBrokerageRate,
+    enablePensionLumpSum,
+    taxInputs,
+    pensionLumpSumAge,
+    mortgageExemption,
+    pensionLumpSumMaxAmount,
+  } = options;
   const pensionAgeValue = pensionAge ?? 65;
   const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
   const fireAgeValue = fireAge ?? 50;
@@ -659,8 +661,8 @@ export function calculatePortfolioGrowth(
   // First, calculate pension account to determine lump sum amount
   let lumpSumAmount = 0;
   if (pensionAccount) {
-    const pensionResult = calculateAccountGrowth(
-      pensionAccount,
+    const pensionResult = calculateAccountGrowth({
+      account: pensionAccount,
       timeHorizon,
       currentAge,
       currentSalary,
@@ -671,7 +673,7 @@ export function calculatePortfolioGrowth(
       withdrawalRate,
       fireAge,
       salaryReplacementRate,
-      undefined,
+      pensionLumpSumAmount: undefined,
       bonusPercent,
       houseWithdrawalAge,
       enableHouseWithdrawal,
@@ -682,8 +684,8 @@ export function calculatePortfolioGrowth(
       pensionAgeBracketContributions,
       netBonusValue,
       pensionLumpSumAge,
-      pensionLumpSumMaxAmountValue
-    );
+      pensionLumpSumMaxAmount: pensionLumpSumMaxAmountValue,
+    });
     
     // Find the lump sum amount from the pension monthly data
     // Look for the first month when age >= pensionLumpSumAgeValue
@@ -741,7 +743,7 @@ export function calculatePortfolioGrowth(
       }
     }
     
-    return calculateAccountGrowth(
+    return calculateAccountGrowth({
       account,
       timeHorizon,
       currentAge,
@@ -753,7 +755,7 @@ export function calculatePortfolioGrowth(
       withdrawalRate,
       fireAge,
       salaryReplacementRate,
-      lumpSumAllocation,
+      pensionLumpSumAmount: lumpSumAllocation,
       bonusPercent,
       houseWithdrawalAge,
       enableHouseWithdrawal,
@@ -764,8 +766,8 @@ export function calculatePortfolioGrowth(
       pensionAgeBracketContributions,
       netBonusValue,
       pensionLumpSumAge,
-      pensionLumpSumMaxAmountValue
-    );
+      pensionLumpSumMaxAmount: pensionLumpSumMaxAmountValue,
+    });
   });
 
   const totalFinalBalance = accountResults.reduce(

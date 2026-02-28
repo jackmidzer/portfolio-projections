@@ -33,23 +33,6 @@
 
 ---
 
-## Prompt 5: Refactor calculateAccountGrowth to Use Options Object
-
-**Goal:** Replace the 22 positional parameters of `calculateAccountGrowth` with a single typed options object.
-
-**Context:** The function at `calculations.ts:107-127` has 22 parameters, making it error-prone and hard to maintain. The same applies to `calculatePortfolioGrowth` at `calculations.ts:643-663` with 22 parameters.
-
-**Steps:**
-
-1. In `types/index.ts`, note that `PortfolioInputs` already exists at `index.ts:86` but is unused. Evaluate whether it can serve as the options type for `calculatePortfolioGrowth`, or create a new `AccountGrowthOptions` interface.
-2. Define `AccountGrowthOptions` with all 22 parameters as named fields. Make truly optional ones optional with `?`.
-3. Refactor `calculateAccountGrowth` signature to `(options: AccountGrowthOptions): AccountResults`.
-4. Similarly define `PortfolioGrowthOptions` (or use/extend `PortfolioInputs`) and refactor `calculatePortfolioGrowth`.
-5. Update all call sites — primarily the `calculate` method in `useProjectionStore.ts:268-356` and the double pension calculation at `calculations.ts:683-732`.
-6. Delete `PortfolioInputs` if it becomes redundant, or consolidate into the new options type.
-
----
-
 ## Prompt 6: Replace `any` Types in ProjectionTable
 
 **Goal:** Replace all `any` type annotations in `ProjectionTable.tsx` with proper types.

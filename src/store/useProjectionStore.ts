@@ -322,30 +322,30 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
       bikValue: typeof state.taxBikValue === 'number' ? state.taxBikValue : 0,
     };
 
-    const calculatedResults = calculatePortfolioGrowth(
-      state.accounts,
+    const calculatedResults = calculatePortfolioGrowth({
+      accounts: state.accounts,
       timeHorizon,
-      age,
-      salary,
-      increase,
-      monthsUntilBirthday,
-      new Date(state.dateOfBirth),
-      pension,
-      withdrawal,
+      currentAge: age,
+      currentSalary: salary,
+      annualSalaryIncrease: increase,
+      monthsUntilNextBirthday: monthsUntilBirthday,
+      dateOfBirth: new Date(state.dateOfBirth),
+      pensionAge: pension,
+      withdrawalRate: withdrawal,
       fireAge,
-      replacement,
-      brokerageRate,
-      bonus,
-      houseAge,
-      state.enableHouseWithdrawal,
-      houseDepositMetrics || undefined,
-      houseBrokerageRate,
-      state.enablePensionLumpSum,
-      taxInputData,
-      lumpSumAge,
-      state.mortgageExemption,
-      lumpSumMaxAmount
-    );
+      salaryReplacementRate: replacement,
+      lumpSumToBrokerageRate: brokerageRate,
+      bonusPercent: bonus,
+      houseWithdrawalAge: houseAge,
+      enableHouseWithdrawal: state.enableHouseWithdrawal,
+      houseDepositCalculation: houseDepositMetrics || undefined,
+      houseDepositFromBrokerageRate: houseBrokerageRate,
+      enablePensionLumpSum: state.enablePensionLumpSum,
+      taxInputs: taxInputData,
+      pensionLumpSumAge: lumpSumAge,
+      mortgageExemption: state.mortgageExemption,
+      pensionLumpSumMaxAmount: lumpSumMaxAmount,
+    });
 
     // Calculate tax
     let taxResult: TaxCalculationResult | null = null;
