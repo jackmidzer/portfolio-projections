@@ -16,7 +16,11 @@ const accountMeta: Record<AccountType, { color: string; borderColor: string; bgC
   Brokerage: { color: 'text-brokerage', borderColor: 'border-l-brokerage', bgColor: 'bg-brokerage-muted' },
 };
 
-function AccountCard({ account, onChange }: { account: AccountInputType; onChange: (a: AccountInputType) => void }) {
+function AccountCard({ account, onChange, errors = {} }: {
+  account: AccountInputType;
+  onChange: (a: AccountInputType) => void;
+  errors?: { currentBalance?: string; expectedReturn?: string };
+}) {
   const [showBrackets, setShowBrackets] = useState(false);
   const meta = accountMeta[account.name];
   const isPensionWithBrackets = account.name === 'Pension' && account.ageBracketContributions;
@@ -64,6 +68,7 @@ function AccountCard({ account, onChange }: { account: AccountInputType; onChang
         min={0}
         step={100}
         placeholder="0"
+        error={errors.currentBalance}
       />
 
       {!isPensionWithBrackets && (
@@ -191,6 +196,7 @@ function AccountCard({ account, onChange }: { account: AccountInputType; onChang
         min={0}
         max={100}
         step={0.1}
+        error={errors.expectedReturn}
       />
 
       {isPensionWithBrackets ? (
@@ -223,6 +229,7 @@ function AccountCard({ account, onChange }: { account: AccountInputType; onChang
 export function AccountsSection() {
   const accounts = useProjectionStore(s => s.accounts);
   const updateAccount = useProjectionStore(s => s.updateAccount);
+  const validationErrors = useProjectionStore(s => s.validationErrors);
 
   return (
     <FormSection id="accounts" title="Your Investments" icon={PieChart}>
@@ -232,6 +239,10 @@ export function AccountsSection() {
             key={account.name}
             account={account}
             onChange={(updated) => updateAccount(index, updated)}
+            errors={{
+              currentBalance: validationErrors[`accounts.${index}.currentBalance`],
+              expectedReturn: validationErrors[`accounts.${index}.expectedReturn`],
+            }}
           />
         ))}
       </div>

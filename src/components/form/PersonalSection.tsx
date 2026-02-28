@@ -4,6 +4,7 @@ import { FormField, NumberField } from './FormField';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useProjectionStore } from '@/store/useProjectionStore';
+import { cn } from '@/lib/utils';
 
 export function PersonalSection() {
   const dateOfBirth = useProjectionStore(s => s.dateOfBirth);
@@ -11,6 +12,7 @@ export function PersonalSection() {
   const updateField = useProjectionStore(s => s.updateField);
   const getCurrentAge = useProjectionStore(s => s.getCurrentAge);
   const getMonthsUntilBirthday = useProjectionStore(s => s.getMonthsUntilBirthday);
+  const validationErrors = useProjectionStore(s => s.validationErrors);
 
   const currentAge = getCurrentAge();
   const monthsUntilBirthday = getMonthsUntilBirthday();
@@ -21,13 +23,13 @@ export function PersonalSection() {
   return (
     <FormSection id="personal" title="Your Details" icon={User} description={typeof currentAge === 'number' ? `Age ${currentAge}` : undefined}>
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Date of Birth" id="dateOfBirth">
+        <FormField label="Date of Birth" id="dateOfBirth" error={validationErrors.dateOfBirth}>
           <Input
             type="date"
             id="dateOfBirth"
             value={dateOfBirth}
             onChange={(e) => updateField('dateOfBirth', e.target.value)}
-            className="h-9 text-sm"
+            className={cn("h-9 text-sm", validationErrors.dateOfBirth && "border-destructive focus-visible:ring-destructive")}
             max={new Date().toISOString().split('T')[0]}
           />
         </FormField>
@@ -40,6 +42,7 @@ export function PersonalSection() {
           min={19}
           max={150}
           placeholder="75"
+          error={validationErrors.targetAge}
         />
       </div>
 

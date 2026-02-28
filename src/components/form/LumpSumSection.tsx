@@ -13,6 +13,7 @@ export function LumpSumSection() {
   const lumpSumToBrokerageRate = useProjectionStore(s => s.lumpSumToBrokerageRate);
   const pensionAge = useProjectionStore(s => s.pensionAge);
   const updateField = useProjectionStore(s => s.updateField);
+  const validationErrors = useProjectionStore(s => s.validationErrors);
 
   const brokerageRate = typeof lumpSumToBrokerageRate === 'number' ? lumpSumToBrokerageRate : 80;
 
@@ -47,6 +48,7 @@ export function LumpSumSection() {
                   min={1}
                   placeholder="200000"
                   hint="Cap on amount taken (25% of balance if lower)"
+                  error={validationErrors.pensionLumpSumMaxAmount}
                 />
 
                 <NumberField
@@ -58,6 +60,7 @@ export function LumpSumSection() {
                   max={typeof pensionAge === 'number' ? pensionAge : 100}
                   placeholder="50"
                   hint="Min 50, max pension age"
+                  error={validationErrors.pensionLumpSumAge}
                 />
 
                 <FormField label="Lump Sum Allocation" id="lumpSumAllocation">

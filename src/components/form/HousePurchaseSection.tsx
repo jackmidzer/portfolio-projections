@@ -14,6 +14,7 @@ export function HousePurchaseSection() {
   const baseHousePrice = useProjectionStore(s => s.baseHousePrice);
   const houseAnnualPriceIncrease = useProjectionStore(s => s.houseAnnualPriceIncrease);
   const updateField = useProjectionStore(s => s.updateField);
+  const validationErrors = useProjectionStore(s => s.validationErrors);
 
   const houseBrokerageRate = typeof houseDepositFromBrokerageRate === 'number' ? houseDepositFromBrokerageRate : 50;
 
@@ -82,6 +83,7 @@ export function HousePurchaseSection() {
                   min={18}
                   max={100}
                   placeholder="32"
+                  error={validationErrors.houseWithdrawalAge}
                 />
 
                 <FormField label="Deposit Source Allocation" id="houseAllocation">

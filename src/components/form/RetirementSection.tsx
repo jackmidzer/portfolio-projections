@@ -7,6 +7,7 @@ export function RetirementSection() {
   const fireAge = useProjectionStore(s => s.fireAge);
   const pensionAge = useProjectionStore(s => s.pensionAge);
   const updateField = useProjectionStore(s => s.updateField);
+  const validationErrors = useProjectionStore(s => s.validationErrors);
 
   return (
     <FormSection id="retirement" title="Retirement Planning" icon={Target}>
@@ -20,6 +21,7 @@ export function RetirementSection() {
           max={100}
           placeholder="50"
           hint="Start living off investments"
+          error={validationErrors.fireAge}
         />
 
         <NumberField
@@ -31,6 +33,7 @@ export function RetirementSection() {
           max={100}
           placeholder="66"
           hint="Start drawing pension"
+          error={validationErrors.pensionAge}
         />
       </div>
     </FormSection>

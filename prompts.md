@@ -213,8 +213,6 @@
 
 **25. `houseCalculations` doesn't guard `purchaseAge < currentAge`** — In `houseCalculations.ts:26`, `yearsUntilPurchase` goes negative, causing `Math.pow(...)` to return a fraction and the projected house price to shrink.
 
-**26. LTV can exceed 100%** — `houseCalculations.ts:40` doesn't cap `loanToValuePercent`. If the calculated mortgage exceeds the house price, you get > 100% LTV.
-
 **27. No validation that `fireAge <= pensionAge`** — The validation block in `useProjectionStore.ts:295-314` checks both ages individually but never checks their relationship. `fireAge > pensionAge` creates an impossible/overlapping lifecycle.
 
 **28. Tooltip shows wrong pro-rated month count** — `useExternalTooltip.ts:73` displays `getMonthsUntilYearEnd()` (months until Dec 31 *now*) but the projection uses `monthsUntilNextBirthday` (at calculation time). These are different values.

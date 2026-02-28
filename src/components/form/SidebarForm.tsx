@@ -19,6 +19,8 @@ export function SidebarForm({ onCalculated }: SidebarFormProps) {
   const [errors, setErrors] = useState<string[]>([]);
   const calculate = useProjectionStore(s => s.calculate);
   const resetForm = useProjectionStore(s => s.resetForm);
+  const validationErrors = useProjectionStore(s => s.validationErrors);
+  const hasValidationErrors = Object.keys(validationErrors).length > 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +70,7 @@ export function SidebarForm({ onCalculated }: SidebarFormProps) {
 
       {/* Actions */}
       <div className="flex gap-2 pt-2">
-        <Button type="submit" className="flex-1" variant="outline" size="sm">
+        <Button type="submit" className="flex-1" variant="outline" size="sm" disabled={hasValidationErrors}>
           <Calculator className="h-4 w-4 mr-2" />
           Calculate
         </Button>

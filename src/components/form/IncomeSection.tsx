@@ -9,6 +9,7 @@ export function IncomeSection() {
   const bonusPercent = useProjectionStore(s => s.bonusPercent);
   const taxBikValue = useProjectionStore(s => s.taxBikValue);
   const updateField = useProjectionStore(s => s.updateField);
+  const validationErrors = useProjectionStore(s => s.validationErrors);
 
   const salaryStr = typeof currentSalary === 'number' ? `€${currentSalary.toLocaleString()}` : '';
 
@@ -25,6 +26,7 @@ export function IncomeSection() {
           step={1000}
           placeholder="70000"
           hint="Gross income"
+          error={validationErrors.currentSalary}
         />
 
         <NumberField
@@ -38,6 +40,7 @@ export function IncomeSection() {
           step={0.1}
           placeholder="3"
           hint="Year-on-year growth"
+          error={validationErrors.annualSalaryIncrease}
         />
       </div>
 

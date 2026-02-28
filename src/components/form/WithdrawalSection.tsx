@@ -7,6 +7,7 @@ export function WithdrawalSection() {
   const salaryReplacementRate = useProjectionStore(s => s.salaryReplacementRate);
   const withdrawalRate = useProjectionStore(s => s.withdrawalRate);
   const updateField = useProjectionStore(s => s.updateField);
+  const validationErrors = useProjectionStore(s => s.validationErrors);
 
   return (
     <FormSection id="withdrawal" title="Retirement Income" icon={Wallet}>
@@ -22,6 +23,7 @@ export function WithdrawalSection() {
           step={0.1}
           placeholder="80"
           hint="% of final salary to live on"
+          error={validationErrors.salaryReplacementRate}
         />
 
         <NumberField
@@ -35,6 +37,7 @@ export function WithdrawalSection() {
           step={0.1}
           placeholder="4"
           hint="Annual pension drawdown %"
+          error={validationErrors.withdrawalRate}
         />
       </div>
     </FormSection>

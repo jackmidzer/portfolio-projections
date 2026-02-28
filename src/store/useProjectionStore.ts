@@ -3,10 +3,11 @@ import { AccountInput as AccountInputType, PortfolioResults, TaxCalculationResul
 import { calculatePortfolioGrowth } from '@/utils/calculations';
 import { calculateNetSalary, calculateBonusTaxBurden } from '@/utils/taxCalculations';
 import { calculateHouseMetrics } from '@/utils/houseCalculations';
+import { validateInputs } from '@/utils/validation';
 
 // ─── Form Inputs Slice ───────────────────────────────────────────────
 
-interface FormInputs {
+export interface FormInputs {
   // Personal
   dateOfBirth: string;
   targetAge: number | '';
@@ -47,6 +48,7 @@ interface UIState {
   expandedSections: Set<string>;
   showAdvancedOptions: boolean;
   isCalculating: boolean;
+  validationErrors: Record<string, string>;
 }
 
 // ─── Results Slice ───────────────────────────────────────────────────
@@ -185,6 +187,7 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
   expandedSections: new Set(['personal', 'income', 'accounts']),
   showAdvancedOptions: false,
   isCalculating: false,
+  validationErrors: {},
 
   // Default results
   results: null,
@@ -193,12 +196,16 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
   lastCalculatedBonusPercent: 0,
 
   // ─── Form Actions ──────────────────────────────────────────────
-  updateField: (field, value) => set({ [field]: value }),
+  updateField: (field, value) => set(state => {
+    const updated = { ...state, [field]: value };
+    return { [field]: value, validationErrors: validateInputs(updated) };
+  }),
 
   updateAccount: (index, account) => set(state => {
     const newAccounts = [...state.accounts];
     newAccounts[index] = account;
-    return { accounts: newAccounts };
+    const updated = { ...state, accounts: newAccounts };
+    return { accounts: newAccounts, validationErrors: validateInputs(updated) };
   }),
 
   resetForm: () => set({
