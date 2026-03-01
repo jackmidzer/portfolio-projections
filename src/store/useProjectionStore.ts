@@ -122,7 +122,7 @@ const defaultFormInputs: FormInputs = {
         age60plus: 40,
       }
     },
-    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 35, expectedReturn: 8, isSalaryPercentage: true, bonusContributionPercent: 80 },
+    { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 35, expectedReturn: 8, isSalaryPercentage: true, bonusContributionPercent: 80, etfAllocationPercent: 50 },
   ],
   pensionAge: 61,
   fireAge: 50,

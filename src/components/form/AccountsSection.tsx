@@ -6,6 +6,7 @@ import { NumberField, FormField } from './FormField';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { useProjectionStore } from '@/store/useProjectionStore';
 import { AccountInput as AccountInputType, AccountType, AgeBracketContributions, EmployerAgeBracketContributions } from '@/types';
 import { cn } from '@/lib/utils';
@@ -198,6 +199,28 @@ function AccountCard({ account, onChange, errors = {} }: {
         step={0.1}
         error={errors.expectedReturn}
       />
+
+      {account.name === 'Brokerage' && (
+        <FormField label="ETF Allocation" id={`${account.name}-etf-allocation`}>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <Slider
+                value={[account.etfAllocationPercent ?? 0]}
+                onValueChange={([v]) => onChange({ ...account, etfAllocationPercent: v })}
+                min={0}
+                max={100}
+                step={5}
+                className="flex-1"
+              />
+              <span className="text-xs font-medium tabular-nums w-10 text-right">{account.etfAllocationPercent ?? 0}%</span>
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>ETF {account.etfAllocationPercent ?? 0}% · 38% exit tax + deemed disposal</span>
+              <span>Stocks {100 - (account.etfAllocationPercent ?? 0)}% · 33% CGT</span>
+            </div>
+          </div>
+        </FormField>
+      )}
 
       {isPensionWithBrackets ? (
         <FormField label="Bonus Contribution" id={`${account.name}-bonus`}>

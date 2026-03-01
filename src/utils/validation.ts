@@ -138,6 +138,12 @@ export function validateInputs(inputs: ValidatableInputs): Record<string, string
     if (account.expectedReturn < 0 || account.expectedReturn > 30) {
       errors[`accounts.${index}.expectedReturn`] = 'Return rate must be between 0% and 30%';
     }
+    // Brokerage ETF allocation validation
+    if (account.name === 'Brokerage' && account.etfAllocationPercent !== undefined) {
+      if (account.etfAllocationPercent < 0 || account.etfAllocationPercent > 100) {
+        errors[`accounts.${index}.etfAllocationPercent`] = 'ETF allocation must be between 0% and 100%';
+      }
+    }
   });
 
   return errors;

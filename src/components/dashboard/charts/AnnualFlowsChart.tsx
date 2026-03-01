@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
+import type { AnnotationOptions } from 'chartjs-plugin-annotation';
 import type { PhaseBandsOptions } from './phaseBandsPlugin';
 import { useExternalTooltip } from './useExternalTooltip';
 import { formatCompactCurrency } from '@/utils/formatters';
@@ -17,6 +18,7 @@ interface AnnualFlowsChartProps {
   isFirstYearProRated: boolean;
   proRatedMonths?: number;
   ageRange?: [number, number];
+  eventAnnotations?: Record<string, AnnotationOptions>;
 }
 
 export function AnnualFlowsChart({
@@ -26,6 +28,7 @@ export function AnnualFlowsChart({
   isFirstYearProRated,
   proRatedMonths,
   ageRange,
+  eventAnnotations,
 }: AnnualFlowsChartProps) {
   const themeKey = useThemeKey();
   const muted = getCssColor('--muted-foreground');
@@ -91,10 +94,11 @@ export function AnnualFlowsChart({
           enabled: false,
           external: tooltipHandler,
         },
+        annotation: eventAnnotations ? { annotations: eventAnnotations } : undefined,
       },
       phaseBands: slicedPhaseBands,
     } as any;
-  }, [tooltipHandler, slicedPhaseBands, muted, border, themeKey]);
+  }, [tooltipHandler, slicedPhaseBands, eventAnnotations, muted, border, themeKey]);
 
   return (
     <div className="relative h-[280px] sm:h-[340px] lg:h-[380px] xl:h-[420px] w-full" role="img" aria-label="Annual financial flows chart showing contributions, withdrawals, and income by age">

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
+import type { AnnotationOptions } from 'chartjs-plugin-annotation';
 import { getBaseOptions } from './chartConfig';
 import type { PhaseBandsOptions } from './phaseBandsPlugin';
 import { useExternalTooltip } from './useExternalTooltip';
@@ -16,6 +17,7 @@ interface IncomeTimelineChartProps {
   isFirstYearProRated: boolean;
   proRatedMonths?: number;
   ageRange?: [number, number];
+  eventAnnotations?: Record<string, AnnotationOptions>;
 }
 
 export function IncomeTimelineChart({
@@ -25,6 +27,7 @@ export function IncomeTimelineChart({
   isFirstYearProRated,
   proRatedMonths,
   ageRange,
+  eventAnnotations,
 }: IncomeTimelineChartProps) {
   const themeKey = useThemeKey();
   const muted = getCssColor('--muted-foreground');
@@ -55,10 +58,11 @@ export function IncomeTimelineChart({
       plugins: {
         ...base.plugins,
         tooltip: { enabled: false, external: tooltipHandler },
+        annotation: eventAnnotations ? { annotations: eventAnnotations } : undefined,
       },
       phaseBands: slicedPhaseBands,
     } as any;
-  }, [tooltipHandler, slicedPhaseBands, muted, themeKey]);
+  }, [tooltipHandler, slicedPhaseBands, eventAnnotations, muted, themeKey]);
 
   return (
     <div className="relative h-[280px] sm:h-[340px] lg:h-[380px] xl:h-[420px] w-full" role="img" aria-label="Income timeline chart showing net income projections over time">

@@ -1,11 +1,12 @@
 import { AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, MilestoneSnapshot, PensionLumpSumTaxBreakdown, AccountGrowthOptions, PortfolioGrowthOptions } from '../types';
-import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax, calculatePensionLumpSumTax } from './taxCalculations';
+import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageWithdrawalTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax, calculatePensionLumpSumTax, calculateExitTax } from './taxCalculations';
 import { isBridgingPhase, isDrawdownPhase, getPhaseType } from './phaseHelpers';
+import { DEEMED_DISPOSAL_PERIOD_YEARS } from '../constants/irishTaxRates2026';
 
 /**
  * Get the contribution percentage for a given age from age bracket contributions
  */
-function getAgeBracketPercentage(age: number, brackets: AgeBracketContributions): number {
+export function getAgeBracketPercentage(age: number, brackets: AgeBracketContributions): number {
   if (age < 30) return brackets.under30;
   if (age < 40) return brackets.age30to39;
   if (age < 50) return brackets.age40to49;
@@ -17,7 +18,7 @@ function getAgeBracketPercentage(age: number, brackets: AgeBracketContributions)
 /**
  * Get the employer contribution percentage for a given age from employer age bracket contributions
  */
-function getEmployerAgeBracketPercentage(age: number, brackets: EmployerAgeBracketContributions): number {
+export function getEmployerAgeBracketPercentage(age: number, brackets: EmployerAgeBracketContributions): number {
   if (age < 25) return brackets.under25;
   if (age < 30) return brackets.age25to29;
   if (age < 35) return brackets.age30to34;
@@ -156,6 +157,17 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
   // Track cost basis for brokerage account (cumulative contributions, proportionally reduced on withdrawal)
   // Initialised to currentBalance — assumes the opening balance is entirely cost (no unrealised gain)
   let costBasis = isBrokerageAccount ? account.currentBalance : 0;
+
+  // ETF / Stock sub-balance tracking for brokerage deemed disposal & blended tax
+  const etfAllocationPct = isBrokerageAccount ? (account.etfAllocationPercent ?? 0) / 100 : 0;
+  let etfBalance = isBrokerageAccount ? account.currentBalance * etfAllocationPct : 0;
+  let stockBalance = isBrokerageAccount ? account.currentBalance * (1 - etfAllocationPct) : 0;
+  let etfCostBasis = etfBalance;   // assumes no unrealised gain at start
+  let stockCostBasis = stockBalance;
+  let deemedDisposalMonthCounter = 0; // months since simulation start (8-year clock)
+  const deemedDisposalPeriodMonths = DEEMED_DISPOSAL_PERIOD_YEARS * 12;
+  let cumulativeDeemedDisposalTax = 0;
+  let cumulativeExitTaxOnWithdrawals = 0;
 
   // Initialize date tracking
   let monthDate = new Date();
@@ -402,10 +414,35 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     // proportionally reduce the cost basis for any withdrawal this month.
     // Must be done BEFORE adding contributions so the ratio uses the pre-withdrawal cost basis.
     let brokerageGainRatio = 0;
+    // Per-portion gain ratios for ETF (exit tax) and stock (CGT) sub-balances
+    let etfGainRatio = 0;
+    let stockGainRatio = 0;
+    // Capture pre-withdrawal sub-balances for tax calculation
+    const preWithdrawalEtfBalance = etfBalance;
+    const preWithdrawalStockBalance = stockBalance;
     if (isBrokerageAccount && monthWithdrawal > 0 && monthStartBalance > 0) {
       brokerageGainRatio = Math.max(0, Math.min(1, (monthStartBalance - costBasis) / monthStartBalance));
       // Reduce cost basis by the proportion of the balance that was withdrawn
       costBasis = Math.max(0, costBasis - monthWithdrawal * (costBasis / monthStartBalance));
+
+      // ETF / Stock sub-balance gain ratios and proportional withdrawal
+      etfGainRatio = etfBalance > 0 ? Math.max(0, Math.min(1, (etfBalance - etfCostBasis) / etfBalance)) : 0;
+      stockGainRatio = stockBalance > 0 ? Math.max(0, Math.min(1, (stockBalance - stockCostBasis) / stockBalance)) : 0;
+
+      const totalSubBalance = etfBalance + stockBalance;
+      if (totalSubBalance > 0) {
+        const etfWithdrawalPortion = monthWithdrawal * (etfBalance / totalSubBalance);
+        const stockWithdrawalPortion = monthWithdrawal * (stockBalance / totalSubBalance);
+        // Reduce sub-balance cost bases proportionally
+        if (etfBalance > 0) {
+          etfCostBasis = Math.max(0, etfCostBasis - etfWithdrawalPortion * (etfCostBasis / etfBalance));
+          etfBalance -= etfWithdrawalPortion;
+        }
+        if (stockBalance > 0) {
+          stockCostBasis = Math.max(0, stockCostBasis - stockWithdrawalPortion * (stockCostBasis / stockBalance));
+          stockBalance -= stockWithdrawalPortion;
+        }
+      }
     }
 
     // Calculate monthly contribution
@@ -467,6 +504,13 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     // Increase brokerage cost basis by new contributions (they represent the cost of acquiring new units)
     if (isBrokerageAccount && monthlyContribution > 0) {
       costBasis += monthlyContribution;
+      // Split contribution between ETF and stock sub-balances using the allocation ratio
+      const etfContribution = monthlyContribution * etfAllocationPct;
+      const stockContribution = monthlyContribution * (1 - etfAllocationPct);
+      etfCostBasis += etfContribution;
+      stockCostBasis += stockContribution;
+      etfBalance += etfContribution;
+      stockBalance += stockContribution;
     }
 
     // Apply interest
@@ -481,6 +525,31 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     }
     
     currentBalance += netMonthInterest + monthlyContribution;
+
+    // Apply growth to ETF/stock sub-balances (they don't have DIRT, same rate as parent)
+    if (isBrokerageAccount) {
+      etfBalance += etfBalance * monthlyRate;
+      stockBalance += stockBalance * monthlyRate;
+    }
+
+    // Deemed disposal: every 8 years, unrealised ETF gains are taxed at exit tax rate
+    let monthDeemedDisposalTax = 0;
+    if (isBrokerageAccount && etfBalance > 0) {
+      deemedDisposalMonthCounter++;
+      if (deemedDisposalMonthCounter >= deemedDisposalPeriodMonths) {
+        const etfGain = Math.max(0, etfBalance - etfCostBasis);
+        if (etfGain > 0) {
+          const ddResult = calculateExitTax(etfGain, 1); // gain is already isolated
+          monthDeemedDisposalTax = ddResult.exitTax;
+          etfBalance -= monthDeemedDisposalTax;
+          currentBalance -= monthDeemedDisposalTax;
+          // Reset cost basis to current ETF balance (all gain has been crystallised)
+          etfCostBasis = etfBalance;
+          cumulativeDeemedDisposalTax += monthDeemedDisposalTax;
+        }
+        deemedDisposalMonthCounter = 0; // restart 8-year clock
+      }
+    }
 
     // Format month/year as 'FEB 2026'
     const monthLabel = monthDate.toLocaleString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
@@ -518,19 +587,21 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       // Brokerage early retirement withdrawal
       else if (isBrokerageAccount && isInBridgingPhase) {
         withdrawalPhase = 'bridging';
-        // Brokerage withdrawals: 33% CGT on the gain portion only
-        const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal, brokerageGainRatio);
-        withdrawalTax = taxResult.cgt;
+        // Brokerage withdrawals: blended exit tax (ETF) + CGT (stocks) on gain portions
+        const taxResult = calculateBrokerageWithdrawalTax(monthWithdrawal, preWithdrawalEtfBalance, preWithdrawalStockBalance, etfGainRatio, stockGainRatio);
+        withdrawalTax = taxResult.totalTax;
         withdrawalNetAmount = taxResult.netWithdrawal;
+        cumulativeExitTaxOnWithdrawals += taxResult.etfExitTax;
       }
       // House deposit withdrawal (from Brokerage or Savings)
       else if (enableHouseWithdrawal && houseWithdrawalAge !== undefined && ageAtMonth >= houseWithdrawalAge && ageAtMonth < (houseWithdrawalAge + 1)) {
         if (isBrokerageAccount) {
           withdrawalPhase = 'bridging'; // Treat house withdrawal from brokerage as bridging withdrawal
-          // Brokerage withdrawals: 33% CGT on the gain portion only
-          const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal, brokerageGainRatio);
-          withdrawalTax = taxResult.cgt;
+          // Brokerage withdrawals: blended exit tax (ETF) + CGT (stocks) on gain portions
+          const taxResult = calculateBrokerageWithdrawalTax(monthWithdrawal, preWithdrawalEtfBalance, preWithdrawalStockBalance, etfGainRatio, stockGainRatio);
+          withdrawalTax = taxResult.totalTax;
           withdrawalNetAmount = taxResult.netWithdrawal;
+          cumulativeExitTaxOnWithdrawals += taxResult.etfExitTax;
         } else {
           // Savings account house withdrawal (no tax on savings)
           withdrawalPhase = undefined;
@@ -561,6 +632,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       withdrawalTax,
       withdrawalNetAmount,
       costBasis: isBrokerageAccount ? costBasis : undefined,
+      deemedDisposalTax: monthDeemedDisposalTax > 0 ? monthDeemedDisposalTax : undefined,
       statePensionIncome: monthStatePensionIncome > 0 ? monthStatePensionIncome : undefined,
     });
 
@@ -602,6 +674,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     const yearContributions = renumberedMonthlyData.reduce((sum, m) => sum + m.contribution, 0);
     const yearInterest = renumberedMonthlyData.reduce((sum, m) => sum + m.interest, 0);
     const yearInterestTax = renumberedMonthlyData.reduce((sum, m) => sum + (m.interestTax || 0), 0);
+    const yearDeemedDisposalTax = renumberedMonthlyData.reduce((sum, m) => sum + (m.deemedDisposalTax || 0), 0);
     const yearWithdrawal = renumberedMonthlyData.reduce((sum, m) => sum + m.withdrawal, 0);
     const yearSalary = (renumberedMonthlyData[0]?.salary ?? 0) * 12; // Annual salary (convert from monthly)
     
@@ -621,6 +694,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       contributions: yearContributions,
       interestEarned: yearInterest,
       interestTaxPaid: yearInterestTax,
+      deemedDisposalTaxPaid: yearDeemedDisposalTax > 0 ? yearDeemedDisposalTax : undefined,
       endingBalance: yearEndingBalance,
       monthlyData: renumberedMonthlyData,
       withdrawal: yearWithdrawal,
@@ -630,7 +704,8 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
   // Calculate totals
   const totalContributions = yearlyData.reduce((sum, yd) => sum + yd.contributions, 0);
   const totalWithdrawals = allMonthlyData.reduce((sum, m) => sum + m.withdrawal, 0);
-  const totalInterest = currentBalance - account.currentBalance - totalContributions + totalWithdrawals;
+  // Deemed disposal tax reduces the balance like a withdrawal but isn't tracked as one
+  const totalInterest = currentBalance - account.currentBalance - totalContributions + totalWithdrawals + cumulativeDeemedDisposalTax;
 
   return {
     accountName: account.name,
@@ -639,6 +714,8 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     totalInterest,
     finalBalance: currentBalance,
     totalCostBasis: isBrokerageAccount ? costBasis : undefined,
+    totalDeemedDisposalTax: isBrokerageAccount && cumulativeDeemedDisposalTax > 0 ? cumulativeDeemedDisposalTax : undefined,
+    totalExitTax: isBrokerageAccount && cumulativeExitTaxOnWithdrawals > 0 ? cumulativeExitTaxOnWithdrawals : undefined,
   };
 }
 

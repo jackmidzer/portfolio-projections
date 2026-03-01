@@ -37,6 +37,8 @@ export interface AccountInput {
   ageBracketContributions?: AgeBracketContributions; // for Pension: contribution % by age bracket
   employerAgeBracketContributions?: EmployerAgeBracketContributions; // for Pension: employer contribution % by age bracket
   bonusContributionPercent?: number | 'age-bracket'; // optional: contribution percent from bonus salary; 'age-bracket' means use the current age-bracket percentage
+  // Brokerage-only: ETF vs Stock sub-balance split for deemed disposal / CGT treatment
+  etfAllocationPercent?: number; // percentage of brokerage allocated to ETFs (0–100); remainder is stocks
 }
 
 export interface MonthlyBreakdown {
@@ -55,6 +57,7 @@ export interface MonthlyBreakdown {
   withdrawalTax?: number; // tax paid on withdrawal (CGT for brokerage, income tax for pension)
   withdrawalNetAmount?: number; // net withdrawal amount after tax
   costBasis?: number; // cumulative cost basis for brokerage account (contributions, for CGT tracking)
+  deemedDisposalTax?: number; // exit tax paid due to 8-year deemed disposal event (ETF portion only)
   statePensionIncome?: number; // monthly Irish contributory state pension income (if eligible)
 }
 
@@ -66,6 +69,7 @@ export interface YearlyBreakdown {
   contributions: number;
   interestEarned: number;
   interestTaxPaid?: number; // total DIRT tax paid during the year (for Savings accounts)
+  deemedDisposalTaxPaid?: number; // total deemed disposal exit tax paid during the year (for Brokerage ETF portion)
   endingBalance: number;
   monthlyData: MonthlyBreakdown[];
   withdrawal: number; // amount withdrawn from pension at start of year
@@ -78,6 +82,8 @@ export interface AccountResults {
   totalInterest: number;
   finalBalance: number;
   totalCostBasis?: number; // final cost basis for brokerage account (for CGT tracking/debugging)
+  totalDeemedDisposalTax?: number; // lifetime deemed disposal exit tax paid (ETF portion)
+  totalExitTax?: number; // lifetime exit tax paid on actual ETF withdrawals
 }
 
 export interface HouseDepositCalculation {

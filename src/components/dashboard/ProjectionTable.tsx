@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { PortfolioResults, AccountType, YearlyBreakdown, MonthlyBreakdown } from '@/types';
+import { PortfolioResults, AccountType, YearlyBreakdown, MonthlyBreakdown, AccountInput } from '@/types';
 import { formatCurrency } from '@/utils/formatters';
 import {
   isBridgingPhase,
@@ -11,14 +11,61 @@ import {
 } from '@/utils/phaseHelpers';
 import { calculatePensionWithdrawalTax } from '@/utils/taxCalculations';
 import { cn } from '@/lib/utils';
+import {
+  generateLifecycleEvents,
+  getEventsForAge,
+  getEventCategoryColor,
+} from '@/utils/eventHelpers';
 
 interface ProjectionTableProps {
   results: PortfolioResults;
+  accounts?: AccountInput[];
+  currentAge?: number;
+  targetAge?: number;
+  enableHouseWithdrawal?: boolean;
+  houseWithdrawalAge?: number;
+  enablePensionLumpSum?: boolean;
+  pensionLumpSumAge?: number;
+  pensionLumpSumMaxAmount?: number;
+  includeStatePension?: boolean;
+  statePensionAge?: number;
+  statePensionWeeklyAmount?: number;
+  withdrawalRate?: number;
 }
 
-export function ProjectionTable({ results }: ProjectionTableProps) {
+export function ProjectionTable({
+  results,
+  accounts,
+  currentAge,
+  targetAge,
+  enableHouseWithdrawal,
+  houseWithdrawalAge,
+  enablePensionLumpSum,
+  pensionLumpSumAge,
+  pensionLumpSumMaxAmount,
+  includeStatePension,
+  statePensionAge,
+  statePensionWeeklyAmount,
+  withdrawalRate,
+}: ProjectionTableProps) {
   const [selectedAccount, setSelectedAccount] = useState<AccountType | 'All'>('All');
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
+
+  // Generate lifecycle events for badge display
+  const lifecycleEvents = useMemo(() => {
+    if (!accounts || currentAge == null || targetAge == null) return [];
+    return generateLifecycleEvents(results, accounts, currentAge, targetAge, {
+      enableHouseWithdrawal,
+      houseWithdrawalAge,
+      enablePensionLumpSum,
+      pensionLumpSumAge,
+      pensionLumpSumMaxAmount,
+      includeStatePension,
+      statePensionAge,
+      statePensionWeeklyAmount,
+      withdrawalRate,
+    });
+  }, [results, accounts, currentAge, targetAge, enableHouseWithdrawal, houseWithdrawalAge, enablePensionLumpSum, pensionLumpSumAge, pensionLumpSumMaxAmount, includeStatePension, statePensionAge, statePensionWeeklyAmount, withdrawalRate]);
 
   const accountResult = selectedAccount === 'All'
     ? null
@@ -106,6 +153,7 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
                 const isBridging = isBridgingPhase(row.age, results.fireAge, results.pensionAge);
                 const isDrawdown = isDrawdownPhase(row.age, results.pensionAge);
                 const isExpanded = expandedYear === row.year;
+                const rowEvents = getEventsForAge(lifecycleEvents, row.age);
 
                 const { annualIncome, annualTax, annualNetIncome } = computeAnnuals(row, isBridging, isDrawdown, selectedAccount, results);
                 const annualWithdrawals = row.monthlyData.reduce((s, m) => s + m.withdrawal, 0);
@@ -126,11 +174,19 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
                         </button>
                       </td>
                       <td className="px-3 py-2 font-medium">
-                        <span className="flex items-center gap-1.5">
+                        <span className="flex items-center gap-1.5 flex-wrap">
                           {row.age}
                           {isProRated && <Badge variant="outline" className="text-[10px] px-1 py-0">Pro-rated</Badge>}
                           {isDrawdown && <Badge variant="pension" className="text-[10px] px-1 py-0">Drawdown</Badge>}
                           {isBridging && <Badge variant="outline" className="text-[10px] px-1 py-0 border-indigo-300 text-indigo-600 dark:border-indigo-700 dark:text-indigo-400">Bridging</Badge>}
+                          {rowEvents.map((evt, i) => {
+                            const colors = getEventCategoryColor(evt.category);
+                            return (
+                              <Badge key={i} variant="outline" className={cn('text-[10px] px-1 py-0', colors.bg, colors.text, colors.border)} title={evt.description}>
+                                {evt.title}
+                              </Badge>
+                            );
+                          })}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-savings">{formatCurrency(annualIncome)}</td>
@@ -172,6 +228,7 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
             const isBridging = isBridgingPhase(row.age, results.fireAge, results.pensionAge);
             const isDrawdown = isDrawdownPhase(row.age, results.pensionAge);
             const isExpanded = expandedYear === row.year;
+            const rowEvents = getEventsForAge(lifecycleEvents, row.age);
             const { annualIncome, annualTax, annualNetIncome } = computeAnnuals(row, isBridging, isDrawdown, selectedAccount, results);
             const annualContributions = row.monthlyData.reduce((s, m) => s + m.contribution, 0);
             const annualInterest = row.monthlyData.reduce((s, m) => s + m.interest, 0);
@@ -184,11 +241,19 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
                 isDrawdown && 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10',
               )}>
                 <button onClick={() => toggleExpanded(row.year)} className="flex w-full items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold">Age {row.age}</span>
                     {isProRated && <Badge variant="outline" className="text-[10px]">Pro-rated</Badge>}
                     {isDrawdown && <Badge variant="pension" className="text-[10px]">Drawdown</Badge>}
                     {isBridging && <Badge variant="outline" className="text-[10px] border-indigo-300 text-indigo-600">Bridging</Badge>}
+                    {rowEvents.map((evt, i) => {
+                      const colors = getEventCategoryColor(evt.category);
+                      return (
+                        <Badge key={i} variant="outline" className={cn('text-[10px] px-1 py-0', colors.bg, colors.text, colors.border)}>
+                          {evt.title}
+                        </Badge>
+                      );
+                    })}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold tabular-nums">{formatCurrency(row.endingBalance)}</span>

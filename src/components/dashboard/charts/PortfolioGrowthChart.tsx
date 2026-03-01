@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
+import type { AnnotationOptions } from 'chartjs-plugin-annotation';
 import { getBaseOptions } from './chartConfig';
 import type { PhaseBandsOptions } from './phaseBandsPlugin';
 import { useExternalTooltip } from './useExternalTooltip';
@@ -15,6 +16,7 @@ interface PortfolioGrowthChartProps {
   isFirstYearProRated: boolean;
   proRatedMonths?: number;
   ageRange?: [number, number];
+  eventAnnotations?: Record<string, AnnotationOptions>;
 }
 
 export function PortfolioGrowthChart({
@@ -24,6 +26,7 @@ export function PortfolioGrowthChart({
   isFirstYearProRated,
   proRatedMonths,
   ageRange,
+  eventAnnotations,
 }: PortfolioGrowthChartProps) {
   const themeKey = useThemeKey();
 
@@ -43,10 +46,11 @@ export function PortfolioGrowthChart({
       plugins: {
         ...base.plugins,
         tooltip: { enabled: false, external: tooltipHandler },
+        annotation: eventAnnotations ? { annotations: eventAnnotations } : undefined,
       },
       phaseBands: slicedPhaseBands,
     } as any;
-  }, [tooltipHandler, slicedPhaseBands, themeKey]);
+  }, [tooltipHandler, slicedPhaseBands, eventAnnotations, themeKey]);
 
   return (
     <div className="relative h-[280px] sm:h-[340px] lg:h-[380px] xl:h-[420px] w-full" role="img" aria-label="Portfolio growth chart showing balance projections over time by account">

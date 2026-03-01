@@ -2,7 +2,9 @@ import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { AccountType, PortfolioResults } from '@/types';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import type { AccountType, AccountInput, PortfolioResults } from '@/types';
 import {
   useChartData,
   PortfolioGrowthChart,
@@ -11,6 +13,7 @@ import {
   IncomeTimelineChart,
 } from './charts';
 import { AgeRangeSlider } from './charts/AgeRangeSlider';
+import { buildEventAnnotations } from './charts/chartAnnotations';
 // Ensure Chart.js registrations run
 import './charts/chartConfig';
 
@@ -26,6 +29,15 @@ const TAB_LABELS: Record<ChartTab, string> = {
 
 interface ProjectionChartProps {
   results: PortfolioResults;
+  currentAge: number;
+  enableHouseWithdrawal?: boolean;
+  houseWithdrawalAge?: number;
+  enablePensionLumpSum?: boolean;
+  pensionLumpSumAge?: number;
+  includeStatePension?: boolean;
+  statePensionAge?: number;
+  etfAllocationPercent?: number;
+  accounts?: AccountInput[];
 }
 
 const fadeVariants = {
@@ -34,10 +46,22 @@ const fadeVariants = {
   exit: { opacity: 0, y: -8 },
 };
 
-export function ProjectionChart({ results }: ProjectionChartProps) {
+export function ProjectionChart({
+  results,
+  currentAge,
+  enableHouseWithdrawal,
+  houseWithdrawalAge,
+  enablePensionLumpSum,
+  pensionLumpSumAge,
+  includeStatePension,
+  statePensionAge,
+  etfAllocationPercent,
+  accounts,
+}: ProjectionChartProps) {
   const [activeTab, setActiveTab] = useState<ChartTab>('growth');
   const [depositsAccount, setDepositsAccount] = useState<AccountFilter>('all');
   const [flowsAccount, setFlowsAccount] = useState<AccountFilter>('all');
+  const [showEventMarkers, setShowEventMarkers] = useState(false);
 
   const accountNames = useMemo(
     () => results.accountResults.map((a) => a.accountName),
@@ -79,6 +103,39 @@ export function ProjectionChart({ results }: ProjectionChartProps) {
   const isSliced = effectiveRange[0] > minAge || effectiveRange[1] < maxAge;
   const chartAgeRange = isSliced ? effectiveRange : undefined;
 
+  // Compute the slice of ages that are actually visible on the chart.
+  // Annotations use array indices as x-positions, so they must be computed
+  // against the same (possibly sliced) ages array that Chart.js sees.
+  const visibleAges = useMemo(() => {
+    if (!isSliced) return ages;
+    const startIdx = ages.findIndex((a) => a >= effectiveRange[0]);
+    const endIdx = ages.findIndex((a) => a > effectiveRange[1]);
+    const si = startIdx >= 0 ? startIdx : 0;
+    const ei = endIdx >= 0 ? endIdx : ages.length;
+    return ages.slice(si, ei);
+  }, [ages, effectiveRange, isSliced]);
+
+  // Build event annotation markers for the charts.
+  // Uses visibleAges so that xMin/xMax indices align with the sliced x-axis.
+  const eventAnnotations = useMemo(
+    () =>
+      buildEventAnnotations(visibleAges, {
+        fireAge: results.fireAge,
+        pensionAge: results.pensionAge,
+        houseWithdrawalAge,
+        enableHouseWithdrawal,
+        pensionLumpSumAge,
+        enablePensionLumpSum,
+        statePensionAge,
+        includeStatePension,
+        currentAge,
+        targetAge: maxAge,
+        etfAllocationPercent,
+        accounts,
+      }),
+    [visibleAges, results.fireAge, results.pensionAge, houseWithdrawalAge, enableHouseWithdrawal, pensionLumpSumAge, enablePensionLumpSum, statePensionAge, includeStatePension, currentAge, maxAge, etfAllocationPercent, accounts],
+  );
+
   const handleRangeChange = useCallback((range: [number, number]) => {
     setAgeRange(range);
   }, []);
@@ -89,6 +146,7 @@ export function ProjectionChart({ results }: ProjectionChartProps) {
     isFirstYearProRated,
     proRatedMonths: monthsUntilYearEnd,
     ageRange: chartAgeRange,
+    eventAnnotations: showEventMarkers ? eventAnnotations : undefined,
   };
 
   const depositsData =
@@ -107,6 +165,17 @@ export function ProjectionChart({ results }: ProjectionChartProps) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">Growth Over Time</CardTitle>
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="flex items-center gap-1.5">
+              <Switch
+                id="event-markers-toggle"
+                checked={showEventMarkers}
+                onCheckedChange={setShowEventMarkers}
+                className="scale-75 origin-right"
+              />
+              <Label htmlFor="event-markers-toggle" className="text-xs text-muted-foreground cursor-pointer select-none">
+                Events
+              </Label>
+            </div>
             {(activeTab === 'deposits' || activeTab === 'flows') && (
               <select
                 className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"

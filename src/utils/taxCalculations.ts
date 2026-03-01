@@ -9,6 +9,7 @@ import {
   PENSION_TAX_RELIEF_CAP,
   CGT_RATE,
   DIRT_RATE,
+  EXIT_TAX_RATE,
   PENSION_AGE_TAX_CREDIT,
   PENSION_LUMP_SUM_TAX_FREE_THRESHOLD,
   PENSION_LUMP_SUM_STANDARD_RATE_THRESHOLD,
@@ -431,6 +432,69 @@ export function calculateBrokerageCapitalGainsTax(withdrawal: number, gainRatio:
     grossWithdrawal: withdrawal,
     cgt,
     netWithdrawal,
+  };
+}
+
+/**
+ * Calculate Exit Tax on ETF gains (deemed disposal or actual sale).
+ * Irish Revenue applies exit tax at 38% on the gain portion of ETF holdings.
+ * @param amount - the gross amount (withdrawal or deemed balance)
+ * @param gainRatio - proportion that is gain (0–1)
+ */
+export function calculateExitTax(amount: number, gainRatio: number = 1): {
+  grossAmount: number;
+  exitTax: number;
+  netAmount: number;
+} {
+  const taxableGain = amount * Math.max(0, Math.min(1, gainRatio));
+  const exitTax = taxableGain * EXIT_TAX_RATE;
+  const netAmount = amount - exitTax;
+
+  return {
+    grossAmount: amount,
+    exitTax,
+    netAmount,
+  };
+}
+
+/**
+ * Calculate blended brokerage withdrawal tax across ETF (exit tax) and stock (CGT) portions.
+ * Splits the withdrawal proportionally between ETF and stock sub-balances,
+ * then applies the appropriate tax regime to each portion.
+ * @param withdrawal - total gross withdrawal amount
+ * @param etfBalance - current ETF sub-balance
+ * @param stockBalance - current stock sub-balance
+ * @param etfGainRatio - proportion of ETF sub-balance that is gain (0–1)
+ * @param stockGainRatio - proportion of stock sub-balance that is gain (0–1)
+ */
+export function calculateBrokerageWithdrawalTax(withdrawal: number, etfBalance: number, stockBalance: number, etfGainRatio: number, stockGainRatio: number): {
+  etfWithdrawal: number;
+  stockWithdrawal: number;
+  etfExitTax: number;
+  stockCgt: number;
+  totalTax: number;
+  netWithdrawal: number;
+} {
+  const totalBalance = etfBalance + stockBalance;
+  if (totalBalance <= 0 || withdrawal <= 0) {
+    return { etfWithdrawal: 0, stockWithdrawal: 0, etfExitTax: 0, stockCgt: 0, totalTax: 0, netWithdrawal: withdrawal };
+  }
+
+  const etfPortion = withdrawal * (etfBalance / totalBalance);
+  const stockPortion = withdrawal * (stockBalance / totalBalance);
+
+  const etfResult = calculateExitTax(etfPortion, etfGainRatio);
+  const stockResult = calculateBrokerageCapitalGainsTax(stockPortion, stockGainRatio);
+
+  const totalTax = etfResult.exitTax + stockResult.cgt;
+
+  return {
+    etfWithdrawal: etfPortion,
+    stockWithdrawal: stockPortion,
+    etfExitTax: etfResult.exitTax,
+    stockCgt: stockResult.cgt,
+    totalTax,
+    netWithdrawal: withdrawal - totalTax,
   };
 }
 

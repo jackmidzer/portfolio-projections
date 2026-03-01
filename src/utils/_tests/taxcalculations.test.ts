@@ -10,6 +10,8 @@ import {
   calculateNetBonus,
   calculatePensionWithdrawalTax,
   calculateBrokerageCapitalGainsTax,
+  calculateExitTax,
+  calculateBrokerageWithdrawalTax,
   calculatePensionLumpSumTax,
   calculateDirtTax,
   getNetInterestAfterDirt,
@@ -19,6 +21,7 @@ import {
   PENSION_TAX_RELIEF_CAP,
   CGT_RATE,
   DIRT_RATE,
+  EXIT_TAX_RATE,
   PERSONAL_TAX_CREDIT,
   EARNED_INCOME_CREDIT,
   MEDICAL_INSURANCE_CREDIT,
@@ -493,5 +496,105 @@ describe('getNetInterestAfterDirt', () => {
 
   it('returns 0 for zero interest', () => {
     expect(getNetInterestAfterDirt(0)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateExitTax
+// ---------------------------------------------------------------------------
+describe('calculateExitTax', () => {
+  it('applies 38% exit tax on full gain (gainRatio=1)', () => {
+    const result = calculateExitTax(10000, 1);
+    expect(result.exitTax).toBeCloseTo(10000 * EXIT_TAX_RATE, 2);
+    expect(result.netAmount).toBeCloseTo(10000 * (1 - EXIT_TAX_RATE), 2);
+  });
+
+  it('applies 38% on partial gain', () => {
+    const result = calculateExitTax(10000, 0.5);
+    expect(result.exitTax).toBeCloseTo(5000 * EXIT_TAX_RATE, 2);
+  });
+
+  it('returns 0 exit tax for zero gain ratio', () => {
+    const result = calculateExitTax(10000, 0);
+    expect(result.exitTax).toBe(0);
+    expect(result.netAmount).toBe(10000);
+  });
+
+  it('returns 0 for zero amount', () => {
+    const result = calculateExitTax(0, 1);
+    expect(result.exitTax).toBe(0);
+    expect(result.netAmount).toBe(0);
+  });
+
+  it('clamps gain ratio above 1 to 1', () => {
+    const result = calculateExitTax(10000, 1.5);
+    expect(result.exitTax).toBeCloseTo(10000 * EXIT_TAX_RATE, 2);
+  });
+
+  it('net amount = gross - exit tax', () => {
+    const result = calculateExitTax(25000, 0.7);
+    expect(result.netAmount).toBeCloseTo(25000 - result.exitTax, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateBrokerageWithdrawalTax
+// ---------------------------------------------------------------------------
+describe('calculateBrokerageWithdrawalTax', () => {
+  it('pure ETF portfolio: applies only exit tax', () => {
+    const result = calculateBrokerageWithdrawalTax(10000, 50000, 0, 0.6, 0);
+    // All withdrawal from ETF, 60% gain → exit tax on 6000
+    expect(result.etfWithdrawal).toBeCloseTo(10000, 2);
+    expect(result.stockWithdrawal).toBeCloseTo(0, 2);
+    expect(result.etfExitTax).toBeCloseTo(6000 * EXIT_TAX_RATE, 2);
+    expect(result.stockCgt).toBe(0);
+    expect(result.totalTax).toBeCloseTo(result.etfExitTax, 2);
+  });
+
+  it('pure stock portfolio: applies only CGT', () => {
+    const result = calculateBrokerageWithdrawalTax(10000, 0, 50000, 0, 0.6);
+    expect(result.etfWithdrawal).toBeCloseTo(0, 2);
+    expect(result.stockWithdrawal).toBeCloseTo(10000, 2);
+    expect(result.etfExitTax).toBe(0);
+    expect(result.stockCgt).toBeCloseTo(6000 * CGT_RATE, 2);
+    expect(result.totalTax).toBeCloseTo(result.stockCgt, 2);
+  });
+
+  it('50/50 split: blended tax', () => {
+    const result = calculateBrokerageWithdrawalTax(10000, 25000, 25000, 0.5, 0.5);
+    // 5000 to ETF, 5000 to stock; each has 50% gain
+    expect(result.etfWithdrawal).toBeCloseTo(5000, 2);
+    expect(result.stockWithdrawal).toBeCloseTo(5000, 2);
+    expect(result.etfExitTax).toBeCloseTo(2500 * EXIT_TAX_RATE, 2);
+    expect(result.stockCgt).toBeCloseTo(2500 * CGT_RATE, 2);
+    expect(result.totalTax).toBeCloseTo(result.etfExitTax + result.stockCgt, 2);
+  });
+
+  it('net withdrawal = gross - total tax', () => {
+    const result = calculateBrokerageWithdrawalTax(20000, 30000, 70000, 0.8, 0.3);
+    expect(result.netWithdrawal).toBeCloseTo(20000 - result.totalTax, 2);
+  });
+
+  it('returns zero tax for zero withdrawal', () => {
+    const result = calculateBrokerageWithdrawalTax(0, 10000, 10000, 0.5, 0.5);
+    expect(result.totalTax).toBe(0);
+    expect(result.netWithdrawal).toBe(0);
+  });
+
+  it('returns zero tax when both balances are zero', () => {
+    const result = calculateBrokerageWithdrawalTax(10000, 0, 0, 0, 0);
+    expect(result.totalTax).toBe(0);
+    expect(result.netWithdrawal).toBe(10000);
+  });
+
+  it('handles unequal split correctly (80/20)', () => {
+    const result = calculateBrokerageWithdrawalTax(10000, 80000, 20000, 0.4, 0.4);
+    // 8000 to ETF, 2000 to stock
+    expect(result.etfWithdrawal).toBeCloseTo(8000, 2);
+    expect(result.stockWithdrawal).toBeCloseTo(2000, 2);
+    // ETF: 8000 * 0.4 * 0.38 = 1216
+    expect(result.etfExitTax).toBeCloseTo(3200 * EXIT_TAX_RATE, 2);
+    // Stock: 2000 * 0.4 * 0.33 = 264
+    expect(result.stockCgt).toBeCloseTo(800 * CGT_RATE, 2);
   });
 });

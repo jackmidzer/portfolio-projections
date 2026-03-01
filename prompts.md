@@ -1,125 +1,435 @@
-# App Review and Feature Enhancement Suggestions
+# Portfolio Projections — Enhancement Prompts
+
+> **Last verified against codebase: 2026-03-01**
+>
+> Prompts are grouped by theme and ordered so that items within a group can
+> be tackled together. Bug-fixes come first, then accuracy improvements,
+> then new features, then UX/performance work.
 
 ---
 
-## Prompt 2: Add CGT Annual Exemption (€1,270)
+## Group 1 — Bug Fixes
 
-**Goal:** Apply the Irish €1,270 annual CGT exemption before calculating capital gains tax.
+These are small, high-impact fixes that should be done first.
 
-**Context:** The current `calculateBrokerageCapitalGainsTax` at `taxCalculations.ts:404-417` does not deduct any exemption.
+### 1-A. Fix: `useAutoCalculate` Missing State Pension Fields
 
-**Steps:**
+```
+In `src/hooks/useAutoCalculate.ts` (lines 12-36), the `useShallow` selector
+is missing three fields that affect calculation results:
+`includeStatePension`, `statePensionAge`, and `statePensionWeeklyAmount`.
 
-1. In `irishTaxRates2026.ts`, add a constant `CGT_ANNUAL_EXEMPTION = 1270`.
-2. In the brokerage withdrawal logic in `calculateAccountGrowth` (`calculations.ts:107`), track a running `cgtExemptionUsed` accumulator that resets each January (when a new calendar year starts).
-3. When computing CGT on a withdrawal, first reduce the taxable gain by the remaining annual exemption: `taxableGain = Math.max(0, gain - remainingExemption)`. Update `cgtExemptionUsed` accordingly.
-4. Refactor `calculateBrokerageCapitalGainsTax` to accept and return the exemption used, or handle this logic in the calling code in `calculateAccountGrowth`.
+Changes to these fields are silently ignored until another unrelated field
+is edited.
 
----
+Fix:
+- Add `includeStatePension`, `statePensionAge`, and
+  `statePensionWeeklyAmount` to the `useShallow` selector at
+  line 13 inside `useAutoCalculate.ts`
 
-## Prompt 8: Eliminate Double Pension Calculation
+This is a three-line addition.
+```
 
-**Goal:** Remove the redundant first pension calculation that exists solely to determine the lump sum amount.
+### 1-B. Fix: Deduplicate Validation Logic
 
-**Context:** At `calculations.ts:683-732`, the pension account is calculated once to determine the lump sum amount, then calculated again in the `accounts.map(...)` loop at `calculations.ts:735`.
+```
+Validation logic is duplicated between `src/utils/validation.ts`
+(`validateInputs` at line 43, returns `Record<string, string>`) and inline
+checks inside the `calculate()` action in
+`src/store/useProjectionStore.ts` (lines 310-340). They have diverged.
 
-**Steps:**
-
-1. Instead of running a full projection to determine the lump sum, compute the projected pension balance at the lump sum age analytically or via a lightweight helper that only tracks the pension balance (no need for full breakdown arrays).
-2. Alternatively, restructure the flow: calculate all accounts in a single pass by first computing the pension lump sum amount during the main calculation and distributing it to Savings/Brokerage on-the-fly. This requires changing from independent per-account calculations to a coordinated multi-account calculation.
-3. If approach 2 is too complex, create a `estimatePensionBalanceAtAge(account, age, ...)` function that runs a simplified projection (just tracking balance, no breakdown arrays) to determine the lump sum amount, then use that in the full calculation pass.
-4. Verify results match the current output before and after refactoring.
-
----
-
-## Prompt 9: Remove Unused `getMonthsUntilYearEnd`
-
-**Goal:** Delete the unused function from `formatters.ts:49-55`.
-
-**Steps:**
-
-1. Remove the `getMonthsUntilYearEnd` function (lines 49–55) from `formatters.ts`.
-2. Verify no imports reference it anywhere (grep for `getMonthsUntilYearEnd`).
-
----
-
-## Prompt 12: Add Inflation Adjustment Toggle
-
-**Goal:** Add an option to view projections in real (inflation-adjusted) terms alongside nominal values.
-
-**Steps:**
-
-1. In `useProjectionStore.ts`, add fields to `FormInputs`: `inflationRate: number` (default 2.0) and `showRealValues: boolean` (default false).
-2. Add UI controls: an inflation rate input in a `PersonalSection.tsx` "Advanced" section, and a toggle switch near the charts.
-3. In `calculations.ts`, after computing nominal projections, add a utility function `adjustForInflation(yearlyData: CombinedYearData[], inflationRate: number, startYear: number): CombinedYearData[]` that discounts all monetary values by `(1 + r)^n` where `n` is years from start.
-4. In `useChartData.ts`, apply the inflation adjustment to chart data when `showRealValues` is true.
-5. In `SummaryCards.tsx` and `ProjectionTable.tsx`, conditionally display real or nominal values.
-6. Add a visual indicator (badge or label) when viewing inflation-adjusted values.
+Refactor:
+- In `useProjectionStore.ts`, replace the inline validation checks inside
+  `calculate()` (lines 310-340) with a single call to
+  `validateInputs(state)` from `src/utils/validation.ts`
+- Map the returned `Record<string, string>` into both:
+  • the `validationErrors` store field (for inline display)
+  • the returned `errors: string[]` array (use `Object.values(errors)`)
+- Ensure `ValidatableInputs` in `validation.ts` covers all fields currently
+  checked inline in the store — compare both sets and add any missing
+- Delete the now-redundant inline validation code from `calculate()`
+- Run the existing tests in `src/utils/_tests/` to confirm nothing broke
+```
 
 ---
 
-## Prompt 15: Add Data Export (CSV/PDF)
+## Group 2 — Tax & Financial Accuracy
 
-**Goal:** Allow users to export projection results as CSV or PDF.
+### 2-A. Add CGT Annual Exemption (€1,270)
 
-**Steps:**
+```
+Apply the Irish €1,270 annual CGT exemption before calculating capital
+gains tax. The current `calculateBrokerageCapitalGainsTax` at
+`src/utils/taxCalculations.ts` (line 422) applies CGT_RATE (33%) to the
+full taxable gain with no annual exemption deduction.
 
-1. CSV Export:
-   - Create `src/utils/exportCsv.ts` with a function `exportProjectionToCsv(data: CombinedYearData[])` that converts the year-by-year data into CSV format with columns: Age, Phase, Salary, Savings Balance, Pension Balance, Brokerage Balance, Total Balance, Contributions, Interest, Withdrawals, Net Income.
-   - Trigger download using `Blob` + `URL.createObjectURL` + hidden `<a>` click pattern.
-2. PDF Export (optional, heavier):
-   - Install a lightweight library like `jspdf` + `jspdf-autotable`, or use the browser's `window.print()` with a print-optimised CSS stylesheet.
-   - If using `window.print()`, add `@media print` styles to `index.css` that hide the sidebar and format the dashboard for print.
-3. In `DashboardContent.tsx`, add export buttons (using Lucide `Download` icon) above the projection table. Wire them to the export functions.
-4. Consider also allowing export of just the visible chart as PNG using Chart.js's built-in `toBase64Image()` method.
+Steps:
+1. In `src/constants/irishTaxRates2026.ts`, add a constant
+   `CGT_ANNUAL_EXEMPTION = 1270`
+2. In the brokerage withdrawal logic in `calculateAccountGrowth`
+   (`src/utils/calculations.ts`, line 108), track a running
+   `cgtExemptionUsed` accumulator that resets each January (when a new
+   calendar year starts)
+3. When computing CGT on a withdrawal, first reduce the taxable gain by
+   the remaining annual exemption:
+   `taxableGain = Math.max(0, gain - remainingExemption)`
+   Update `cgtExemptionUsed` accordingly
+4. Refactor `calculateBrokerageCapitalGainsTax` to accept and return the
+   exemption used, or handle this logic in the calling code in
+   `calculateAccountGrowth`
+```
+
+### 2-B. Add Married / Joint Tax Assessment Option
+
+```
+Support married/jointly assessed tax calculations alongside the existing
+single filer mode.
+
+Context: Tax bands are defined in `src/constants/irishTaxRates2026.ts`.
+`getTaxBands()` (line 71) currently returns the hard-coded single-filer
+`PAYE_TAX_BANDS`. Married couples have a higher standard rate cut-off
+(~€51,000 vs €44,000 for single). Tax credits also differ.
+
+Steps:
+1. In `irishTaxRates2026.ts`, add married/joint assessment tax bands and
+   credits alongside existing single-filer values. Extend `getTaxBands()`
+   to accept a `filingStatus: 'single' | 'married-one-income' |
+   'married-two-income'` parameter
+2. In `src/store/useProjectionStore.ts`, add `filingStatus` to
+   `FormInputs` (default `'single'`). Optionally add `spouseSalary` for
+   two-income married couples (affects the transferable rate band)
+3. In `src/utils/taxCalculations.ts`, pass `filingStatus` through to
+   `calculatePayeTaxWithDetails` (line 36) and adjust band selection and
+   credit amounts accordingly
+4. Add a filing status selector in `src/components/form/PersonalSection.tsx`
+5. Conditionally show spouse salary input when `married-two-income` is
+   selected
+6. Add `filingStatus` (and `spouseSalary` if added) to the `useShallow`
+   selector in `src/hooks/useAutoCalculate.ts`
+```
 
 ---
 
-## Prompt 16: Add Scenario Comparison
+## Group 3 — Core Calculation Improvements
 
-**Goal:** Allow users to save, name, and compare multiple input scenarios side by side.
+### 3-A. Eliminate Double Pension Calculation
 
-**Steps:**
+```
+Remove the redundant first pension calculation that exists solely to
+determine the lump sum amount.
 
-1. Create a new type `Scenario = { id: string; name: string; inputs: FormInputs; results: PortfolioResults | null }` in `types/index.ts`.
-2. In `useProjectionStore.ts`, add state: `scenarios: Scenario[]`, `activeScenarioId: string | null`, and actions: `saveScenario(name: string)`, `loadScenario(id: string)`, `deleteScenario(id: string)`, `duplicateScenario(id: string)`.
-3. Persist scenarios to localStorage (extend the persistence from Prompt 10).
-4. Create `src/components/dashboard/ScenarioComparison.tsx` — a view that renders two scenarios' `SummaryCards` and key metrics side by side with delta indicators (e.g., "+€42,000" in green).
-5. Add a scenario management UI: a dropdown or tabs in the header area of `DashboardLayout.tsx` showing saved scenarios with save/load/delete actions.
-6. In the comparison view, overlay two portfolio growth lines on the same chart using Chart.js multi-dataset support.
+Context: In `src/utils/calculations.ts`, `calculatePortfolioGrowth`
+(line 725) first runs `calculateAccountGrowth` for the pension account
+(lines 785-848) solely to determine the lump sum amount, then runs all
+accounts (including pension again) in the main loop.
+
+Options (pick one):
+1. Create a lightweight `estimatePensionBalanceAtAge(account, age, ...)`
+   function that runs a simplified projection (just tracking balance, no
+   breakdown arrays) to determine the lump sum amount, then use that in
+   the full calculation pass
+2. Restructure the flow: calculate all accounts in a single pass by first
+   computing the pension lump sum amount during the main calculation and
+   distributing it to Savings/Brokerage on-the-fly (requires changing from
+   independent per-account calculations to a coordinated multi-account
+   calculation)
+
+Verify results match the current output before and after refactoring.
+```
+
+### 3-B. Mortgage Repayments Modelling
+
+```
+Extend the house purchase feature to model ongoing mortgage repayments.
+
+Files: `src/types/index.ts`, `src/store/useProjectionStore.ts`,
+`src/utils/houseCalculations.ts`, `src/utils/calculations.ts`,
+`src/components/form/HousePurchaseSection.tsx`,
+`src/components/dashboard/HouseDepositCard.tsx`
+
+Requirements:
+- Add `mortgageInterestRate` (default 4.0) and `mortgageTerm` (default 30,
+  in years) to `FormInputs`
+- Expose these as inputs in `HousePurchaseSection.tsx` when
+  `enableHouseWithdrawal` is true
+- In `houseCalculations.ts`, add a
+  `calculateMonthlyMortgagePayment(principal, annualRate, termYears)`
+  function using the standard annuity formula:
+  `P * [r(1+r)^n] / [(1+r)^n - 1]`
+- Store `monthlyMortgagePayment` on `HouseDepositCalculation` in
+  `src/types/index.ts`
+- In `calculations.ts`, after the house withdrawal age, deduct
+  `monthlyMortgagePayment` from the net monthly cash available (i.e.
+  reduce the amount available for brokerage/savings contributions) for
+  `mortgageTerm * 12` months
+- Display the calculated monthly repayment and total interest paid over
+  the term in `HouseDepositCard.tsx`
+- Add `mortgageInterestRate` and `mortgageTerm` to the `useShallow`
+  selector in `useAutoCalculate.ts`
+```
+
+### 3-C. Career Break / Part-Time Period
+
+```
+Add support for modelling career breaks and part-time periods.
+
+Requirements:
+- Add a `careerBreaks: CareerBreak[]` field to `FormInputs` in
+  `src/store/useProjectionStore.ts`, where `CareerBreak` is a new type in
+  `src/types/index.ts`:
+  `{ id: string; fromAge: number; toAge: number; salaryPercent: number }`
+  (0 = full break, 50 = half-time)
+- Add a `CareerBreaksSection.tsx` form component in
+  `src/components/form/` with an "Add break" button that appends a new
+  entry, and per-entry inputs for from age, to age, and salary percent —
+  with a remove button for each
+- Register the new section in `src/components/form/SidebarForm.tsx`
+- In `src/utils/calculations.ts`, inside `calculateAccountGrowth`
+  (line 108), before computing the monthly salary, check if the current
+  age falls within any `CareerBreak` period and scale `currentSalary` by
+  `salaryPercent / 100` for those months
+- During a career break with `salaryPercent === 0`, set pension and
+  salary-linked brokerage contributions to zero
+- Update `useAutoCalculate.ts` to include `careerBreaks` in the
+  shallow-selected inputs so changes trigger recalculation
+- Add validation in `src/utils/validation.ts`: break periods must not
+  overlap, `fromAge` must be < `toAge`, and both must be within
+  `[currentAge, targetAge]`
+```
 
 ---
 
-## Prompt 19: Add Married/Joint Tax Assessment Option
+## Group 4 — Advanced Analysis Features
 
-**Goal:** Support married/jointly assessed tax calculations alongside the existing single filer mode.
+### 4-A. Inflation-Adjusted ("Real") Values Toggle
 
-**Context:** Tax bands are defined in `irishTaxRates2026.ts`. PAYE bands for married couples have a higher standard rate cut-off (€51,000 vs ~€44,000 for single). Tax credits also differ.
+```
+Add an inflation adjustment feature so users can view projections in
+present-value terms.
 
-**Steps:**
+Requirements:
+- Add `inflationRate` (default 2.5) to `FormInputs` in
+  `src/store/useProjectionStore.ts` and expose it in
+  `src/components/form/PersonalSection.tsx` as a labelled number input
+- Add `showRealValues` boolean to `UIState` in the store, toggled by a new
+  action `toggleRealValues`
+- Add a "Real / Nominal" toggle switch in
+  `src/components/dashboard/DashboardContent.tsx` near the summary cards
+- In `src/utils/formatters.ts`, add a
+  `deflate(amount, years, inflationRate)` helper that returns:
+  `amount / Math.pow(1 + inflationRate / 100, years)`
+- In `SummaryCards.tsx`, `ProjectionTable.tsx`, and all four chart
+  components under `src/components/dashboard/charts/`, apply `deflate()`
+  to all monetary values when `showRealValues` is true, using
+  `age - currentAge` as the `years` argument
+- Display "(Real €)" vs "(Nominal €)" in chart axis labels and card
+  subtitles to reflect the active mode
+- Add `inflationRate` to the `useShallow` selector in
+  `useAutoCalculate.ts`
+```
 
-1. In `irishTaxRates2026.ts`, add married/joint assessment tax bands and credits alongside the existing single-filer values. Create a `getTaxBands(filingStatus: 'single' | 'married-one-income' | 'married-two-income')` function (or extend the existing one).
-2. In `useProjectionStore.ts`, add `filingStatus: 'single' | 'married-one-income' | 'married-two-income'` to `FormInputs` (default `'single'`).
-3. Optionally add `spouseSalary: number` for two-income married couples (affects the transferable rate band).
-4. In `taxCalculations.ts`, pass `filingStatus` through to `calculatePayeTax` and adjust band selection and tax credit amounts accordingly.
-5. Add a filing status selector in `PersonalSection.tsx` using a Radix Select component (already installed as `@radix-ui/react-select`).
-6. Conditionally show spouse salary input when `married-two-income` is selected.
+### 4-B. Monte Carlo / Sensitivity Analysis
+
+```
+Add a Monte Carlo simulation mode to visualise return uncertainty.
+
+Requirements:
+- Add `monteCarloEnabled` boolean, `monteCarloSimulations` number
+  (default 500), and `returnVolatility` number (default 8, as a
+  percentage) to `FormInputs` in `src/store/useProjectionStore.ts`
+- Expose these fields in a new "Simulation" subsection within
+  `src/components/form/RetirementSection.tsx`
+- Add a `runMonteCarloSimulations()` action to the store that runs N
+  iterations of `calculatePortfolioGrowth()` from
+  `src/utils/calculations.ts`, each time sampling annual returns from a
+  normal distribution — mean = `expectedReturn`, std dev =
+  `returnVolatility` — using the Box-Muller transform
+- Store the results as
+  `monteCarloPercentiles: { p10: number[], p50: number[], p90: number[] }`
+  indexed by projection year
+- In `src/components/dashboard/charts/PortfolioGrowthChart.tsx`, when
+  Monte Carlo is enabled, render the P10–P90 range as a semi-transparent
+  filled band and the P50 as the main line, replacing the single
+  deterministic line
+- Run the Monte Carlo simulation asynchronously using
+  `requestIdleCallback` after the main `calculate()` completes
+- Ideally move the Monte Carlo computation into a Web Worker
+  (`src/workers/monteCarloWorker.ts`) to avoid blocking the main thread
+```
+
+### 4-C. Scenario Comparison
+
+```
+Allow users to save, name, and compare multiple input scenarios side by
+side.
+
+Requirements:
+- Add a `scenarios` array to the Zustand store in
+  `src/store/useProjectionStore.ts`, where each scenario is:
+  `{ id: string; label: string; inputs: FormInputs; results:
+  PortfolioResults | null }`
+- Add actions: `saveScenario(label)`, `loadScenario(id)`,
+  `deleteScenario(id)`, `duplicateScenario(id)`
+- Persist scenarios to localStorage (extend the existing `persist`
+  middleware config at line 391 — add `scenarios` to `partialize`)
+- Add a "Save Scenario" button in `src/components/form/SidebarForm.tsx`
+  that prompts for a label and calls `saveScenario`
+- Add a scenario selector UI component in
+  `src/components/dashboard/DashboardContent.tsx` that lists saved
+  scenarios and lets the user toggle which ones are visible
+- Create `src/components/dashboard/ScenarioComparison.tsx` — render two
+  scenarios' `SummaryCards` and key metrics side by side with delta
+  indicators (e.g. "+€42,000" in green)
+- In `src/components/dashboard/charts/PortfolioGrowthChart.tsx`, overlay
+  saved scenario lines as dashed lines with distinct colours — include
+  labels in the chart legend
+```
 
 ---
 
-## Prompt 20: Add React Error Boundary
+## Group 5 — UI / UX Improvements
 
-**Goal:** Prevent the entire app from white-screening when a component throws.
+### 5-A. Inline Field-Level Validation Errors
 
-**Context:** `App.tsx` is just 7 lines with no error handling. There are no error boundaries anywhere.
+```
+Wire up the existing `error` prop on `FormField`/`NumberField` in
+`src/components/form/FormField.tsx` (lines 12, 51) to read from the
+Zustand store's `validationErrors: Record<string, string>`.
 
-**Steps:**
+The infrastructure is already in place: both components accept an `error?:
+string` prop and render red text with an AlertCircle icon when set. What's
+missing is the wiring.
 
-1. Install `react-error-boundary` package (or create a simple class component).
+Requirements:
+- Update every field rendered via `FormField`/`NumberField` across all form
+  section components (`PersonalSection.tsx`, `IncomeSection.tsx`,
+  `RetirementSection.tsx`, `WithdrawalSection.tsx`, `LumpSumSection.tsx`,
+  `HousePurchaseSection.tsx`) to read
+  `useProjectionStore(s => s.validationErrors[fieldKey])` and pass it as
+  the `error` prop
+- In `src/components/form/SidebarForm.tsx`, remove the `AnimatePresence`
+  grouped error list block (lines 45-69) since errors will now appear
+  inline at each field
+- Apply a `border-destructive` ring to the underlying `Input` component in
+  `FormField.tsx` when an error is present
+- Validation already runs live via `useAutoCalculate` — inline errors
+  should appear and clear reactively
+
+Note: Depends on prompt 1-B (deduplicate validation) landing first, so
+that `validationErrors` in the store is populated by `validateInputs()`.
+```
+
+### 5-B. Add React Error Boundary
+
+```
+Prevent the entire app from white-screening when a component throws.
+
+Context: `src/App.tsx` is 13 lines with no error handling. There are no
+error boundaries anywhere in the app.
+
+Steps:
+1. Install `react-error-boundary` package (or create a simple class
+   component)
 2. Create `src/components/ErrorFallback.tsx` — a styled error UI with:
-   - An error message display.
-   - A "Try again" button that calls `resetErrorBoundary`.
-   - A "Reset form" button that calls `useProjectionStore.getState().resetForm()` and resets.
-3. In `App.tsx`, wrap `<DashboardLayout />` with `<ErrorBoundary fallbackComponent={ErrorFallback}>`.
-4. Add a second, more granular error boundary around just the chart area in `DashboardContent.tsx` (since Chart.js rendering is the most likely crash point). Its fallback should say "Chart failed to render" with a retry button, while keeping the rest of the dashboard visible.
-5. Optionally log errors to the console with additional context (input state at time of crash) for debugging.
+   - An error message display
+   - A "Try again" button that calls `resetErrorBoundary`
+   - A "Reset form" button that calls
+     `useProjectionStore.getState().resetForm()` and resets
+3. In `App.tsx`, wrap `<DashboardLayout />` with
+   `<ErrorBoundary fallbackComponent={ErrorFallback}>`
+4. Add a second, more granular error boundary around just the chart area
+   in `src/components/dashboard/DashboardContent.tsx` (since Chart.js
+   rendering is the most likely crash point) — its fallback should say
+   "Chart failed to render" with a retry button while keeping the rest of
+   the dashboard visible
+5. Optionally log errors to the console with additional context (input
+   state at time of crash) for debugging
+```
+
+---
+
+## Group 6 — Export & Sharing
+
+### 6-A. PDF / CSV Export
+
+```
+Add export functionality for the projection results.
+
+Requirements:
+- Add an "Export" dropdown button in
+  `src/components/dashboard/DashboardContent.tsx` with two options:
+  "Download CSV" and "Download PDF Report"
+- CSV export:
+  • Create `src/utils/exportCsv.ts` — flatten
+    `results.accountResults[].yearlyData` into rows with columns: Year,
+    Age, Account, Starting Balance, Contributions, Interest Earned,
+    Withdrawals, Ending Balance, Net Salary
+  • Trigger download using `Blob` + `URL.createObjectURL` + hidden `<a>`
+    click pattern — no external library needed
+- PDF export:
+  • Install `@react-pdf/renderer` and create
+    `src/components/export/ProjectionReport.tsx` that renders: cover
+    section with key summary stats, the tax breakdown, milestone timeline
+    dates, and the full year-by-year table
+  • Alternatively use `window.print()` with `@media print` styles in
+    `src/index.css` that hide the sidebar and format the dashboard for
+    print
+- Consider also allowing export of just the visible chart as PNG using
+  Chart.js's built-in `toBase64Image()` method
+- Both file exports should use the filename format
+  `portfolio-projection-YYYY-MM-DD.csv` / `.pdf`
+```
+
+### 6-B. Share via URL
+
+```
+Add URL-based state sharing so users can share their projection setup.
+
+Context: The store already uses Zustand `persist` middleware with
+localStorage (key `'portfolio-projections-storage'` at line 391 in
+`src/store/useProjectionStore.ts`). This prompt adds URL sharing on top
+of the existing persistence.
+
+Requirements:
+- Install `lz-string` (`npm install lz-string`)
+- Add a "Share" button in `src/layouts/DashboardLayout.tsx` that:
+  • Serialises the current `FormInputs` to JSON
+  • Compresses with LZ-string and base64url-encodes it
+  • Writes it as a `?s=...` query parameter and copies the full URL to
+    the clipboard
+- On app load in `src/main.tsx`, check for a `?s=` query param; if
+  present, decode, decompress, and parse it, then hydrate the Zustand
+  store with those inputs (overriding localStorage)
+- Show a toast notification confirming when a link has been copied or when
+  state has been loaded from a shared URL
+```
+
+---
+
+## Group 7 — Performance
+
+### 7-A. Web Worker for Calculations
+
+```
+Move the `calculatePortfolioGrowth()` call off the main thread to keep
+the UI responsive during heavy projections.
+
+Requirements:
+- Create `src/workers/calculationWorker.ts` — it should listen for a
+  message containing a `PortfolioGrowthOptions` object, call
+  `calculatePortfolioGrowth()` from `src/utils/calculations.ts`, and post
+  the result back
+- Configure Vite to bundle the worker via:
+  `new Worker(new URL('../workers/calculationWorker.ts', import.meta.url),
+  { type: 'module' })`
+  No additional Vite plugins needed
+- In `src/store/useProjectionStore.ts`, create a singleton worker instance
+  and replace the direct `calculatePortfolioGrowth()` call in `calculate()`
+  (line 349) with a `postMessage` / `onmessage` round-trip
+- The store's `isCalculating` flag should be set to `true` before posting
+  and `false` when the worker responds
+- Handle worker errors gracefully — surface the error in the existing
+  validation error display
+- The store's `calculate()` should return a Promise so callers can await
+  it; update `useAutoCalculate.ts` accordingly
+```

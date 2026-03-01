@@ -33,7 +33,12 @@ export const PRSI_SETTINGS = {
 export const PENSION_TAX_RELIEF_CAP = 115000;
 
 // Capital Gains Tax (CGT) Rate
-export const CGT_RATE = 0.33; // 33% on brokerage withdrawals
+export const CGT_RATE = 0.33; // 33% on brokerage withdrawals (stocks)
+
+// Exit Tax Rate (ETFs / deemed disposal)
+// Irish Revenue deems ETF positions sold every 8 years; gains taxed at this rate
+export const EXIT_TAX_RATE = 0.38; // 38% exit tax on ETF gains
+export const DEEMED_DISPOSAL_PERIOD_YEARS = 8; // deemed disposal every 8 years
 
 // Deposit Interest Retention Tax (DIRT) Rate
 // Tax on interest earned on savings accounts

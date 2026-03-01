@@ -318,3 +318,147 @@ describe('Golden-value: known-input portfolio snapshot', () => {
     expect(result.totalContributions).toBeGreaterThan(15000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Brokerage – Deemed Disposal (ETF/Stock split)
+// ---------------------------------------------------------------------------
+describe('calculateAccountGrowth – Brokerage ETF deemed disposal', () => {
+  /** Brokerage with 100% ETF allocation */
+  function makeEtfBrokerage(overrides: Partial<AccountInput> = {}): AccountInput {
+    return makeBrokerageAccount({ etfAllocationPercent: 100, ...overrides });
+  }
+
+  /** Brokerage with 0% ETF allocation (pure stocks) */
+  function makeStockBrokerage(overrides: Partial<AccountInput> = {}): AccountInput {
+    return makeBrokerageAccount({ etfAllocationPercent: 0, ...overrides });
+  }
+
+  it('pure stock brokerage: no deemed disposal tax at any year', () => {
+    const result = calculateAccountGrowth(buildOpts(makeStockBrokerage(), {
+      timeHorizon: 10,
+      fireAge: 99, // never retire during test
+    }));
+    expect(result.totalDeemedDisposalTax).toBeUndefined();
+    // No yearly data should have deemedDisposalTaxPaid
+    result.yearlyData.forEach(yd => {
+      expect(yd.deemedDisposalTaxPaid).toBeUndefined();
+    });
+  });
+
+  it('100% ETF brokerage: deemed disposal fires around year 8', () => {
+    const result = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+    // Should have totalDeemedDisposalTax > 0
+    expect(result.totalDeemedDisposalTax).toBeDefined();
+    expect(result.totalDeemedDisposalTax).toBeGreaterThan(0);
+
+    // The deemed disposal should happen in the 8th year's yearly data
+    const yearsWithDD = result.yearlyData.filter(yd => yd.deemedDisposalTaxPaid && yd.deemedDisposalTaxPaid > 0);
+    expect(yearsWithDD.length).toBe(1); // only one DD event in 10 years
+
+    // The tax should be 38% of the gains
+    // After 8 years at 8% compounded, balance ≈ 100000 * (1.08)^8 ≈ 185,093
+    // Gain ≈ 85,093; Tax ≈ 85,093 * 0.38 ≈ 32,335
+    const ddTax = result.totalDeemedDisposalTax!;
+    expect(ddTax).toBeGreaterThan(25000); // lower bound
+    expect(ddTax).toBeLessThan(40000);    // upper bound
+  });
+
+  it('50/50 split: only ETF portion triggers deemed disposal', () => {
+    const result = calculateAccountGrowth(buildOpts(makeBrokerageAccount({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+      etfAllocationPercent: 50,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+    // Should have some deemed disposal
+    expect(result.totalDeemedDisposalTax).toBeDefined();
+    expect(result.totalDeemedDisposalTax).toBeGreaterThan(0);
+
+    // DD tax should be roughly half of what 100% ETF would give
+    const fullEtfResult = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+
+    // Allow 5% tolerance due to compounding differences after DD
+    const ratio = result.totalDeemedDisposalTax! / fullEtfResult.totalDeemedDisposalTax!;
+    expect(ratio).toBeGreaterThan(0.45);
+    expect(ratio).toBeLessThan(0.55);
+  });
+
+  it('no ETF allocation (undefined): behaves like pure stocks, no DD', () => {
+    const result = calculateAccountGrowth(buildOpts(makeBrokerageAccount({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+      // etfAllocationPercent intentionally omitted
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+    expect(result.totalDeemedDisposalTax).toBeUndefined();
+  });
+
+  it('deemed disposal does not fire before 8 years', () => {
+    const result = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 7,
+      fireAge: 99,
+    }));
+    expect(result.totalDeemedDisposalTax).toBeUndefined();
+  });
+
+  it('cost basis resets after deemed disposal (less gain later)', () => {
+    // 16 years: should trigger 2 deemed disposals
+    const result = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 18,
+      fireAge: 99,
+    }));
+    const yearsWithDD = result.yearlyData.filter(yd => yd.deemedDisposalTaxPaid && yd.deemedDisposalTaxPaid > 0);
+    expect(yearsWithDD.length).toBe(2);
+  });
+
+  it('deemed disposal reduces the balance', () => {
+    const etfResult = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+
+    const stockResult = calculateAccountGrowth(buildOpts(makeStockBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+
+    // ETF balance should be lower due to deemed disposal tax
+    expect(etfResult.finalBalance).toBeLessThan(stockResult.finalBalance);
+  });
+});
