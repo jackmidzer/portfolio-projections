@@ -3,59 +3,13 @@
 > **Last verified against codebase: 2026-03-01**
 >
 > Prompts are grouped by theme and ordered so that items within a group can
-> be tackled together. Bug-fixes come first, then accuracy improvements,
-> then new features, then UX/performance work.
+> be tackled together.
 
 ---
 
-## Group 1 — Bug Fixes
+## Group 1 — Tax & Financial Accuracy
 
-These are small, high-impact fixes that should be done first.
-
-### 1-A. Fix: `useAutoCalculate` Missing State Pension Fields
-
-```
-In `src/hooks/useAutoCalculate.ts` (lines 12-36), the `useShallow` selector
-is missing three fields that affect calculation results:
-`includeStatePension`, `statePensionAge`, and `statePensionWeeklyAmount`.
-
-Changes to these fields are silently ignored until another unrelated field
-is edited.
-
-Fix:
-- Add `includeStatePension`, `statePensionAge`, and
-  `statePensionWeeklyAmount` to the `useShallow` selector at
-  line 13 inside `useAutoCalculate.ts`
-
-This is a three-line addition.
-```
-
-### 1-B. Fix: Deduplicate Validation Logic
-
-```
-Validation logic is duplicated between `src/utils/validation.ts`
-(`validateInputs` at line 43, returns `Record<string, string>`) and inline
-checks inside the `calculate()` action in
-`src/store/useProjectionStore.ts` (lines 310-340). They have diverged.
-
-Refactor:
-- In `useProjectionStore.ts`, replace the inline validation checks inside
-  `calculate()` (lines 310-340) with a single call to
-  `validateInputs(state)` from `src/utils/validation.ts`
-- Map the returned `Record<string, string>` into both:
-  • the `validationErrors` store field (for inline display)
-  • the returned `errors: string[]` array (use `Object.values(errors)`)
-- Ensure `ValidatableInputs` in `validation.ts` covers all fields currently
-  checked inline in the store — compare both sets and add any missing
-- Delete the now-redundant inline validation code from `calculate()`
-- Run the existing tests in `src/utils/_tests/` to confirm nothing broke
-```
-
----
-
-## Group 2 — Tax & Financial Accuracy
-
-### 2-A. Add CGT Annual Exemption (€1,270)
+### 1-A. Add CGT Annual Exemption (€1,270)
 
 ```
 Apply the Irish €1,270 annual CGT exemption before calculating capital
@@ -79,7 +33,7 @@ Steps:
    `calculateAccountGrowth`
 ```
 
-### 2-B. Add Married / Joint Tax Assessment Option
+### 1-B. Add Married / Joint Tax Assessment Option
 
 ```
 Support married/jointly assessed tax calculations alongside the existing
@@ -110,34 +64,9 @@ Steps:
 
 ---
 
-## Group 3 — Core Calculation Improvements
+## Group 2 — Core Calculation Improvements
 
-### 3-A. Eliminate Double Pension Calculation
-
-```
-Remove the redundant first pension calculation that exists solely to
-determine the lump sum amount.
-
-Context: In `src/utils/calculations.ts`, `calculatePortfolioGrowth`
-(line 725) first runs `calculateAccountGrowth` for the pension account
-(lines 785-848) solely to determine the lump sum amount, then runs all
-accounts (including pension again) in the main loop.
-
-Options (pick one):
-1. Create a lightweight `estimatePensionBalanceAtAge(account, age, ...)`
-   function that runs a simplified projection (just tracking balance, no
-   breakdown arrays) to determine the lump sum amount, then use that in
-   the full calculation pass
-2. Restructure the flow: calculate all accounts in a single pass by first
-   computing the pension lump sum amount during the main calculation and
-   distributing it to Savings/Brokerage on-the-fly (requires changing from
-   independent per-account calculations to a coordinated multi-account
-   calculation)
-
-Verify results match the current output before and after refactoring.
-```
-
-### 3-B. Mortgage Repayments Modelling
+### 2-A. Mortgage Repayments Modelling
 
 ```
 Extend the house purchase feature to model ongoing mortgage repayments.
@@ -168,7 +97,7 @@ Requirements:
   selector in `useAutoCalculate.ts`
 ```
 
-### 3-C. Career Break / Part-Time Period
+### 2-B. Career Break / Part-Time Period
 
 ```
 Add support for modelling career breaks and part-time periods.
@@ -199,9 +128,9 @@ Requirements:
 
 ---
 
-## Group 4 — Advanced Analysis Features
+## Group 3 — Advanced Analysis Features
 
-### 4-A. Inflation-Adjusted ("Real") Values Toggle
+### 3-A. Inflation-Adjusted ("Real") Values Toggle
 
 ```
 Add an inflation adjustment feature so users can view projections in
@@ -228,7 +157,7 @@ Requirements:
   `useAutoCalculate.ts`
 ```
 
-### 4-B. Monte Carlo / Sensitivity Analysis
+### 3-B. Monte Carlo / Sensitivity Analysis
 
 ```
 Add a Monte Carlo simulation mode to visualise return uncertainty.
@@ -257,7 +186,7 @@ Requirements:
   (`src/workers/monteCarloWorker.ts`) to avoid blocking the main thread
 ```
 
-### 4-C. Scenario Comparison
+### 3-C. Scenario Comparison
 
 ```
 Allow users to save, name, and compare multiple input scenarios side by
@@ -283,153 +212,4 @@ Requirements:
 - In `src/components/dashboard/charts/PortfolioGrowthChart.tsx`, overlay
   saved scenario lines as dashed lines with distinct colours — include
   labels in the chart legend
-```
-
----
-
-## Group 5 — UI / UX Improvements
-
-### 5-A. Inline Field-Level Validation Errors
-
-```
-Wire up the existing `error` prop on `FormField`/`NumberField` in
-`src/components/form/FormField.tsx` (lines 12, 51) to read from the
-Zustand store's `validationErrors: Record<string, string>`.
-
-The infrastructure is already in place: both components accept an `error?:
-string` prop and render red text with an AlertCircle icon when set. What's
-missing is the wiring.
-
-Requirements:
-- Update every field rendered via `FormField`/`NumberField` across all form
-  section components (`PersonalSection.tsx`, `IncomeSection.tsx`,
-  `RetirementSection.tsx`, `WithdrawalSection.tsx`, `LumpSumSection.tsx`,
-  `HousePurchaseSection.tsx`) to read
-  `useProjectionStore(s => s.validationErrors[fieldKey])` and pass it as
-  the `error` prop
-- In `src/components/form/SidebarForm.tsx`, remove the `AnimatePresence`
-  grouped error list block (lines 45-69) since errors will now appear
-  inline at each field
-- Apply a `border-destructive` ring to the underlying `Input` component in
-  `FormField.tsx` when an error is present
-- Validation already runs live via `useAutoCalculate` — inline errors
-  should appear and clear reactively
-
-Note: Depends on prompt 1-B (deduplicate validation) landing first, so
-that `validationErrors` in the store is populated by `validateInputs()`.
-```
-
-### 5-B. Add React Error Boundary
-
-```
-Prevent the entire app from white-screening when a component throws.
-
-Context: `src/App.tsx` is 13 lines with no error handling. There are no
-error boundaries anywhere in the app.
-
-Steps:
-1. Install `react-error-boundary` package (or create a simple class
-   component)
-2. Create `src/components/ErrorFallback.tsx` — a styled error UI with:
-   - An error message display
-   - A "Try again" button that calls `resetErrorBoundary`
-   - A "Reset form" button that calls
-     `useProjectionStore.getState().resetForm()` and resets
-3. In `App.tsx`, wrap `<DashboardLayout />` with
-   `<ErrorBoundary fallbackComponent={ErrorFallback}>`
-4. Add a second, more granular error boundary around just the chart area
-   in `src/components/dashboard/DashboardContent.tsx` (since Chart.js
-   rendering is the most likely crash point) — its fallback should say
-   "Chart failed to render" with a retry button while keeping the rest of
-   the dashboard visible
-5. Optionally log errors to the console with additional context (input
-   state at time of crash) for debugging
-```
-
----
-
-## Group 6 — Export & Sharing
-
-### 6-A. PDF / CSV Export
-
-```
-Add export functionality for the projection results.
-
-Requirements:
-- Add an "Export" dropdown button in
-  `src/components/dashboard/DashboardContent.tsx` with two options:
-  "Download CSV" and "Download PDF Report"
-- CSV export:
-  • Create `src/utils/exportCsv.ts` — flatten
-    `results.accountResults[].yearlyData` into rows with columns: Year,
-    Age, Account, Starting Balance, Contributions, Interest Earned,
-    Withdrawals, Ending Balance, Net Salary
-  • Trigger download using `Blob` + `URL.createObjectURL` + hidden `<a>`
-    click pattern — no external library needed
-- PDF export:
-  • Install `@react-pdf/renderer` and create
-    `src/components/export/ProjectionReport.tsx` that renders: cover
-    section with key summary stats, the tax breakdown, milestone timeline
-    dates, and the full year-by-year table
-  • Alternatively use `window.print()` with `@media print` styles in
-    `src/index.css` that hide the sidebar and format the dashboard for
-    print
-- Consider also allowing export of just the visible chart as PNG using
-  Chart.js's built-in `toBase64Image()` method
-- Both file exports should use the filename format
-  `portfolio-projection-YYYY-MM-DD.csv` / `.pdf`
-```
-
-### 6-B. Share via URL
-
-```
-Add URL-based state sharing so users can share their projection setup.
-
-Context: The store already uses Zustand `persist` middleware with
-localStorage (key `'portfolio-projections-storage'` at line 391 in
-`src/store/useProjectionStore.ts`). This prompt adds URL sharing on top
-of the existing persistence.
-
-Requirements:
-- Install `lz-string` (`npm install lz-string`)
-- Add a "Share" button in `src/layouts/DashboardLayout.tsx` that:
-  • Serialises the current `FormInputs` to JSON
-  • Compresses with LZ-string and base64url-encodes it
-  • Writes it as a `?s=...` query parameter and copies the full URL to
-    the clipboard
-- On app load in `src/main.tsx`, check for a `?s=` query param; if
-  present, decode, decompress, and parse it, then hydrate the Zustand
-  store with those inputs (overriding localStorage)
-- Show a toast notification confirming when a link has been copied or when
-  state has been loaded from a shared URL
-```
-
----
-
-## Group 7 — Performance
-
-### 7-A. Web Worker for Calculations
-
-```
-Move the `calculatePortfolioGrowth()` call off the main thread to keep
-the UI responsive during heavy projections.
-
-Requirements:
-- Create `src/workers/calculationWorker.ts` — it should listen for a
-  message containing a `PortfolioGrowthOptions` object, call
-  `calculatePortfolioGrowth()` from `src/utils/calculations.ts`, and post
-  the result back
-- Configure Vite to bundle the worker via:
-  `new Worker(new URL('../workers/calculationWorker.ts', import.meta.url),
-  { type: 'module' })`
-  No additional Vite plugins needed
-- In `src/store/useProjectionStore.ts`, create a singleton worker instance
-  and replace the direct `calculatePortfolioGrowth()` call in `calculate()`
-  (line 349) with a `postMessage` / `onmessage` round-trip
-- The store's `isCalculating` flag should be set to `true` before posting
-  and `false` when the worker responds
-- Handle worker errors gracefully — surface the error in the existing
-  validation error display
-- The store's `calculate()` should return a Promise so callers can await
-  it; update `useAutoCalculate.ts` accordingly
 ```

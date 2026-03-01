@@ -1,10 +1,24 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AccountInput as AccountInputType, PortfolioResults, TaxCalculationResult, HouseDepositCalculation } from '@/types';
-import { calculatePortfolioGrowth } from '@/utils/calculations';
 import { calculateNetSalary, calculateBonusTaxBurden } from '@/utils/taxCalculations';
 import { calculateHouseMetrics } from '@/utils/houseCalculations';
 import { validateInputs } from '@/utils/validation';
+import type { CalcWorkerResponse, CalcWorkerError } from '@/workers/calculationWorker';
+
+// ─── Web Worker singleton ────────────────────────────────────────────
+
+let calcWorker: Worker | null = null;
+
+function getCalcWorker(): Worker {
+  if (!calcWorker) {
+    calcWorker = new Worker(
+      new URL('../workers/calculationWorker.ts', import.meta.url),
+      { type: 'module' },
+    );
+  }
+  return calcWorker;
+}
 
 // ─── Form Inputs Slice ───────────────────────────────────────────────
 
@@ -78,7 +92,7 @@ interface ProjectionStore extends FormInputs, UIState, ResultsState {
   setIsCalculating: (value: boolean) => void;
 
   // Calculation actions
-  calculate: () => { errors: string[] };
+  calculate: () => Promise<{ errors: string[] }>;
 
   // Computed helpers
   getCurrentAge: () => number | '';
@@ -282,16 +296,22 @@ export const useProjectionStore = create<ProjectionStore>()(
   },
 
   // ─── Calculation ───────────────────────────────────────────────
-  calculate: () => {
+  calculate: async () => {
     const state = get();
     const currentAge = state.getCurrentAge();
     const monthsUntilBirthday = state.getMonthsUntilBirthday();
     const houseDepositMetrics = state.getHouseDepositMetrics();
     const currentPensionPercent = state.getCurrentPensionPercent();
 
-    const errors: string[] = [];
+    // Run centralised validation
+    const validationResult = validateInputs(state);
+    set({ validationErrors: validationResult });
 
-    // Parse values
+    if (Object.keys(validationResult).length > 0) {
+      return { errors: Object.values(validationResult) };
+    }
+
+    // Parse values (safe after validation passes)
     const age = typeof currentAge === 'number' ? currentAge : NaN;
     const future = typeof state.targetAge === 'number' ? state.targetAge : NaN;
     const salary = typeof state.currentSalary === 'number' ? state.currentSalary : NaN;
@@ -307,35 +327,7 @@ export const useProjectionStore = create<ProjectionStore>()(
     const houseAge = typeof state.houseWithdrawalAge === 'number' ? state.houseWithdrawalAge : NaN;
     const houseBrokerageRate = typeof state.houseDepositFromBrokerageRate === 'number' ? state.houseDepositFromBrokerageRate : NaN;
 
-    // Validation
-    if (!state.dateOfBirth) errors.push('Date of birth is required');
-    if (isNaN(age) || age < 18 || age > 100) errors.push('Current age must be between 18 and 100');
-    if (isNaN(future) || future <= age) errors.push('Target age must be greater than current age');
-    if (future > 150) errors.push('Target age cannot exceed 150');
-    if (isNaN(salary) || salary <= 0) errors.push('Current salary must be greater than 0');
-    if (isNaN(increase) || increase < 0 || increase > 20) errors.push('Annual salary increase must be between 0% and 20%');
-    if (isNaN(pension) || pension < 18 || pension > 100) errors.push('Pension age must be between 18 and 100');
-    if (state.enablePensionLumpSum && (isNaN(lumpSumAge) || lumpSumAge < 50 || lumpSumAge > pension)) {
-      errors.push('Pension lump sum age must be between 50 and your pension age');
-    }
-    if (state.enablePensionLumpSum && (isNaN(lumpSumMaxAmount) || lumpSumMaxAmount <= 0)) {
-      errors.push('Pension lump sum max amount must be greater than 0');
-    }
-    if (isNaN(withdrawal) || withdrawal <= 0 || withdrawal > 20) errors.push('Withdrawal rate must be between 0% and 20%');
-    if (isNaN(fireAge) || fireAge < 18 || fireAge > 100) errors.push('FIRE age must be between 18 and 100');
-    if (!isNaN(fireAge) && !isNaN(pension) && fireAge > pension) errors.push('FIRE age must be ≤ pension drawdown age');
-    if (isNaN(replacement) || replacement <= 0 || replacement > 100) errors.push('Salary replacement rate must be between 0% and 100%');
-    if (isNaN(brokerageRate) || brokerageRate < 0 || brokerageRate > 100) errors.push('Lump sum brokerage allocation must be between 0% and 100%');
-    if (state.enableHouseWithdrawal) {
-      if (isNaN(houseAge) || houseAge < 18 || houseAge > 100) errors.push('House withdrawal age must be between 18 and 100');
-      if (isNaN(houseBrokerageRate) || houseBrokerageRate < 0 || houseBrokerageRate > 100) errors.push('House deposit brokerage allocation must be between 0% and 100%');
-    }
-
-    if (errors.length > 0) {
-      return { errors };
-    }
-
-    // Run calculation
+    // Run calculation via Web Worker
     const timeHorizon = future - age + 1;
     const taxInputData = {
       grossSalary: salary,
@@ -343,7 +335,9 @@ export const useProjectionStore = create<ProjectionStore>()(
       bikValue: typeof state.taxBikValue === 'number' ? state.taxBikValue : 0,
     };
 
-    const calculatedResults = calculatePortfolioGrowth({
+    set({ isCalculating: true });
+
+    const workerOptions = {
       accounts: state.accounts,
       timeHorizon,
       currentAge: age,
@@ -369,24 +363,55 @@ export const useProjectionStore = create<ProjectionStore>()(
       includeStatePension: state.includeStatePension,
       statePensionAge: typeof state.statePensionAge === 'number' ? state.statePensionAge : 66,
       statePensionWeeklyAmount: typeof state.statePensionWeeklyAmount === 'number' ? state.statePensionWeeklyAmount : 299.30,
-    });
+    };
 
-    // Calculate tax
-    let taxResult: TaxCalculationResult | null = null;
-    let bonusTax = 0;
-    taxResult = calculateNetSalary(taxInputData);
-    if (bonus > 0) {
-      bonusTax = calculateBonusTaxBurden(salary, bonus, currentPensionPercent, taxInputData.bikValue);
+    try {
+      const worker = getCalcWorker();
+      const calculatedResults = await new Promise<PortfolioResults>((resolve, reject) => {
+        const onMessage = (event: MessageEvent<CalcWorkerResponse | CalcWorkerError>) => {
+          worker.removeEventListener('message', onMessage);
+          worker.removeEventListener('error', onError);
+          if (event.data.type === 'result') {
+            resolve(event.data.results);
+          } else {
+            reject(new Error(event.data.message));
+          }
+        };
+        const onError = (event: ErrorEvent) => {
+          worker.removeEventListener('message', onMessage);
+          worker.removeEventListener('error', onError);
+          reject(new Error(event.message || 'Worker error'));
+        };
+        worker.addEventListener('message', onMessage);
+        worker.addEventListener('error', onError);
+        worker.postMessage({ type: 'calculate', options: workerOptions });
+      });
+
+      // Calculate tax (fast, stays on main thread)
+      let taxResult: TaxCalculationResult | null = null;
+      let bonusTax = 0;
+      taxResult = calculateNetSalary(taxInputData);
+      if (bonus > 0) {
+        bonusTax = calculateBonusTaxBurden(salary, bonus, currentPensionPercent, taxInputData.bikValue);
+      }
+
+      set({
+        results: calculatedResults,
+        taxCalculationResult: taxResult,
+        bonusTaxBurden: bonusTax,
+        lastCalculatedBonusPercent: bonus,
+        isCalculating: false,
+      });
+
+      return { errors: [] };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      set({
+        isCalculating: false,
+        validationErrors: { _worker: message },
+      });
+      return { errors: [message] };
     }
-
-    set({
-      results: calculatedResults,
-      taxCalculationResult: taxResult,
-      bonusTaxBurden: bonusTax,
-      lastCalculatedBonusPercent: bonus,
-    });
-
-    return { errors: [] };
   },
     }),
     {

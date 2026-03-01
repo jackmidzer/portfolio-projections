@@ -19,7 +19,7 @@ export function NegativeBalanceBanner() {
   if (warnings.length === 0) return null;
 
   return (
-    <div className="sticky top-0 z-10 border-b border-amber-500/40 bg-amber-500/10 backdrop-blur-sm dark:border-amber-400/30 dark:bg-amber-400/10">
+    <div className="sticky top-0 z-10 border-b border-amber-400 bg-amber-50 dark:border-amber-500 dark:bg-amber-950">
       <div className="max-w-7xl mx-auto px-6 py-2.5 flex items-start gap-3 text-amber-700 dark:text-amber-300">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">

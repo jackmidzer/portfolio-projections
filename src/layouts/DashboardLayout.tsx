@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PanelLeftClose, PanelLeft, Menu, TrendingUp } from 'lucide-react';
+import { PanelLeftClose, PanelLeft, Menu, TrendingUp, Share2, Check, Calculator, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -11,13 +11,45 @@ import { NegativeBalanceBanner } from '@/components/dashboard/NegativeBalanceBan
 import { useProjectionStore } from '@/store/useProjectionStore';
 import { useAutoCalculate } from '@/hooks/useAutoCalculate';
 import { cn } from '@/lib/utils';
+import { compressToEncodedURIComponent } from 'lz-string';
+import type { FormInputs } from '@/store/useProjectionStore';
 
 export function DashboardLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const results = useProjectionStore(s => s.results);
   const isCalculating = useProjectionStore(s => s.isCalculating);
+  const resetForm = useProjectionStore(s => s.resetForm);
+  const validationErrors = useProjectionStore(s => s.validationErrors);
+  const hasValidationErrors = Object.keys(validationErrors).length > 0;
   useAutoCalculate();
+
+  const handleShare = useCallback(() => {
+    const state = useProjectionStore.getState();
+    // Extract only FormInputs fields for serialisation
+    const formKeys: (keyof FormInputs)[] = [
+      'dateOfBirth', 'targetAge', 'currentSalary', 'annualSalaryIncrease',
+      'bonusPercent', 'taxBikValue', 'accounts', 'pensionAge', 'fireAge',
+      'withdrawalRate', 'salaryReplacementRate', 'enablePensionLumpSum',
+      'pensionLumpSumAge', 'pensionLumpSumMaxAmount', 'lumpSumToBrokerageRate',
+      'enableHouseWithdrawal', 'houseWithdrawalAge', 'houseDepositFromBrokerageRate',
+      'mortgageExemption', 'baseHousePrice', 'houseAnnualPriceIncrease',
+      'includeStatePension', 'statePensionAge', 'statePensionWeeklyAmount',
+    ];
+    const inputs: Partial<FormInputs> = {};
+    for (const key of formKeys) {
+      (inputs as any)[key] = (state as any)[key];
+    }
+    const json = JSON.stringify(inputs);
+    const compressed = compressToEncodedURIComponent(json);
+    const url = new URL(window.location.href);
+    url.searchParams.set('s', compressed);
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -28,7 +60,7 @@ export function DashboardLayout() {
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className="hidden lg:flex flex-col border-r bg-sidebar overflow-hidden flex-shrink-0"
       >
-        <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
+        <div className="flex items-center justify-between h-14 px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-2 min-w-0">
             <TrendingUp className="h-5 w-5 text-primary flex-shrink-0" />
             <span className="font-semibold text-sm truncate">Wealth Projections</span>
@@ -45,9 +77,30 @@ export function DashboardLayout() {
         </div>
         <ScrollArea className="flex-1">
           <div className="p-4">
-            <SidebarForm />
+            <SidebarForm formId="desktop-sidebar-form" />
           </div>
         </ScrollArea>
+        <div className="flex gap-2 h-14 px-4 items-center border-t border-sidebar-border bg-sidebar flex-shrink-0">
+          <Button
+            type="submit"
+            form="desktop-sidebar-form"
+            className="flex-1"
+            variant="outline"
+            size="sm"
+            disabled={hasValidationErrors || isCalculating}
+          >
+            <Calculator className="h-4 w-4 mr-2" />
+            Calculate
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => resetForm()}
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+        </div>
       </motion.aside>
 
       {/* Main Area */}
@@ -101,6 +154,17 @@ export function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-2">
+            {results && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={handleShare}
+                aria-label="Share projection"
+              >
+                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Share2 className="h-4 w-4" />}
+              </Button>
+            )}
             <ThemeToggle />
           </div>
         </header>
@@ -124,7 +188,7 @@ export function DashboardLayout() {
         </main>
 
         {/* Footer */}
-        <footer className="border-t px-4 py-3 bg-background flex-shrink-0">
+        <footer className="border-t px-4 h-14 bg-background flex-shrink-0 flex items-center justify-center">
           <p className="text-xs text-muted-foreground text-center">
             This calculator is a planning tool, not professional financial advice. Results are estimates based on your inputs.
           </p>
@@ -141,11 +205,32 @@ export function DashboardLayout() {
             </SheetTitle>
             <SheetDescription>Configure your financial projections</SheetDescription>
           </SheetHeader>
-          <ScrollArea className="h-[calc(100dvh-120px)] pb-[env(safe-area-inset-bottom)]">
+          <ScrollArea className="h-[calc(100dvh-180px)] pb-[env(safe-area-inset-bottom)]">
             <div className="p-4">
-              <SidebarForm onCalculated={() => setMobileOpen(false)} />
+              <SidebarForm formId="mobile-sidebar-form" onCalculated={() => setMobileOpen(false)} />
             </div>
           </ScrollArea>
+          <div className="flex gap-2 p-4 border-t bg-background flex-shrink-0">
+            <Button
+              type="submit"
+              form="mobile-sidebar-form"
+              className="flex-1"
+              variant="outline"
+              size="sm"
+              disabled={hasValidationErrors || isCalculating}
+            >
+              <Calculator className="h-4 w-4 mr-2" />
+              Calculate
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => resetForm()}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          </div>
         </SheetContent>
       </Sheet>
     </div>

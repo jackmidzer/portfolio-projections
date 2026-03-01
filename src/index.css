@@ -166,3 +166,31 @@ input[type="range"]::-moz-range-thumb {
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
+/* ─── Print Styles ─────────────────────────────────────────────── */
+@media print {
+  /* Hide sidebar, header, footer, and non-essential UI */
+  aside,
+  header,
+  footer,
+  [data-radix-scroll-area-viewport],
+  .lg\\:flex.flex-col.border-r,
+  button,
+  [role="tablist"] {
+    display: none !important;
+  }
+
+  /* Make main content full-width */
+  .flex.h-screen {
+    display: block !important;
+  }
+
+  main {
+    overflow: visible !important;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+

@@ -58,7 +58,7 @@ export function generateLifecycleEvents(
   if (pension?.ageBracketContributions) {
     const bracketAges = [30, 40, 50, 55, 60];
     for (const age of bracketAges) {
-      if (age > currentAge && age <= Math.min(fireAge, targetAge)) {
+        if (age > currentAge && age < fireAge && age <= targetAge) {
         const prevPct = getAgeBracketPercentage(age - 1, pension.ageBracketContributions);
         const newPct = getAgeBracketPercentage(age, pension.ageBracketContributions);
         if (newPct !== prevPct) {
@@ -78,7 +78,7 @@ export function generateLifecycleEvents(
   if (pension?.employerAgeBracketContributions) {
     const bracketAges = [25, 30, 35, 40, 45, 50, 55];
     for (const age of bracketAges) {
-      if (age > currentAge && age <= Math.min(fireAge, targetAge)) {
+        if (age > currentAge && age < fireAge && age <= targetAge) {
         const prevPct = getEmployerAgeBracketPercentage(age - 1, pension.employerAgeBracketContributions);
         const newPct = getEmployerAgeBracketPercentage(age, pension.employerAgeBracketContributions);
         if (newPct !== prevPct) {

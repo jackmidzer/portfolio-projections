@@ -1,4 +1,4 @@
-import { AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, MilestoneSnapshot, PensionLumpSumTaxBreakdown, AccountGrowthOptions, PortfolioGrowthOptions } from '../types';
+import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, MilestoneSnapshot, PensionLumpSumTaxBreakdown, AccountGrowthOptions, PortfolioGrowthOptions, TaxInputs } from '../types';
 import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageWithdrawalTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax, calculatePensionLumpSumTax, calculateExitTax } from './taxCalculations';
 import { isBridgingPhase, isDrawdownPhase, getPhaseType } from './phaseHelpers';
 import { DEEMED_DISPOSAL_PERIOD_YEARS } from '../constants/irishTaxRates2026';
@@ -410,10 +410,8 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       currentBalance -= monthWithdrawal;
     }
 
-    // Compute brokerage gain ratio (proportion of the withdrawal that is capital gain) and
-    // proportionally reduce the cost basis for any withdrawal this month.
+    // Proportionally reduce the cost basis for any withdrawal this month.
     // Must be done BEFORE adding contributions so the ratio uses the pre-withdrawal cost basis.
-    let brokerageGainRatio = 0;
     // Per-portion gain ratios for ETF (exit tax) and stock (CGT) sub-balances
     let etfGainRatio = 0;
     let stockGainRatio = 0;
@@ -421,7 +419,6 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     const preWithdrawalEtfBalance = etfBalance;
     const preWithdrawalStockBalance = stockBalance;
     if (isBrokerageAccount && monthWithdrawal > 0 && monthStartBalance > 0) {
-      brokerageGainRatio = Math.max(0, Math.min(1, (monthStartBalance - costBasis) / monthStartBalance));
       // Reduce cost basis by the proportion of the balance that was withdrawn
       costBasis = Math.max(0, costBasis - monthWithdrawal * (costBasis / monthStartBalance));
 
@@ -720,6 +717,124 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
 }
 
 /**
+ * Lightweight estimation of pension balance at a given target age.
+ * Only tracks balance (no breakdown arrays) to determine the lump sum amount.
+ */
+function estimatePensionBalanceAtAge(
+  account: AccountInput,
+  targetLumpSumAge: number,
+  currentAge: number,
+  currentSalary: number | undefined,
+  annualSalaryIncrease: number | undefined,
+  monthsUntilNextBirthday: number | undefined,
+  dateOfBirth: Date | undefined,
+  bonusPercent: number | undefined,
+  _taxInputs?: TaxInputs,
+  _pensionAgeBracketContributions?: AgeBracketContributions,
+  fireAge?: number,
+): number {
+  const monthlyRate = account.expectedReturn / 100 / 12;
+  const firstYearMonths = monthsUntilNextBirthday || 12;
+  const fireAgeValue = fireAge ?? 50;
+
+  let balance = account.currentBalance;
+  let monthDate = new Date();
+  if (dateOfBirth) {
+    const now = new Date();
+    monthDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  let januarysSeen = monthDate.getMonth() === 0 ? 1 : 0;
+  let ageAtStartOfCurrentYear = currentAge;
+  let lastYearBracketUpdated = -1;
+
+  // Calculate months until we reach pension lump sum age
+  // We just need to iterate until we hit the lump sum age in January
+  const maxMonths = firstYearMonths + (targetLumpSumAge - currentAge + 2) * 12;
+
+  // Calculate the month when user reaches FIRE age for contribution cutoff
+  const monthReachFire = firstYearMonths + (fireAgeValue - currentAge - 1) * 12;
+  let tempDate = new Date(monthDate);
+  for (let i = 0; i < monthReachFire; i++) {
+    tempDate.setMonth(tempDate.getMonth() + 1);
+  }
+  const retirementCalendarMonth = tempDate.getMonth();
+  const monthsToNextJanuary = retirementCalendarMonth === 0 ? 12 : (12 - retirementCalendarMonth);
+  const fireYearStartMonth = monthReachFire + monthsToNextJanuary;
+
+  for (let month = 0; month < maxMonths; month++) {
+    if (month > 0 && monthDate.getMonth() === 0) {
+      januarysSeen++;
+    }
+
+    const birthdays = month >= firstYearMonths ? 1 + Math.floor((month - firstYearMonths) / 12) : 0;
+    const ageAtMonth = currentAge + birthdays;
+    const isJanuary = monthDate.getMonth() === 0;
+    const currentYear = monthDate.getFullYear();
+
+    if (isJanuary && currentYear !== lastYearBracketUpdated) {
+      ageAtStartOfCurrentYear = ageAtMonth;
+      lastYearBracketUpdated = currentYear;
+    }
+
+    // If we've reached the lump sum age in January, return the balance
+    if (ageAtMonth >= targetLumpSumAge && isJanuary && month > 0) {
+      return balance;
+    }
+
+    // Calculate salary at this point
+    let salaryAtMonth = currentSalary || 0;
+    if (currentSalary && annualSalaryIncrease !== undefined) {
+      salaryAtMonth = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, januarysSeen);
+    }
+
+    // Calculate contributions (only during working phase)
+    let monthlyContribution = 0;
+    if (month < fireYearStartMonth) {
+      if (account.isSalaryPercentage && currentSalary && annualSalaryIncrease !== undefined) {
+        let contributionPercentage = account.monthlyContribution;
+        if (account.ageBracketContributions) {
+          contributionPercentage = getAgeBracketPercentage(ageAtStartOfCurrentYear, account.ageBracketContributions);
+        }
+        monthlyContribution = (salaryAtMonth / 12) * (contributionPercentage / 100);
+
+        // Add employer contribution
+        if (account.employerAgeBracketContributions) {
+          const employerPercent = getEmployerAgeBracketPercentage(ageAtStartOfCurrentYear, account.employerAgeBracketContributions);
+          if (employerPercent > 0) {
+            monthlyContribution += (salaryAtMonth / 12) * (employerPercent / 100);
+          }
+        }
+      } else {
+        monthlyContribution = account.monthlyContribution;
+      }
+
+      // Add bonus contribution (December only)
+      const isDecember = monthDate.getMonth() === 11;
+      if (isDecember && bonusPercent !== undefined && bonusPercent > 0 && account.bonusContributionPercent !== undefined) {
+        const annualBonus = salaryAtMonth * (bonusPercent / 100);
+        let bonusContributionPercent: number | undefined =
+          typeof account.bonusContributionPercent === 'number' ? account.bonusContributionPercent : undefined;
+        if (account.bonusContributionPercent === 'age-bracket' && account.ageBracketContributions) {
+          bonusContributionPercent = getAgeBracketPercentage(ageAtStartOfCurrentYear, account.ageBracketContributions);
+        }
+        if (bonusContributionPercent !== undefined && bonusContributionPercent > 0) {
+          monthlyContribution += annualBonus * (bonusContributionPercent / 100);
+        }
+      }
+    }
+
+    // Apply interest and contribution
+    const monthInterest = balance * monthlyRate;
+    balance += monthInterest + monthlyContribution;
+
+    monthDate.setMonth(monthDate.getMonth() + 1);
+  }
+
+  return balance;
+}
+
+/**
  * Calculate growth for all accounts in the portfolio
  */
 export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): PortfolioResults {
@@ -774,67 +889,23 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
     netBonusValue = netBonusResult.bonusNetSalary;
   }
 
-  // First, calculate pension account to determine lump sum amount
+  // Estimate pension balance at lump sum age to determine lump sum amount (lightweight, no full breakdown)
   let lumpSumAmount = 0;
-  if (pensionAccount) {
-    const pensionResult = calculateAccountGrowth({
-      account: pensionAccount,
-      timeHorizon,
+  if (pensionAccount && enablePensionLumpSum !== false) {
+    const estimatedBalance = estimatePensionBalanceAtAge(
+      pensionAccount,
+      pensionLumpSumAgeValue,
       currentAge,
       currentSalary,
       annualSalaryIncrease,
       monthsUntilNextBirthday,
       dateOfBirth,
-      pensionAge,
-      withdrawalRate,
-      fireAge,
-      salaryReplacementRate,
-      pensionLumpSumAmount: undefined,
       bonusPercent,
-      houseWithdrawalAge,
-      enableHouseWithdrawal,
-      houseDepositCalculation,
-      houseDepositFromBrokerageRate,
-      enablePensionLumpSum,
       taxInputs,
       pensionAgeBracketContributions,
-      netBonusValue,
-      pensionLumpSumAge,
-      pensionLumpSumMaxAmount: pensionLumpSumMaxAmountValue,
-      includeStatePension,
-      statePensionAge,
-      statePensionWeeklyAmount,
-    });
-    
-    // Find the lump sum amount from the pension monthly data
-    // Look for the first month when age >= pensionLumpSumAgeValue
-    const firstYearMonths = monthsUntilNextBirthday || 12;
-    const totalMonths = firstYearMonths + (timeHorizon - 1) * 12;
-    
-    for (let month = 0; month < totalMonths; month++) {
-      const birthdays = month >= firstYearMonths ? 1 + Math.floor((month - firstYearMonths) / 12) : 0;
-      const ageAtMonth = currentAge + birthdays;
-      const monthIndexInYear = month >= firstYearMonths ? month - (firstYearMonths + (Math.floor((month - firstYearMonths) / 12)) * 12) : month;
-      const isFirstMonthOfYear = monthIndexInYear === 0;
-      
-      if (ageAtMonth >= pensionLumpSumAgeValue && isFirstMonthOfYear) {
-        // Find this month's data in yearly breakdown and monthly data
-        let yearIndex = 0;
-        if (month >= firstYearMonths) {
-          yearIndex = 1 + Math.floor((month - firstYearMonths) / 12);
-        }
-        
-        if (yearIndex < pensionResult.yearlyData.length) {
-          const yearData = pensionResult.yearlyData[yearIndex];
-          const monthZeroIndex = 0; // First month of the year
-          if (monthZeroIndex < yearData.monthlyData.length) {
-            const monthData = yearData.monthlyData[monthZeroIndex];
-            lumpSumAmount = Math.min(monthData.startingBalance * 0.25, pensionLumpSumMaxAmountValue);
-          }
-        }
-        break;
-      }
-    }
+      fireAge,
+    );
+    lumpSumAmount = Math.min(estimatedBalance * 0.25, pensionLumpSumMaxAmountValue);
   }
 
   // Apply pension lump sum tax tiers and compute net amount for distribution

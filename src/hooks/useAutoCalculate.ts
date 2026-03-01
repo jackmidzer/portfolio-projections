@@ -31,6 +31,9 @@ export function useAutoCalculate() {
       mortgageExemption: s.mortgageExemption,
       baseHousePrice: s.baseHousePrice,
       houseAnnualPriceIncrease: s.houseAnnualPriceIncrease,
+      includeStatePension: s.includeStatePension,
+      statePensionAge: s.statePensionAge,
+      statePensionWeeklyAmount: s.statePensionWeeklyAmount,
     })),
   );
 
@@ -39,16 +42,15 @@ export function useAutoCalculate() {
   useEffect(() => {
     let mounted = true;
 
-    const execute = () => {
+    const execute = async () => {
       if (!mounted) return;
-      const { calculate, setIsCalculating } = useProjectionStore.getState();
-      calculate();
-      if (mounted) setIsCalculating(false);
+      const { calculate } = useProjectionStore.getState();
+      await calculate();
     };
 
     const schedule = () => {
       if ('requestIdleCallback' in window) {
-        requestIdleCallback(execute, { timeout: 500 });
+        requestIdleCallback(() => { execute(); }, { timeout: 500 });
       } else {
         execute();
       }

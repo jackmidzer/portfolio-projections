@@ -229,7 +229,7 @@ function AccountCard({ account, onChange, errors = {} }: {
               checked={account.bonusContributionPercent === 'age-bracket'}
               onCheckedChange={(checked) => handleChange('bonusContributionPercent', checked ? 'age-bracket' : '0')}
             />
-            <span className="text-xs text-muted-foreground">Use age brackets</span>
+            <span className="text-xs text-muted-foreground">Max bonus pension contribution?</span>
           </div>
         </FormField>
       ) : (

@@ -1,7 +1,14 @@
 import { lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, CalendarClock, Table2, Receipt, HelpCircle } from 'lucide-react';
+import { BarChart3, CalendarClock, Table2, Receipt, HelpCircle, Download, FileSpreadsheet, Printer, Image } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SummaryCards } from './SummaryCards';
 import { HouseDepositCard } from './HouseDepositCard';
 import { MilestoneTimeline } from './MilestoneTimeline';
@@ -10,7 +17,10 @@ import { ProjectionTable } from './ProjectionTable';
 import { TaxBreakdown } from './TaxBreakdown';
 import { FAQGuide } from './FAQGuide';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorFallback } from '@/components/ErrorFallback';
 import { useProjectionStore } from '@/store/useProjectionStore';
+import { exportProjectionCsv, exportPdf, exportChartPng } from '@/utils/exportCsv';
 
 const ProjectionChart = lazy(() => import('./ProjectionChart').then(m => ({ default: m.ProjectionChart })));
 
@@ -75,6 +85,31 @@ export function DashboardContent() {
     >
       {/* Summary Cards – always visible */}
       <motion.div variants={fadeInUp}>
+        <div className="flex items-center justify-between mb-4">
+          <div />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="print:hidden">
+                <Download className="h-4 w-4 mr-1.5" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportProjectionCsv(results.accountResults)}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Download CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPdf}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print / PDF Report
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportChartPng('[data-chart-container]')}>
+                <Image className="h-4 w-4 mr-2" />
+                Export Chart as PNG
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <SummaryCards results={results} />
       </motion.div>
 
@@ -125,20 +160,22 @@ export function DashboardContent() {
 
           {/* Charts Tab */}
           <TabsContent value="charts" className="mt-4">
-            <Suspense fallback={<Skeleton className="h-96 w-full rounded-lg" />}>
-              <ProjectionChart
-                results={results}
-                currentAge={numCurrentAge}
-                enableHouseWithdrawal={enableHouseWithdrawal}
-                houseWithdrawalAge={eventProps.houseWithdrawalAge}
-                enablePensionLumpSum={enablePensionLumpSum}
-                pensionLumpSumAge={eventProps.pensionLumpSumAge}
-                includeStatePension={includeStatePension}
-                statePensionAge={eventProps.statePensionAge}
-                etfAllocationPercent={etfAllocationPercent}
-                accounts={accounts}
-              />
-            </Suspense>
+            <ErrorBoundary fallback={(props) => <ErrorFallback {...props} compact />}>
+              <Suspense fallback={<Skeleton className="h-96 w-full rounded-lg" />}>
+                <ProjectionChart
+                  results={results}
+                  currentAge={numCurrentAge}
+                  enableHouseWithdrawal={enableHouseWithdrawal}
+                  houseWithdrawalAge={eventProps.houseWithdrawalAge}
+                  enablePensionLumpSum={enablePensionLumpSum}
+                  pensionLumpSumAge={eventProps.pensionLumpSumAge}
+                  includeStatePension={includeStatePension}
+                  statePensionAge={eventProps.statePensionAge}
+                  etfAllocationPercent={etfAllocationPercent}
+                  accounts={accounts}
+                />
+              </Suspense>
+            </ErrorBoundary>
           </TabsContent>
 
           {/* Data Tab */}

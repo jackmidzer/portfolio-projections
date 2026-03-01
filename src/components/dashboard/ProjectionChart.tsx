@@ -160,7 +160,7 @@ export function ProjectionChart({
       : annualFlowsData;
 
   return (
-    <Card>
+    <Card data-chart-container>
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">Growth Over Time</CardTitle>

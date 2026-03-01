@@ -255,18 +255,6 @@ export function useChartData(results: PortfolioResults) {
           pointHitRadius: 8,
           borderWidth: 2,
         },
-        {
-          label: 'State Pension',
-          data: combined.map((d) => d.statePensionIncome),
-          borderColor: getAccountColor('Savings'),
-          backgroundColor: getAccountColor('Savings', 0.15),
-          fill: false,
-          tension: 0.3,
-          pointRadius: 0,
-          pointHitRadius: 8,
-          borderWidth: 2,
-          borderDash: [5, 3],
-        },
       ],
     };
   }, [combined, ages, themeKey]);

@@ -19,6 +19,10 @@ export interface ValidatableInputs {
   houseWithdrawalAge: number | '';
   houseDepositFromBrokerageRate: number | '';
   accounts: AccountInput[];
+  // State Pension
+  includeStatePension?: boolean;
+  statePensionAge?: number | '';
+  statePensionWeeklyAmount?: number | '';
 }
 
 function getAgeFromDOB(dob: string): number | null {
@@ -77,11 +81,15 @@ export function validateInputs(inputs: ValidatableInputs): Record<string, string
     errors.fireAge = 'FIRE age is required';
   } else if (currentAge !== null && inputs.fireAge <= currentAge) {
     errors.fireAge = `Must be greater than your current age (${currentAge})`;
+  } else if (inputs.fireAge < 18 || inputs.fireAge > 100) {
+    errors.fireAge = 'FIRE age must be between 18 and 100';
   }
 
   // ─── Pension Drawdown Age ─────────────────────────────────────────
   if (inputs.pensionAge === '') {
     errors.pensionAge = 'Pension drawdown age is required';
+  } else if (inputs.pensionAge < 18 || inputs.pensionAge > 100) {
+    errors.pensionAge = 'Pension age must be between 18 and 100';
   } else if (inputs.fireAge !== '' && inputs.pensionAge < inputs.fireAge) {
     errors.pensionAge = `Must be ≥ FIRE age (${inputs.fireAge})`;
   }
@@ -112,6 +120,9 @@ export function validateInputs(inputs: ValidatableInputs): Record<string, string
     }
     if (inputs.pensionLumpSumMaxAmount === '' || inputs.pensionLumpSumMaxAmount <= 0) {
       errors.pensionLumpSumMaxAmount = 'Max lump sum must be greater than 0';
+    }
+    if (inputs.lumpSumToBrokerageRate !== '' && (inputs.lumpSumToBrokerageRate < 0 || inputs.lumpSumToBrokerageRate > 100)) {
+      errors.lumpSumToBrokerageRate = 'Lump sum brokerage allocation must be between 0% and 100%';
     }
   }
 
