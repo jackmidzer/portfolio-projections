@@ -31,9 +31,13 @@ export function useAutoCalculate() {
       mortgageExemption: s.mortgageExemption,
       baseHousePrice: s.baseHousePrice,
       houseAnnualPriceIncrease: s.houseAnnualPriceIncrease,
+      mortgageInterestRate: s.mortgageInterestRate,
+      mortgageTerm: s.mortgageTerm,
       includeStatePension: s.includeStatePension,
       statePensionAge: s.statePensionAge,
       statePensionWeeklyAmount: s.statePensionWeeklyAmount,
+      careerBreaks: s.careerBreaks,
+      inflationRate: s.inflationRate,
     })),
   );
 

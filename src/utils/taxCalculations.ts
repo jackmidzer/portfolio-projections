@@ -122,7 +122,7 @@ function calculateUSCWithDetails(
 }
 
 /**
- * Calculate PAYE tax based on taxable income (single filer)
+ * Calculate PAYE tax based on taxable income
  */
 export function calculatePayeTax(taxableIncome: number): number {
   const taxBands = getTaxBands();
@@ -416,15 +416,25 @@ export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPha
 /**
  * Calculate Capital Gains Tax (CGT) on brokerage withdrawals
  * CGT is only applied to the capital gain portion (withdrawal * gainRatio), not the full withdrawal.
+ * Applies the annual €1,270 CGT exemption before taxing.
  * @param withdrawal - gross withdrawal amount
  * @param gainRatio - proportion of the withdrawal that is capital gain (0–1); defaults to 1 for backward compatibility
+ * @param remainingExemption - remaining annual CGT exemption available (defaults to 0 for backward compat)
+ * @returns result including exemption used so callers can track the running total
  */
-export function calculateBrokerageCapitalGainsTax(withdrawal: number, gainRatio: number = 1): {
+export function calculateBrokerageCapitalGainsTax(
+  withdrawal: number,
+  gainRatio: number = 1,
+  remainingExemption: number = 0,
+): {
   grossWithdrawal: number;
   cgt: number;
   netWithdrawal: number;
+  exemptionUsed: number;
 } {
-  const taxableGain = withdrawal * Math.max(0, Math.min(1, gainRatio));
+  const totalGain = withdrawal * Math.max(0, Math.min(1, gainRatio));
+  const exemptionUsed = Math.min(remainingExemption, totalGain);
+  const taxableGain = Math.max(0, totalGain - exemptionUsed);
   const cgt = taxableGain * CGT_RATE;
   const netWithdrawal = withdrawal - cgt;
 
@@ -432,6 +442,7 @@ export function calculateBrokerageCapitalGainsTax(withdrawal: number, gainRatio:
     grossWithdrawal: withdrawal,
     cgt,
     netWithdrawal,
+    exemptionUsed,
   };
 }
 
@@ -466,25 +477,27 @@ export function calculateExitTax(amount: number, gainRatio: number = 1): {
  * @param stockBalance - current stock sub-balance
  * @param etfGainRatio - proportion of ETF sub-balance that is gain (0–1)
  * @param stockGainRatio - proportion of stock sub-balance that is gain (0–1)
+ * @param remainingCgtExemption - remaining annual CGT exemption (applied to stock portion only)
  */
-export function calculateBrokerageWithdrawalTax(withdrawal: number, etfBalance: number, stockBalance: number, etfGainRatio: number, stockGainRatio: number): {
+export function calculateBrokerageWithdrawalTax(withdrawal: number, etfBalance: number, stockBalance: number, etfGainRatio: number, stockGainRatio: number, remainingCgtExemption: number = 0): {
   etfWithdrawal: number;
   stockWithdrawal: number;
   etfExitTax: number;
   stockCgt: number;
   totalTax: number;
   netWithdrawal: number;
+  cgtExemptionUsed: number;
 } {
   const totalBalance = etfBalance + stockBalance;
   if (totalBalance <= 0 || withdrawal <= 0) {
-    return { etfWithdrawal: 0, stockWithdrawal: 0, etfExitTax: 0, stockCgt: 0, totalTax: 0, netWithdrawal: withdrawal };
+    return { etfWithdrawal: 0, stockWithdrawal: 0, etfExitTax: 0, stockCgt: 0, totalTax: 0, netWithdrawal: withdrawal, cgtExemptionUsed: 0 };
   }
 
   const etfPortion = withdrawal * (etfBalance / totalBalance);
   const stockPortion = withdrawal * (stockBalance / totalBalance);
 
   const etfResult = calculateExitTax(etfPortion, etfGainRatio);
-  const stockResult = calculateBrokerageCapitalGainsTax(stockPortion, stockGainRatio);
+  const stockResult = calculateBrokerageCapitalGainsTax(stockPortion, stockGainRatio, remainingCgtExemption);
 
   const totalTax = etfResult.exitTax + stockResult.cgt;
 
@@ -495,6 +508,7 @@ export function calculateBrokerageWithdrawalTax(withdrawal: number, etfBalance: 
     stockCgt: stockResult.cgt,
     totalTax,
     netWithdrawal: withdrawal - totalTax,
+    cgtExemptionUsed: stockResult.exemptionUsed,
   };
 }
 

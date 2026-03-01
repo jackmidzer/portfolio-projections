@@ -1,4 +1,4 @@
-import type { AccountInput } from '@/types';
+import type { AccountInput, CareerBreak } from '@/types';
 
 // Mirrors the FormInputs fields needed for validation
 export interface ValidatableInputs {
@@ -23,6 +23,8 @@ export interface ValidatableInputs {
   includeStatePension?: boolean;
   statePensionAge?: number | '';
   statePensionWeeklyAmount?: number | '';
+  // Career Breaks
+  careerBreaks?: CareerBreak[];
 }
 
 function getAgeFromDOB(dob: string): number | null {
@@ -156,6 +158,35 @@ export function validateInputs(inputs: ValidatableInputs): Record<string, string
       }
     }
   });
+
+  // ─── Career Breaks ────────────────────────────────────────────────
+  if (inputs.careerBreaks && inputs.careerBreaks.length > 0) {
+    const targetAge = typeof inputs.targetAge === 'number' ? inputs.targetAge : 150;
+
+    inputs.careerBreaks.forEach((cb, index) => {
+      if (cb.fromAge >= cb.toAge) {
+        errors[`careerBreaks.${index}.fromAge`] = 'Start age must be less than end age';
+      }
+      if (currentAge !== null && cb.fromAge < currentAge) {
+        errors[`careerBreaks.${index}.fromAge`] = `Must be ≥ current age (${currentAge})`;
+      }
+      if (cb.toAge > targetAge) {
+        errors[`careerBreaks.${index}.toAge`] = `Must be ≤ target age (${targetAge})`;
+      }
+      if (cb.salaryPercent < 0 || cb.salaryPercent > 100) {
+        errors[`careerBreaks.${index}.salaryPercent`] = 'Salary % must be 0–100';
+      }
+
+      // Check overlap with other breaks
+      for (let j = index + 1; j < inputs.careerBreaks!.length; j++) {
+        const other = inputs.careerBreaks![j];
+        if (cb.fromAge < other.toAge && other.fromAge < cb.toAge) {
+          errors[`careerBreaks.${index}.overlap`] = 'Career break periods must not overlap';
+          break;
+        }
+      }
+    });
+  }
 
   return errors;
 }

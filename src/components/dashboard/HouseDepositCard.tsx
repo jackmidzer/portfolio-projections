@@ -22,6 +22,11 @@ export function HouseDepositCard({ age, houseMetrics, mortgageExemption = true }
     { label: 'Loan-to-Value', value: `${houseMetrics.loanToValuePercent.toFixed(1)}%` },
   ];
 
+  const mortgageItems = houseMetrics.monthlyMortgagePayment != null ? [
+    { label: 'Monthly Repayment', value: formatCurrency(houseMetrics.monthlyMortgagePayment) },
+    { label: 'Total Interest Paid', value: formatCurrency(houseMetrics.totalMortgageInterest ?? 0) },
+  ] : [];
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -39,6 +44,17 @@ export function HouseDepositCard({ age, houseMetrics, mortgageExemption = true }
             </div>
           ))}
         </div>
+
+        {mortgageItems.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {mortgageItems.map(({ label, value }) => (
+              <div key={label} className="space-y-1">
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="text-sm font-semibold tabular-nums">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="rounded-md bg-muted/50 p-3">
           <p className="text-xs text-muted-foreground">

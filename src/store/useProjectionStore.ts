@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AccountInput as AccountInputType, PortfolioResults, TaxCalculationResult, HouseDepositCalculation } from '@/types';
+import { AccountInput as AccountInputType, PortfolioResults, TaxCalculationResult, HouseDepositCalculation, CareerBreak } from '@/types';
 import { calculateNetSalary, calculateBonusTaxBurden } from '@/utils/taxCalculations';
 import { calculateHouseMetrics } from '@/utils/houseCalculations';
 import { validateInputs } from '@/utils/validation';
@@ -26,6 +26,7 @@ export interface FormInputs {
   // Personal
   dateOfBirth: string;
   targetAge: number | '';
+  inflationRate: number | '';
 
   // Income
   currentSalary: number | '';
@@ -53,20 +54,36 @@ export interface FormInputs {
   mortgageExemption: boolean;
   baseHousePrice: number;
   houseAnnualPriceIncrease: number;
+  mortgageInterestRate: number;
+  mortgageTerm: number;
 
   // State Pension
   includeStatePension: boolean;
   statePensionAge: number | '';
   statePensionWeeklyAmount: number | '';
+
+  // Career Breaks
+  careerBreaks: CareerBreak[];
 }
 
 // ─── UI State Slice ──────────────────────────────────────────────────
+
+/** A saved scenario snapshot */
+export interface SavedScenario {
+  id: string;
+  label: string;
+  inputs: FormInputs;
+  results: PortfolioResults | null;
+}
 
 interface UIState {
   expandedSections: string[];
   showAdvancedOptions: boolean;
   isCalculating: boolean;
   validationErrors: Record<string, string>;
+  showRealValues: boolean;
+  scenarios: SavedScenario[];
+  visibleScenarioIds: string[];
 }
 
 // ─── Results Slice ───────────────────────────────────────────────────
@@ -90,6 +107,14 @@ interface ProjectionStore extends FormInputs, UIState, ResultsState {
   toggleSection: (section: string) => void;
   setShowAdvancedOptions: (show: boolean) => void;
   setIsCalculating: (value: boolean) => void;
+  toggleRealValues: () => void;
+
+  // Scenario actions
+  saveScenario: (label: string) => void;
+  loadScenario: (id: string) => void;
+  deleteScenario: (id: string) => void;
+  duplicateScenario: (id: string) => void;
+  toggleScenarioVisibility: (id: string) => void;
 
   // Calculation actions
   calculate: () => Promise<{ errors: string[] }>;
@@ -104,6 +129,7 @@ interface ProjectionStore extends FormInputs, UIState, ResultsState {
 const defaultFormInputs: FormInputs = {
   dateOfBirth: '1997-10-03',
   targetAge: 75,
+  inflationRate: 2.5,
   currentSalary: 70000,
   annualSalaryIncrease: 3,
   bonusPercent: 15,
@@ -152,11 +178,16 @@ const defaultFormInputs: FormInputs = {
   mortgageExemption: true,
   baseHousePrice: 387000,
   houseAnnualPriceIncrease: 7,
+  mortgageInterestRate: 4.0,
+  mortgageTerm: 30,
 
   // State Pension
   includeStatePension: true,
   statePensionAge: 66,
   statePensionWeeklyAmount: 299.30,
+
+  // Career Breaks
+  careerBreaks: [],
 };
 
 // ─── Helper Functions ────────────────────────────────────────────────
@@ -212,6 +243,9 @@ export const useProjectionStore = create<ProjectionStore>()(
   showAdvancedOptions: false,
   isCalculating: false,
   validationErrors: {},
+  showRealValues: false,
+  scenarios: [],
+  visibleScenarioIds: [],
 
   // Default results
   results: null,
@@ -254,6 +288,79 @@ export const useProjectionStore = create<ProjectionStore>()(
   }),
   setShowAdvancedOptions: (show) => set({ showAdvancedOptions: show }),
   setIsCalculating: (value) => set({ isCalculating: value }),
+  toggleRealValues: () => set((state) => ({ showRealValues: !state.showRealValues })),
+
+  // ─── Scenario Actions ──────────────────────────────────────────
+  saveScenario: (label) => set((state) => {
+    const id = crypto.randomUUID();
+    // Extract current FormInputs
+    const inputs: FormInputs = {
+      dateOfBirth: state.dateOfBirth,
+      targetAge: state.targetAge,
+      inflationRate: state.inflationRate,
+      currentSalary: state.currentSalary,
+      annualSalaryIncrease: state.annualSalaryIncrease,
+      bonusPercent: state.bonusPercent,
+      taxBikValue: state.taxBikValue,
+      accounts: JSON.parse(JSON.stringify(state.accounts)),
+      pensionAge: state.pensionAge,
+      fireAge: state.fireAge,
+      withdrawalRate: state.withdrawalRate,
+      salaryReplacementRate: state.salaryReplacementRate,
+      enablePensionLumpSum: state.enablePensionLumpSum,
+      pensionLumpSumAge: state.pensionLumpSumAge,
+      pensionLumpSumMaxAmount: state.pensionLumpSumMaxAmount,
+      lumpSumToBrokerageRate: state.lumpSumToBrokerageRate,
+      enableHouseWithdrawal: state.enableHouseWithdrawal,
+      houseWithdrawalAge: state.houseWithdrawalAge,
+      houseDepositFromBrokerageRate: state.houseDepositFromBrokerageRate,
+      mortgageExemption: state.mortgageExemption,
+      baseHousePrice: state.baseHousePrice,
+      houseAnnualPriceIncrease: state.houseAnnualPriceIncrease,
+      mortgageInterestRate: state.mortgageInterestRate,
+      mortgageTerm: state.mortgageTerm,
+      includeStatePension: state.includeStatePension,
+      statePensionAge: state.statePensionAge,
+      statePensionWeeklyAmount: state.statePensionWeeklyAmount,
+      careerBreaks: JSON.parse(JSON.stringify(state.careerBreaks)),
+    };
+    const scenario: SavedScenario = { id, label, inputs, results: state.results };
+    return { scenarios: [...state.scenarios, scenario] };
+  }),
+
+  loadScenario: (id) => {
+    const state = get();
+    const scenario = state.scenarios.find((s) => s.id === id);
+    if (!scenario) return;
+    set({
+      ...scenario.inputs,
+      results: scenario.results,
+    });
+  },
+
+  deleteScenario: (id) => set((state) => ({
+    scenarios: state.scenarios.filter((s) => s.id !== id),
+    visibleScenarioIds: state.visibleScenarioIds.filter((sid) => sid !== id),
+  })),
+
+  duplicateScenario: (id) => set((state) => {
+    const orig = state.scenarios.find((s) => s.id === id);
+    if (!orig) return {};
+    const newId = crypto.randomUUID();
+    const copy: SavedScenario = {
+      id: newId,
+      label: `${orig.label} (copy)`,
+      inputs: JSON.parse(JSON.stringify(orig.inputs)),
+      results: orig.results,
+    };
+    return { scenarios: [...state.scenarios, copy] };
+  }),
+
+  toggleScenarioVisibility: (id) => set((state) => ({
+    visibleScenarioIds: state.visibleScenarioIds.includes(id)
+      ? state.visibleScenarioIds.filter((sid) => sid !== id)
+      : [...state.visibleScenarioIds, id],
+  })),
 
   // ─── Computed Helpers ──────────────────────────────────────────
   getCurrentAge: () => {
@@ -285,7 +392,9 @@ export const useProjectionStore = create<ProjectionStore>()(
       projectedBonus,
       state.baseHousePrice,
       state.houseAnnualPriceIncrease,
-      state.mortgageExemption
+      state.mortgageExemption,
+      state.mortgageInterestRate,
+      state.mortgageTerm,
     );
   },
 
@@ -363,6 +472,7 @@ export const useProjectionStore = create<ProjectionStore>()(
       includeStatePension: state.includeStatePension,
       statePensionAge: typeof state.statePensionAge === 'number' ? state.statePensionAge : 66,
       statePensionWeeklyAmount: typeof state.statePensionWeeklyAmount === 'number' ? state.statePensionWeeklyAmount : 299.30,
+      careerBreaks: state.careerBreaks,
     };
 
     try {
@@ -440,9 +550,14 @@ export const useProjectionStore = create<ProjectionStore>()(
         mortgageExemption: state.mortgageExemption,
         baseHousePrice: state.baseHousePrice,
         houseAnnualPriceIncrease: state.houseAnnualPriceIncrease,
+        mortgageInterestRate: state.mortgageInterestRate,
+        mortgageTerm: state.mortgageTerm,
         includeStatePension: state.includeStatePension,
         statePensionAge: state.statePensionAge,
         statePensionWeeklyAmount: state.statePensionWeeklyAmount,
+        careerBreaks: state.careerBreaks,
+        inflationRate: state.inflationRate,
+        scenarios: state.scenarios,
       }) as any,
     },
   ),

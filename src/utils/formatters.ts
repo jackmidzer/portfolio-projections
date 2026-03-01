@@ -1,4 +1,13 @@
 /**
+ * Deflate a nominal amount to present-value terms.
+ * Returns `amount / (1 + inflationRate/100)^years`.
+ */
+export function deflate(amount: number, years: number, inflationRate: number): number {
+  if (years <= 0 || inflationRate === 0) return amount;
+  return amount / Math.pow(1 + inflationRate / 100, years);
+}
+
+/**
  * Format a number as currency (EUR)
  */
 export function formatCurrency(value: number): string {

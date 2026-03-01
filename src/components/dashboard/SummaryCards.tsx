@@ -2,11 +2,14 @@ import { TrendingUp, PiggyBank, Landmark, Wallet, Briefcase } from 'lucide-react
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PortfolioResults } from '@/types';
-import { formatCurrency } from '@/utils/formatters';
+import { formatCurrency, deflate } from '@/utils/formatters';
 import { toBadgeVariant } from '@/utils/badgeVariant';
 
 interface SummaryCardsProps {
   results: PortfolioResults;
+  showRealValues?: boolean;
+  inflationRate?: number;
+  currentAge?: number;
 }
 
 const stats = [
@@ -17,7 +20,7 @@ const stats = [
   { key: 'salary', label: 'Final Salary', icon: Briefcase },
 ] as const;
 
-export function SummaryCards({ results }: SummaryCardsProps) {
+export function SummaryCards({ results, showRealValues, inflationRate = 2.5, currentAge = 28 }: SummaryCardsProps) {
   const initialBalance = results.accountResults.reduce(
     (sum, r) => sum + r.yearlyData[0].startingBalance, 0
   );
@@ -25,18 +28,27 @@ export function SummaryCards({ results }: SummaryCardsProps) {
   const startAge = results.accountResults[0]?.yearlyData[0]?.age;
   const endAge = results.accountResults[0]?.yearlyData.slice(-1)[0]?.age;
 
+  // Deflation helper – deflates to present value if showRealValues is on
+  const yearsToEnd = endAge != null ? endAge - currentAge : 0;
+  const adj = (value: number, years?: number) =>
+    showRealValues ? deflate(value, years ?? yearsToEnd, inflationRate) : value;
+
   const values: Record<string, number> = {
     initial: initialBalance,
-    contributions: results.totalContributions,
-    interest: results.totalInterest,
-    final: results.totalFinalBalance,
-    salary: results.finalSalary,
+    contributions: adj(results.totalContributions),
+    interest: adj(results.totalInterest),
+    final: adj(results.totalFinalBalance),
+    salary: adj(results.finalSalary),
   };
+
+  const subtitle = showRealValues ? '(Real €)' : '(Nominal €)';
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Overall Summary</h2>
+        <h2 className="text-lg font-semibold">
+          Overall Summary <span className="text-sm font-normal text-muted-foreground">{subtitle}</span>
+        </h2>
         {startAge && endAge && (
           <span className="text-sm text-muted-foreground">
             Age {startAge} → {endAge}
@@ -73,15 +85,15 @@ export function SummaryCards({ results }: SummaryCardsProps) {
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Balance</span>
-                    <span className="font-medium tabular-nums">{formatCurrency(result.finalBalance)}</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(adj(result.finalBalance))}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Contributed</span>
-                    <span className="font-medium tabular-nums">{formatCurrency(result.totalContributions)}</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(adj(result.totalContributions))}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Interest</span>
-                    <span className="font-medium tabular-nums">{formatCurrency(result.totalInterest)}</span>
+                    <span className="font-medium tabular-nums">{formatCurrency(adj(result.totalInterest))}</span>
                   </div>
                 </div>
               </CardContent>

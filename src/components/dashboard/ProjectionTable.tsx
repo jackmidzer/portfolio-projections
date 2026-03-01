@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PortfolioResults, AccountType, YearlyBreakdown, MonthlyBreakdown, AccountInput } from '@/types';
-import { formatCurrency } from '@/utils/formatters';
+import { formatCurrency, deflate } from '@/utils/formatters';
 import {
   isBridgingPhase,
   isDrawdownPhase,
@@ -31,6 +31,8 @@ interface ProjectionTableProps {
   statePensionAge?: number;
   statePensionWeeklyAmount?: number;
   withdrawalRate?: number;
+  showRealValues?: boolean;
+  inflationRate?: number;
 }
 
 export function ProjectionTable({
@@ -47,6 +49,8 @@ export function ProjectionTable({
   statePensionAge,
   statePensionWeeklyAmount,
   withdrawalRate,
+  showRealValues,
+  inflationRate = 2.5,
 }: ProjectionTableProps) {
   const [selectedAccount, setSelectedAccount] = useState<AccountType | 'All'>('All');
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
@@ -107,6 +111,15 @@ export function ProjectionTable({
     return accountResult?.yearlyData.map((row, index) => ({ ...row, year: index })) || [];
   }, [selectedAccount, results, accountResult]);
 
+  // For real-value mode, deflate amounts relative to first year
+  const baseAge = combinedData[0]?.age ?? currentAge ?? 28;
+  const fmt = (value: number, age: number) => {
+    if (showRealValues) {
+      return formatCurrency(deflate(value, age - baseAge, inflationRate));
+    }
+    return formatCurrency(value);
+  };
+
   const toggleExpanded = (year: number) => {
     setExpandedYear(expandedYear === year ? null : year);
   };
@@ -115,7 +128,12 @@ export function ProjectionTable({
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Year-by-Year Projections</CardTitle>
+          <CardTitle className="text-base">
+            Year-by-Year Projections{' '}
+            <span className="text-sm font-normal text-muted-foreground">
+              {showRealValues ? '(Real €)' : '(Nominal €)'}
+            </span>
+          </CardTitle>
           <select
             value={selectedAccount}
             onChange={(e) => setSelectedAccount(e.target.value as AccountType | 'All')}
@@ -189,14 +207,14 @@ export function ProjectionTable({
                           })}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-savings">{formatCurrency(annualIncome)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(annualTax)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-teal-600 dark:text-teal-400">{formatCurrency(annualNetIncome)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatCurrency(row.startingBalance)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-red-500">{formatCurrency(annualWithdrawals)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(annualContributions)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-violet-600 dark:text-violet-400">{formatCurrency(annualInterest)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatCurrency(row.endingBalance)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-savings">{fmt(annualIncome, row.age)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-amber-600 dark:text-amber-400">{fmt(annualTax, row.age)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-teal-600 dark:text-teal-400">{fmt(annualNetIncome, row.age)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{fmt(row.startingBalance, row.age)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-red-500">{fmt(annualWithdrawals, row.age)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{fmt(annualContributions, row.age)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-violet-600 dark:text-violet-400">{fmt(annualInterest, row.age)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold">{fmt(row.endingBalance, row.age)}</td>
                     </tr>
 
                     {isExpanded && (
@@ -256,7 +274,7 @@ export function ProjectionTable({
                     })}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold tabular-nums">{formatCurrency(row.endingBalance)}</span>
+                    <span className="text-sm font-bold tabular-nums">{fmt(row.endingBalance, row.age)}</span>
                     <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', isExpanded && 'rotate-180')} />
                   </div>
                 </button>
@@ -265,12 +283,12 @@ export function ProjectionTable({
                   {isExpanded && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs border-t border-border pt-3">
-                        <div><span className="text-muted-foreground">Income</span><p className="font-medium tabular-nums">{formatCurrency(annualIncome)}</p></div>
-                        <div><span className="text-muted-foreground">Tax</span><p className="font-medium tabular-nums">{formatCurrency(annualTax)}</p></div>
-                        <div><span className="text-muted-foreground">Net Income</span><p className="font-medium tabular-nums">{formatCurrency(annualNetIncome)}</p></div>
-                        <div><span className="text-muted-foreground">Contributions</span><p className="font-medium tabular-nums">{formatCurrency(annualContributions)}</p></div>
-                        <div><span className="text-muted-foreground">Interest</span><p className="font-medium tabular-nums">{formatCurrency(annualInterest)}</p></div>
-                        <div><span className="text-muted-foreground">Starting</span><p className="font-medium tabular-nums">{formatCurrency(row.startingBalance)}</p></div>
+                        <div><span className="text-muted-foreground">Income</span><p className="font-medium tabular-nums">{fmt(annualIncome, row.age)}</p></div>
+                        <div><span className="text-muted-foreground">Tax</span><p className="font-medium tabular-nums">{fmt(annualTax, row.age)}</p></div>
+                        <div><span className="text-muted-foreground">Net Income</span><p className="font-medium tabular-nums">{fmt(annualNetIncome, row.age)}</p></div>
+                        <div><span className="text-muted-foreground">Contributions</span><p className="font-medium tabular-nums">{fmt(annualContributions, row.age)}</p></div>
+                        <div><span className="text-muted-foreground">Interest</span><p className="font-medium tabular-nums">{fmt(annualInterest, row.age)}</p></div>
+                        <div><span className="text-muted-foreground">Starting</span><p className="font-medium tabular-nums">{fmt(row.startingBalance, row.age)}</p></div>
                       </div>
                     </motion.div>
                   )}

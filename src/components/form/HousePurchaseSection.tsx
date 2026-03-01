@@ -13,6 +13,8 @@ export function HousePurchaseSection() {
   const mortgageExemption = useProjectionStore(s => s.mortgageExemption);
   const baseHousePrice = useProjectionStore(s => s.baseHousePrice);
   const houseAnnualPriceIncrease = useProjectionStore(s => s.houseAnnualPriceIncrease);
+  const mortgageInterestRate = useProjectionStore(s => s.mortgageInterestRate);
+  const mortgageTerm = useProjectionStore(s => s.mortgageTerm);
   const updateField = useProjectionStore(s => s.updateField);
   const validationErrors = useProjectionStore(s => s.validationErrors);
 
@@ -62,6 +64,30 @@ export function HousePurchaseSection() {
                   max={20}
                   step={0.1}
                   placeholder="7"
+                />
+
+                <NumberField
+                  label="Mortgage Interest Rate"
+                  id="mortgageInterestRate"
+                  value={mortgageInterestRate}
+                  onChange={(v) => updateField('mortgageInterestRate', v === '' ? 0 : Math.min(15, Math.max(0, v)))}
+                  suffix="%"
+                  min={0}
+                  max={15}
+                  step={0.1}
+                  placeholder="4.0"
+                />
+
+                <NumberField
+                  label="Mortgage Term"
+                  id="mortgageTerm"
+                  value={mortgageTerm}
+                  onChange={(v) => updateField('mortgageTerm', v === '' ? 0 : Math.min(40, Math.max(1, typeof v === 'number' ? v : 30)))}
+                  suffix="yrs"
+                  min={1}
+                  max={40}
+                  step={1}
+                  placeholder="30"
                 />
 
                 <div className="flex items-center justify-between">

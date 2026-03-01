@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import type { AccountType, AccountInput, PortfolioResults } from '@/types';
+import { type SavedScenario } from '@/store/useProjectionStore';
 import {
   useChartData,
   PortfolioGrowthChart,
@@ -14,6 +15,8 @@ import {
 } from './charts';
 import { AgeRangeSlider } from './charts/AgeRangeSlider';
 import { buildEventAnnotations } from './charts/chartAnnotations';
+import { combineYearlyData } from '@/utils/calculations';
+import { deflate } from '@/utils/formatters';
 // Ensure Chart.js registrations run
 import './charts/chartConfig';
 
@@ -22,9 +25,9 @@ type AccountFilter = 'all' | AccountType;
 
 const TAB_LABELS: Record<ChartTab, string> = {
   growth: 'Portfolio Growth',
+  income: 'Income',
   deposits: 'Deposits vs Growth',
   flows: 'Annual Flows',
-  income: 'Income',
 };
 
 interface ProjectionChartProps {
@@ -38,6 +41,9 @@ interface ProjectionChartProps {
   statePensionAge?: number;
   etfAllocationPercent?: number;
   accounts?: AccountInput[];
+  showRealValues?: boolean;
+  inflationRate?: number;
+  visibleScenarios?: SavedScenario[];
 }
 
 const fadeVariants = {
@@ -57,6 +63,9 @@ export function ProjectionChart({
   statePensionAge,
   etfAllocationPercent,
   accounts,
+  showRealValues,
+  inflationRate = 2.5,
+  visibleScenarios = [],
 }: ProjectionChartProps) {
   const [activeTab, setActiveTab] = useState<ChartTab>('growth');
   const [depositsAccount, setDepositsAccount] = useState<AccountFilter>('all');
@@ -77,7 +86,7 @@ export function ProjectionChart({
     incomeTimelineData,
     perAccountContributionsGrowthData,
     perAccountAnnualFlowsData,
-  } = useChartData(results);
+  } = useChartData(results, { showRealValues, inflationRate, currentAge });
 
   const isFirstYearProRated = results.monthsUntilNextBirthday < 12;
 
@@ -91,6 +100,93 @@ export function ProjectionChart({
   const ages = useMemo(() => combined.map((d) => d.age), [combined]);
   const minAge = ages[0] ?? 0;
   const maxAge = ages[ages.length - 1] ?? 100;
+
+  // Build scenario overlay datasets for the portfolio growth chart
+  const SCENARIO_COLORS = [
+    'hsl(280, 60%, 55%)', // purple
+    'hsl(30, 80%, 55%)',  // orange
+    'hsl(340, 70%, 50%)', // pink
+    'hsl(190, 65%, 45%)', // cyan
+    'hsl(60, 70%, 45%)',  // yellow
+  ];
+
+  // Build scenario dataset entries shared across charts
+  const scenarioOverlayDatasets = useMemo(() =>
+    visibleScenarios.map((scenario, idx) => {
+      const scenResults = scenario.results!;
+      const scenCombined = combineYearlyData(scenResults.accountResults, scenResults.fireAge, scenResults.pensionAge);
+      const color = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
+      return { scenario, scenCombined, color, idx };
+    }),
+    [visibleScenarios, ages],
+  );
+
+  const portfolioGrowthWithScenarios = useMemo(() => {
+    if (scenarioOverlayDatasets.length === 0) return portfolioGrowthData;
+
+    const scenarioDatasets = scenarioOverlayDatasets.map(({ scenario, scenCombined, color, idx }) => {
+      const scenDataByAge = new Map(scenCombined.map(d => [d.age, d.Savings + d.Pension + d.Brokerage]));
+      const data = ages.map(age => {
+        const val = scenDataByAge.get(age) ?? null;
+        if (val === null) return null;
+        return showRealValues ? deflate(val, age - currentAge, inflationRate) : val;
+      });
+
+      return {
+        label: scenario.label,
+        data,
+        borderColor: color,
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 0,
+        pointHitRadius: 8,
+        borderDash: [6, 3],
+        borderWidth: 2,
+        order: 0,
+        stack: `scenario-${idx}`,
+        isScenarioOverlay: true,
+      } as any;
+    });
+
+    return {
+      ...portfolioGrowthData,
+      datasets: [...portfolioGrowthData.datasets, ...scenarioDatasets],
+    };
+  }, [portfolioGrowthData, scenarioOverlayDatasets, ages, showRealValues, inflationRate, currentAge]);
+
+  const incomeTimelineWithScenarios = useMemo(() => {
+    if (scenarioOverlayDatasets.length === 0) return incomeTimelineData;
+
+    const scenarioDatasets = scenarioOverlayDatasets.map(({ scenario, scenCombined, color }) => {
+      const scenDataByAge = new Map(scenCombined.map(d => [d.age, d.netIncome]));
+      const data = ages.map(age => {
+        const val = scenDataByAge.get(age) ?? null;
+        if (val === null) return null;
+        return showRealValues ? deflate(val, age - currentAge, inflationRate) : val;
+      });
+
+      return {
+        label: scenario.label,
+        data,
+        borderColor: color,
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 0,
+        pointHitRadius: 8,
+        borderDash: [6, 3],
+        borderWidth: 2,
+        order: 0,
+        isScenarioOverlay: true,
+      } as any;
+    });
+
+    return {
+      ...incomeTimelineData,
+      datasets: [...incomeTimelineData.datasets, ...scenarioDatasets],
+    };
+  }, [incomeTimelineData, scenarioOverlayDatasets, ages, showRealValues, inflationRate, currentAge]);
 
   const [ageRange, setAgeRange] = useState<[number, number]>([minAge, maxAge]);
 
@@ -215,7 +311,7 @@ export function ProjectionChart({
           {activeTab === 'growth' && (
             <motion.div key="growth" variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
               <PortfolioGrowthChart
-                data={portfolioGrowthData}
+                data={portfolioGrowthWithScenarios}
                 {...sharedProps}
               />
             </motion.div>
@@ -242,7 +338,7 @@ export function ProjectionChart({
           {activeTab === 'income' && (
             <motion.div key="income" variants={fadeVariants} initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
               <IncomeTimelineChart
-                data={incomeTimelineData}
+                data={incomeTimelineWithScenarios}
                 {...sharedProps}
               />
             </motion.div>

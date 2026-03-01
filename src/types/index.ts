@@ -1,5 +1,14 @@
 export type AccountType = 'Savings' | 'Pension' | 'Brokerage';
 
+/** A period of career break or part-time work */
+export interface CareerBreak {
+  id: string;
+  fromAge: number;
+  toAge: number;
+  /** 0 = full break, 50 = half-time, 100 = normal salary */
+  salaryPercent: number;
+}
+
 /**
  * Phase type for the financial lifecycle
  * - 'working': working phase - earning salary and making contributions
@@ -92,6 +101,8 @@ export interface HouseDepositCalculation {
   projectedMortgage: number; // maximum mortgage available (salary*4 + bonus*2)
   depositRequired: number; // deposit needed (house price - mortgage)
   loanToValuePercent: number; // LTV as percentage (mortgage / house price * 100)
+  monthlyMortgagePayment?: number; // monthly repayment (annuity formula)
+  totalMortgageInterest?: number; // total interest paid over mortgage term
 }
 
 /** Options object for calculateAccountGrowth */
@@ -124,6 +135,8 @@ export interface AccountGrowthOptions {
   includeStatePension?: boolean;
   statePensionAge?: number;
   statePensionWeeklyAmount?: number;
+  /** Career breaks / part-time periods */
+  careerBreaks?: CareerBreak[];
 }
 
 /** Options object for calculatePortfolioGrowth */
@@ -154,6 +167,8 @@ export interface PortfolioGrowthOptions {
   includeStatePension?: boolean;
   statePensionAge?: number;
   statePensionWeeklyAmount?: number;
+  /** Career breaks / part-time periods */
+  careerBreaks?: CareerBreak[];
 }
 
 export interface MilestoneSnapshot {

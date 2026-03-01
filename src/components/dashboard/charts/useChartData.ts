@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { ChartData } from 'chart.js';
 import type { AccountType, PortfolioResults } from '@/types';
 import { combineYearlyData } from '@/utils/calculations';
+import { deflate } from '@/utils/formatters';
 import {
   getAccountColor,
   getPrincipalColor,
@@ -10,11 +11,18 @@ import {
 import type { PhaseBandsOptions } from './phaseBandsPlugin';
 import { useThemeKey } from '@/hooks/useThemeKey';
 
+interface UseChartDataOptions {
+  showRealValues?: boolean;
+  inflationRate?: number;
+  currentAge?: number;
+}
+
 /**
  * Central hook that transforms PortfolioResults into memoised Chart.js datasets
  * for all four chart views, plus shared milestone annotations and phase config.
  */
-export function useChartData(results: PortfolioResults) {
+export function useChartData(results: PortfolioResults, options?: UseChartDataOptions) {
+  const { showRealValues = false, inflationRate = 2.5, currentAge = 28 } = options ?? {};
   // Re-compute colors when dark/light mode changes
   const themeKey = useThemeKey();
 
@@ -25,6 +33,10 @@ export function useChartData(results: PortfolioResults) {
   );
 
   const ages = useMemo(() => combined.map((d) => d.age), [combined]);
+
+  // Helper to optionally deflate a value
+  const adj = (value: number, age: number) =>
+    showRealValues ? deflate(value, age - currentAge, inflationRate) : value;
 
   // Phase bands config (shared by all charts)
   const phaseBands: PhaseBandsOptions = useMemo(
@@ -43,7 +55,7 @@ export function useChartData(results: PortfolioResults) {
       datasets: [
         {
           label: 'Savings',
-          data: combined.map((d) => d.Savings),
+          data: combined.map((d) => adj(d.Savings, d.age)),
           borderColor: getAccountColor('Savings'),
           backgroundColor: getAccountColor('Savings', 0.35),
           fill: true,
@@ -54,7 +66,7 @@ export function useChartData(results: PortfolioResults) {
         },
         {
           label: 'Pension',
-          data: combined.map((d) => d.Pension),
+          data: combined.map((d) => adj(d.Pension, d.age)),
           borderColor: getAccountColor('Pension'),
           backgroundColor: getAccountColor('Pension', 0.35),
           fill: true,
@@ -65,7 +77,7 @@ export function useChartData(results: PortfolioResults) {
         },
         {
           label: 'Brokerage',
-          data: combined.map((d) => d.Brokerage),
+          data: combined.map((d) => adj(d.Brokerage, d.age)),
           borderColor: getAccountColor('Brokerage'),
           backgroundColor: getAccountColor('Brokerage', 0.35),
           fill: true,
@@ -74,9 +86,24 @@ export function useChartData(results: PortfolioResults) {
           pointHitRadius: 8,
           order: 2,
         },
+        {
+          label: 'Total',
+          data: combined.map((d) => adj(d.Savings + d.Pension + d.Brokerage, d.age)),
+          borderColor: 'hsl(220, 14%, 45%)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderDash: [5, 3],
+          borderWidth: 2,
+          order: 0,
+          stack: 'total',
+          isTotalLine: true,
+        } as any,
       ],
     }),
-    [combined, ages, themeKey],
+    [combined, ages, themeKey, showRealValues, inflationRate, currentAge],
   );
 
   // ── 2. Contributions vs Growth (stacked area) ───────────────────────────────
@@ -86,7 +113,7 @@ export function useChartData(results: PortfolioResults) {
       datasets: [
         {
           label: 'Deposits (Principal)',
-          data: combined.map((d) => d.Principal),
+          data: combined.map((d) => adj(d.Principal, d.age)),
           borderColor: getPrincipalColor(),
           backgroundColor: getPrincipalColor(0.35),
           fill: true,
@@ -97,7 +124,7 @@ export function useChartData(results: PortfolioResults) {
         },
         {
           label: 'Growth (Interest)',
-          data: combined.map((d) => d.Interest),
+          data: combined.map((d) => adj(d.Interest, d.age)),
           borderColor: getInterestColor(),
           backgroundColor: getInterestColor(0.35),
           fill: true,
@@ -108,7 +135,7 @@ export function useChartData(results: PortfolioResults) {
         },
       ],
     }),
-    [combined, ages, themeKey],
+    [combined, ages, themeKey, showRealValues, inflationRate, currentAge],
   );
 
   // ── 3. Annual Flows (bar chart) ─────────────────────────────────────────────
@@ -118,7 +145,7 @@ export function useChartData(results: PortfolioResults) {
       datasets: [
         {
           label: 'Contributions',
-          data: combined.map((d) => d.yearContributions),
+          data: combined.map((d) => adj(d.yearContributions, d.age)),
           backgroundColor: getAccountColor('Pension', 0.7),
           borderColor: getAccountColor('Pension'),
           borderWidth: 1,
@@ -126,7 +153,7 @@ export function useChartData(results: PortfolioResults) {
         },
         {
           label: 'Interest Earned',
-          data: combined.map((d) => d.yearInterest),
+          data: combined.map((d) => adj(d.yearInterest, d.age)),
           backgroundColor: getInterestColor(0.7),
           borderColor: getInterestColor(),
           borderWidth: 1,
@@ -134,7 +161,7 @@ export function useChartData(results: PortfolioResults) {
         },
         {
           label: 'Withdrawals',
-          data: combined.map((d) => (d.yearWithdrawals > 0 ? -d.yearWithdrawals : 0)),
+          data: combined.map((d) => (d.yearWithdrawals > 0 ? -adj(d.yearWithdrawals, d.age) : 0)),
           backgroundColor: 'hsla(0, 72%, 51%, 0.6)',
           borderColor: 'hsl(0, 72%, 51%)',
           borderWidth: 1,
@@ -142,7 +169,7 @@ export function useChartData(results: PortfolioResults) {
         },
       ],
     }),
-    [combined, ages, themeKey],
+    [combined, ages, themeKey, showRealValues, inflationRate, currentAge],
   );
 
   // ── 3a. Deposits vs Growth — per-account view ─────────────────────────────
@@ -158,8 +185,8 @@ export function useChartData(results: PortfolioResults) {
         labels.push(yr.age);
         cumPrincipal += yr.contributions;
         cumInterest += yr.interestEarned;
-        principalData.push(cumPrincipal);
-        interestData.push(cumInterest);
+        principalData.push(adj(cumPrincipal, yr.age));
+        interestData.push(adj(cumInterest, yr.age));
       }
       map[acct.accountName] = {
         labels,
@@ -190,7 +217,7 @@ export function useChartData(results: PortfolioResults) {
       };
     }
     return map;
-  }, [results, themeKey]);
+  }, [results, themeKey, showRealValues, inflationRate, currentAge]);
 
   // ── 3b. Annual Flows — per-account view ────────────────────────────────────
   const perAccountAnnualFlowsData = useMemo(() => {
@@ -202,9 +229,9 @@ export function useChartData(results: PortfolioResults) {
       const withdrawalsData: number[] = [];
       for (const yr of acct.yearlyData) {
         labels.push(yr.age);
-        contributionsData.push(yr.contributions);
-        interestData.push(yr.interestEarned);
-        withdrawalsData.push(yr.withdrawal > 0 ? -yr.withdrawal : 0);
+        contributionsData.push(adj(yr.contributions, yr.age));
+        interestData.push(adj(yr.interestEarned, yr.age));
+        withdrawalsData.push(yr.withdrawal > 0 ? -adj(yr.withdrawal, yr.age) : 0);
       }
       map[acct.accountName] = {
         labels,
@@ -237,7 +264,7 @@ export function useChartData(results: PortfolioResults) {
       };
     }
     return map;
-  }, [results, themeKey]);
+  }, [results, themeKey, showRealValues, inflationRate, currentAge]);
 
   // ── 4. Income Timeline (line chart) ─────────────────────────────────────────
   const incomeTimelineData: ChartData<'line'> = useMemo(() => {
@@ -246,7 +273,7 @@ export function useChartData(results: PortfolioResults) {
       datasets: [
         {
           label: 'Net Income',
-          data: combined.map((d) => d.netIncome),
+          data: combined.map((d) => adj(d.netIncome, d.age)),
           borderColor: getAccountColor('Pension'),
           backgroundColor: getAccountColor('Pension', 0.15),
           fill: true,
@@ -257,7 +284,7 @@ export function useChartData(results: PortfolioResults) {
         },
       ],
     };
-  }, [combined, ages, themeKey]);
+  }, [combined, ages, themeKey, showRealValues, inflationRate, currentAge]);
 
   return {
     combined,

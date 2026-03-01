@@ -88,8 +88,10 @@ export function useExternalTooltip({ combined, isFirstYearProRated, proRatedMont
       }
       card.appendChild(header);
 
-      // Sort entries by absolute value descending
-      const items = (tooltip.dataPoints || [])
+      // Separate scenario overlay lines and total line from the main stacked series
+      const allPoints = tooltip.dataPoints || [];
+      const mainItems = allPoints
+        .filter((pt) => !(pt.dataset as any).isScenarioOverlay && !(pt.dataset as any).isTotalLine)
         .map((pt) => ({
           color: pt.dataset.borderColor as string,
           label: pt.dataset.label || '',
@@ -97,9 +99,17 @@ export function useExternalTooltip({ combined, isFirstYearProRated, proRatedMont
         }))
         .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 
-      const total = items.reduce((sum, i) => sum + i.value, 0);
+      const scenarioItems = allPoints
+        .filter((pt) => (pt.dataset as any).isScenarioOverlay)
+        .map((pt) => ({
+          color: pt.dataset.borderColor as string,
+          label: pt.dataset.label || '',
+          value: pt.parsed.y ?? (pt.parsed as any),
+        }));
 
-      for (const item of items) {
+      const total = mainItems.reduce((sum, i) => sum + i.value, 0);
+
+      for (const item of mainItems) {
         const pct = total !== 0 ? ((item.value / total) * 100).toFixed(1) : '0.0';
 
         const row = el('div', 'flex items-center justify-between gap-4 text-xs py-0.5');
@@ -127,8 +137,8 @@ export function useExternalTooltip({ combined, isFirstYearProRated, proRatedMont
         card.appendChild(row);
       }
 
-      // Total row if multiple items
-      if (items.length > 1) {
+      // Total row if multiple main items
+      if (mainItems.length > 1) {
         const totalRow = el('div', 'mt-1.5 border-t pt-1.5 flex items-center justify-between text-xs font-semibold');
         const totalLabel = el('span');
         totalLabel.textContent = 'Total';
@@ -137,6 +147,31 @@ export function useExternalTooltip({ combined, isFirstYearProRated, proRatedMont
         totalValue.textContent = formatCompactCurrency(total);
         totalRow.appendChild(totalValue);
         card.appendChild(totalRow);
+      }
+
+      // Scenario overlay rows rendered separately with a divider
+      if (scenarioItems.length > 0) {
+        const divider = el('div', 'mt-1.5 border-t pt-1.5');
+        card.appendChild(divider);
+
+        for (const item of scenarioItems) {
+          const row = el('div', 'flex items-center justify-between gap-4 text-xs py-0.5');
+
+          const left = el('span', 'flex items-center gap-1.5');
+          const dot = el('span', 'inline-block h-2 w-2 rounded-full flex-shrink-0');
+          dot.style.background = item.color;
+          left.appendChild(dot);
+          const labelSpan = el('span', 'text-muted-foreground italic');
+          labelSpan.textContent = item.label;
+          left.appendChild(labelSpan);
+          row.appendChild(left);
+
+          const right = el('span', 'font-medium tabular-nums whitespace-nowrap text-muted-foreground');
+          right.textContent = formatCompactCurrency(item.value);
+          row.appendChild(right);
+
+          card.appendChild(row);
+        }
       }
 
       root.appendChild(card);

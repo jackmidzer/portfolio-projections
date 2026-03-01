@@ -1,8 +1,10 @@
 import { lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, CalendarClock, Table2, Receipt, HelpCircle, Download, FileSpreadsheet, Printer, Image } from 'lucide-react';
+import { BarChart3, CalendarClock, Table2, Receipt, HelpCircle, Download, FileSpreadsheet, Printer, Image, GitCompareArrows } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +18,7 @@ import { EventTimeline } from './EventTimeline';
 import { ProjectionTable } from './ProjectionTable';
 import { TaxBreakdown } from './TaxBreakdown';
 import { FAQGuide } from './FAQGuide';
+import { ScenarioComparison } from './ScenarioComparison';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorFallback } from '@/components/ErrorFallback';
@@ -51,14 +54,25 @@ export function DashboardContent() {
   const statePensionAge = useProjectionStore(s => s.statePensionAge);
   const statePensionWeeklyAmount = useProjectionStore(s => s.statePensionWeeklyAmount);
   const withdrawalRate = useProjectionStore(s => s.withdrawalRate);
+  const showRealValues = useProjectionStore(s => s.showRealValues);
+  const toggleRealValues = useProjectionStore(s => s.toggleRealValues);
+  const inflationRate = useProjectionStore(s => s.inflationRate);
+  const scenarios = useProjectionStore(s => s.scenarios);
+  const visibleScenarioIds = useProjectionStore(s => s.visibleScenarioIds);
+  const toggleScenarioVisibility = useProjectionStore(s => s.toggleScenarioVisibility);
+  const deleteScenario = useProjectionStore(s => s.deleteScenario);
 
   if (!results) return null;
 
   const currentAge = getCurrentAge();
   const numCurrentAge = typeof currentAge === 'number' ? currentAge : 28;
   const numTargetAge = typeof targetAge === 'number' ? targetAge : 75;
+  const numInflationRate = typeof inflationRate === 'number' ? inflationRate : 2.5;
   const brokerage = accounts.find(a => a.name === 'Brokerage');
   const etfAllocationPercent = brokerage?.etfAllocationPercent ?? 50;
+
+  // Visible saved scenarios with results
+  const visibleScenarios = scenarios.filter(s => visibleScenarioIds.includes(s.id) && s.results);
 
   // Shared props for event-aware components
   const eventProps = {
@@ -86,7 +100,19 @@ export function DashboardContent() {
       {/* Summary Cards – always visible */}
       <motion.div variants={fadeInUp}>
         <div className="flex items-center justify-between mb-4">
-          <div />
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Switch
+                id="real-nominal-toggle"
+                checked={showRealValues}
+                onCheckedChange={toggleRealValues}
+                className="scale-75 origin-right"
+              />
+              <Label htmlFor="real-nominal-toggle" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+                {showRealValues ? 'Real €' : 'Nominal €'}
+              </Label>
+            </div>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="print:hidden">
@@ -110,7 +136,7 @@ export function DashboardContent() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <SummaryCards results={results} />
+        <SummaryCards results={results} showRealValues={showRealValues} inflationRate={numInflationRate} currentAge={numCurrentAge} />
       </motion.div>
 
       {/* House Deposit – always visible when present */}
@@ -150,6 +176,10 @@ export function DashboardContent() {
               <HelpCircle className="h-3.5 w-3.5" />
               Help
             </TabsTrigger>
+            <TabsTrigger value="scenarios" className="flex items-center gap-1.5 text-xs sm:text-sm">
+              <GitCompareArrows className="h-3.5 w-3.5" />
+              Scenarios
+            </TabsTrigger>
           </TabsList>
 
           {/* Timeline Tab */}
@@ -173,6 +203,9 @@ export function DashboardContent() {
                   statePensionAge={eventProps.statePensionAge}
                   etfAllocationPercent={etfAllocationPercent}
                   accounts={accounts}
+                  showRealValues={showRealValues}
+                  inflationRate={numInflationRate}
+                  visibleScenarios={visibleScenarios}
                 />
               </Suspense>
             </ErrorBoundary>
@@ -180,7 +213,7 @@ export function DashboardContent() {
 
           {/* Data Tab */}
           <TabsContent value="data" className="mt-4">
-            <ProjectionTable results={results} {...eventProps} />
+            <ProjectionTable results={results} {...eventProps} showRealValues={showRealValues} inflationRate={numInflationRate} />
           </TabsContent>
 
           {/* Tax Tab */}
@@ -193,6 +226,20 @@ export function DashboardContent() {
           {/* Help Tab */}
           <TabsContent value="help" className="mt-4">
             <FAQGuide />
+          </TabsContent>
+
+          {/* Scenarios Tab */}
+          <TabsContent value="scenarios" className="mt-4">
+            <ScenarioComparison
+              currentResults={results}
+              scenarios={scenarios}
+              visibleScenarioIds={visibleScenarioIds}
+              onToggleVisibility={toggleScenarioVisibility}
+              onDelete={deleteScenario}
+              showRealValues={showRealValues}
+              inflationRate={numInflationRate}
+              currentAge={numCurrentAge}
+            />
           </TabsContent>
         </Tabs>
       </motion.div>

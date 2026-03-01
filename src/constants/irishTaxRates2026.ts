@@ -3,15 +3,15 @@
  * Based on Budget 2026 and current Revenue.ie guidance
  */
 
-// PAYE Tax Bands (Single Person)
+// PAYE Tax Bands
 export const PAYE_TAX_BANDS = [
   { threshold: 44000, rate: 0.2 },    // 20% up to €44,000
   { threshold: Infinity, rate: 0.4 }, // 40% above €44,000
 ];
 
 // Personal Tax Credits (annual)
-export const PERSONAL_TAX_CREDIT = 2000;  // Single person personal tax credit
-export const EARNED_INCOME_CREDIT = 2000; // Earned income credit (available to employees)
+export const PERSONAL_TAX_CREDIT = 2000;  // Personal tax credit
+export const EARNED_INCOME_CREDIT = 2000; // Earned income credit
 export const MEDICAL_INSURANCE_CREDIT = 200; // Medical Insurance tax credit
 export const RENT_RELIEF_CREDIT = 1000; // Rent Relief tax credit
 
@@ -34,6 +34,7 @@ export const PENSION_TAX_RELIEF_CAP = 115000;
 
 // Capital Gains Tax (CGT) Rate
 export const CGT_RATE = 0.33; // 33% on brokerage withdrawals (stocks)
+export const CGT_ANNUAL_EXEMPTION = 1270; // €1,270 annual CGT exemption per individual
 
 // Exit Tax Rate (ETFs / deemed disposal)
 // Irish Revenue deems ETF positions sold every 8 years; gains taxed at this rate
@@ -56,19 +57,19 @@ export const PENSION_LUMP_SUM_STANDARD_RATE = 0.20;            // 20% rate on mi
 export const PENSION_LUMP_SUM_MARGINAL_RATE = 0.40;            // 40% marginal rate above €500,000
 
 // Irish State Pension (Contributory) - 2026 rates
-export const STATE_PENSION_WEEKLY = 277.30;  // Weekly payment (historical reference rate)
+export const STATE_PENSION_WEEKLY = 299.30;  // Weekly payment
 export const STATE_PENSION_AGE = 66;          // Eligibility age
 export const STATE_PENSION_ANNUAL = 299.30 * 52; // Annual amount at current rate (~€15,564/yr)
 
 /**
- * Get applicable tax bands (single filer)
+ * Get applicable tax bands
  */
 export function getTaxBands() {
   return PAYE_TAX_BANDS;
 }
 
 /**
- * Get personal tax credit (single filer)
+ * Get personal tax credit
  */
 export function getPersonalTaxCredit(): number {
   return PERSONAL_TAX_CREDIT;

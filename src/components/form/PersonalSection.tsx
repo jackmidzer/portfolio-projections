@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 export function PersonalSection() {
   const dateOfBirth = useProjectionStore(s => s.dateOfBirth);
   const targetAge = useProjectionStore(s => s.targetAge);
+  const inflationRate = useProjectionStore(s => s.inflationRate);
   const updateField = useProjectionStore(s => s.updateField);
   const getCurrentAge = useProjectionStore(s => s.getCurrentAge);
   const getMonthsUntilBirthday = useProjectionStore(s => s.getMonthsUntilBirthday);
@@ -45,6 +46,17 @@ export function PersonalSection() {
           error={validationErrors.targetAge}
         />
       </div>
+
+      <NumberField
+        label="Inflation Rate (%)"
+        id="inflationRate"
+        value={inflationRate}
+        onChange={(v) => updateField('inflationRate', v)}
+        min={0}
+        max={20}
+        step={0.1}
+        placeholder="2.5"
+      />
 
       {typeof currentAge === 'number' && (
         <div className="flex flex-wrap gap-2">

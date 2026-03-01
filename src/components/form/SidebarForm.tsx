@@ -1,4 +1,3 @@
-import { Button } from '@/components/ui/button';
 import { useProjectionStore } from '@/store/useProjectionStore';
 import { PersonalSection } from './PersonalSection';
 import { IncomeSection } from './IncomeSection';
@@ -7,6 +6,7 @@ import { RetirementSection } from './RetirementSection';
 import { WithdrawalSection } from './WithdrawalSection';
 import { LumpSumSection } from './LumpSumSection';
 import { HousePurchaseSection } from './HousePurchaseSection';
+import { CareerBreaksSection } from './CareerBreaksSection';
 
 interface SidebarFormProps {
   onCalculated?: () => void;
@@ -35,6 +35,8 @@ export function SidebarForm({ onCalculated, formId }: SidebarFormProps) {
       <WithdrawalSection />
       <LumpSumSection />
       <HousePurchaseSection />
+      <CareerBreaksSection />
+
       {/* Hidden submit to allow enter-key submission */}
       <button type="submit" className="hidden" aria-hidden="true" disabled={hasValidationErrors} />
     </form>

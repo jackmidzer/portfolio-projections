@@ -1,7 +1,7 @@
 import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, MilestoneSnapshot, PensionLumpSumTaxBreakdown, AccountGrowthOptions, PortfolioGrowthOptions, TaxInputs } from '../types';
 import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageWithdrawalTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax, calculatePensionLumpSumTax, calculateExitTax } from './taxCalculations';
 import { isBridgingPhase, isDrawdownPhase, getPhaseType } from './phaseHelpers';
-import { DEEMED_DISPOSAL_PERIOD_YEARS } from '../constants/irishTaxRates2026';
+import { DEEMED_DISPOSAL_PERIOD_YEARS, CGT_ANNUAL_EXEMPTION } from '../constants/irishTaxRates2026';
 
 /**
  * Get the contribution percentage for a given age from age bracket contributions
@@ -133,6 +133,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     includeStatePension,
     statePensionAge,
     statePensionWeeklyAmount,
+    careerBreaks,
   } = options;
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
@@ -168,6 +169,9 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
   const deemedDisposalPeriodMonths = DEEMED_DISPOSAL_PERIOD_YEARS * 12;
   let cumulativeDeemedDisposalTax = 0;
   let cumulativeExitTaxOnWithdrawals = 0;
+
+  // CGT annual exemption tracking — resets each January
+  let cgtExemptionUsedThisYear = 0;
 
   // Initialize date tracking
   let monthDate = new Date();
@@ -217,6 +221,8 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     // Increment January counter if we've entered a new January since last month
     if (month > 0 && monthDate.getMonth() === 0) {
       januarysSeen++;
+      // Reset CGT annual exemption for the new calendar year
+      cgtExemptionUsedThisYear = 0;
     }
     
     // Calculate current age based on number of full birthdays passed
@@ -230,6 +236,19 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       // Salary increases each January
       salaryAtMonth = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, januarysSeen);
     }
+
+    // Apply career break / part-time salary scaling
+    let careerBreakSalaryPercent = 100;
+    if (careerBreaks && careerBreaks.length > 0) {
+      for (const cb of careerBreaks) {
+        if (ageAtMonth >= cb.fromAge && ageAtMonth < cb.toAge) {
+          careerBreakSalaryPercent = cb.salaryPercent;
+          break;
+        }
+      }
+      salaryAtMonth = salaryAtMonth * (careerBreakSalaryPercent / 100);
+    }
+    const isOnFullCareerBreak = careerBreakSalaryPercent === 0;
 
     const isJanuary = monthDate.getMonth() === 0;
     const currentYear = monthDate.getFullYear();
@@ -445,7 +464,8 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     // Calculate monthly contribution
     let monthlyContribution = 0;
     // [WORKING PHASE] Contributions are made during the working phase (before FIRE)
-    if (month < fireYearStartMonth) {
+    // During a full career break (salaryPercent === 0), pension and salary-linked contributions are zero
+    if (month < fireYearStartMonth && !isOnFullCareerBreak) {
       if (account.isSalaryPercentage && currentSalary && annualSalaryIncrease !== undefined) {
         // For salary-based contributions (e.g., Pension with age brackets)
         let contributionPercentage = account.monthlyContribution;
@@ -585,20 +605,24 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       else if (isBrokerageAccount && isInBridgingPhase) {
         withdrawalPhase = 'bridging';
         // Brokerage withdrawals: blended exit tax (ETF) + CGT (stocks) on gain portions
-        const taxResult = calculateBrokerageWithdrawalTax(monthWithdrawal, preWithdrawalEtfBalance, preWithdrawalStockBalance, etfGainRatio, stockGainRatio);
+        const remainingCgtExemption = Math.max(0, CGT_ANNUAL_EXEMPTION - cgtExemptionUsedThisYear);
+        const taxResult = calculateBrokerageWithdrawalTax(monthWithdrawal, preWithdrawalEtfBalance, preWithdrawalStockBalance, etfGainRatio, stockGainRatio, remainingCgtExemption);
         withdrawalTax = taxResult.totalTax;
         withdrawalNetAmount = taxResult.netWithdrawal;
         cumulativeExitTaxOnWithdrawals += taxResult.etfExitTax;
+        cgtExemptionUsedThisYear += taxResult.cgtExemptionUsed;
       }
       // House deposit withdrawal (from Brokerage or Savings)
       else if (enableHouseWithdrawal && houseWithdrawalAge !== undefined && ageAtMonth >= houseWithdrawalAge && ageAtMonth < (houseWithdrawalAge + 1)) {
         if (isBrokerageAccount) {
           withdrawalPhase = 'bridging'; // Treat house withdrawal from brokerage as bridging withdrawal
           // Brokerage withdrawals: blended exit tax (ETF) + CGT (stocks) on gain portions
-          const taxResult = calculateBrokerageWithdrawalTax(monthWithdrawal, preWithdrawalEtfBalance, preWithdrawalStockBalance, etfGainRatio, stockGainRatio);
+          const remainingCgtExemption = Math.max(0, CGT_ANNUAL_EXEMPTION - cgtExemptionUsedThisYear);
+          const taxResult = calculateBrokerageWithdrawalTax(monthWithdrawal, preWithdrawalEtfBalance, preWithdrawalStockBalance, etfGainRatio, stockGainRatio, remainingCgtExemption);
           withdrawalTax = taxResult.totalTax;
           withdrawalNetAmount = taxResult.netWithdrawal;
           cumulativeExitTaxOnWithdrawals += taxResult.etfExitTax;
+          cgtExemptionUsedThisYear += taxResult.cgtExemptionUsed;
         } else {
           // Savings account house withdrawal (no tax on savings)
           withdrawalPhase = undefined;
@@ -864,6 +888,7 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
     includeStatePension,
     statePensionAge,
     statePensionWeeklyAmount,
+    careerBreaks,
   } = options;
   const pensionAgeValue = pensionAge ?? 65;
   const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
@@ -960,6 +985,7 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
       includeStatePension,
       statePensionAge,
       statePensionWeeklyAmount,
+      careerBreaks,
     });
   });
 
