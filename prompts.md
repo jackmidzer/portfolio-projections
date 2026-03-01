@@ -43,24 +43,6 @@
 
 ---
 
-## Prompt 10: Add State Persistence with localStorage
-
-**Goal:** Persist user form inputs across page refreshes using Zustand's `persist` middleware.
-
-**Context:** The store is defined in `useProjectionStore.ts`. Zustand v5 is installed. All form inputs live in the `FormInputs` interface at `useProjectionStore.ts:9-42`.
-
-**Steps:**
-
-1. Import `persist` from `zustand/middleware`.
-2. Wrap the existing store creator with `persist(...)`.
-3. Configure `name: 'portfolio-projections-storage'` for the localStorage key.
-4. Use `partialize` to persist only `FormInputs` fields — exclude `UIState` (sidebar state, expanded sections) and `ResultsState` (calculated results) from persistence.
-5. Handle the `dateOfBirth` field carefully — `Date` objects don't serialise/deserialise cleanly in JSON. Add a custom `storage` option or use `onRehydrate` to convert the date string back to a `Date` object.
-6. Add a version number to the persisted state and a `migrate` function for future schema changes.
-7. Consider adding a "Reset to defaults" button in the UI that calls `resetForm()` and clears localStorage.
-
----
-
 ## Prompt 12: Add Inflation Adjustment Toggle
 
 **Goal:** Add an option to view projections in real (inflation-adjusted) terms alongside nominal values.
@@ -73,22 +55,6 @@
 4. In `useChartData.ts`, apply the inflation adjustment to chart data when `showRealValues` is true.
 5. In `SummaryCards.tsx` and `ProjectionTable.tsx`, conditionally display real or nominal values.
 6. Add a visual indicator (badge or label) when viewing inflation-adjusted values.
-
----
-
-## Prompt 13: Model Irish State Pension
-
-**Goal:** Include the Irish contributory state pension (~€277.30/week as of 2026) in retirement income projections.
-
-**Steps:**
-
-1. Add constants to `irishTaxRates2026.ts`: `STATE_PENSION_WEEKLY = 277.30`, `STATE_PENSION_AGE = 66`, `STATE_PENSION_ANNUAL = 277.30 * 52`.
-2. In `useProjectionStore.ts`, add `FormInputs` fields: `includeStatePension: boolean` (default true), `statePensionAge: number` (default 66), `statePensionWeeklyAmount: number` (default 277.30).
-3. In `calculations.ts`, when computing drawdown-phase or bridging-phase income for ages >= `statePensionAge`, add the monthly state pension amount (`weeklyAmount * 52 / 12`) to income. This reduces the amount that needs to be withdrawn from the brokerage/pension.
-4. The state pension is taxable — include it in the PAYE/USC calculation for the year by passing it to the tax functions.
-5. In `types/index.ts`, add `statePensionIncome` to `MonthlyBreakdown` and `CombinedYearData`.
-6. Display state pension in the income timeline chart and projection table.
-7. Add a form section or fields in `RetirementSection.tsx` for state pension configuration.
 
 ---
 
@@ -157,81 +123,3 @@
 3. In `App.tsx`, wrap `<DashboardLayout />` with `<ErrorBoundary fallbackComponent={ErrorFallback}>`.
 4. Add a second, more granular error boundary around just the chart area in `DashboardContent.tsx` (since Chart.js rendering is the most likely crash point). Its fallback should say "Chart failed to render" with a retry button, while keeping the rest of the dashboard visible.
 5. Optionally log errors to the console with additional context (input state at time of crash) for debugging.
-
----
-
-# Additional Review Items (21–42)
-
----
-
-## Accessibility (Critical)
-
-**21. Charts are invisible to screen readers** — All four chart components (`PortfolioGrowthChart.tsx`, etc.) render `<canvas>` inside bare `<div>`s with no `role="img"`, `aria-label`, or hidden summary text. Add a visually-hidden table or `aria-label` summarizing the data for each chart.
-
-**22. Icon-only buttons missing accessible names** — Sidebar collapse/expand and mobile menu buttons in `DashboardLayout.tsx:41` lack `aria-label`. Expandable sections in `MilestoneTimeline.tsx:87` and `ProjectionTable.tsx:132` are missing `aria-expanded`. The account-filter `<select>` in `ProjectionTable.tsx:83` has no `<label>`.
-
-**23. No `prefers-reduced-motion` support** — Framer Motion animations and Chart.js's `animation.duration: 600` in `chartConfig.ts:33` never respect the OS reduced-motion setting. Wrap animations in a `useReducedMotion()` check.
-
----
-
-## Bugs & Edge Cases
-
-**24. `formatCompactCurrency` misformats negatives** — In `formatters.ts:35-47`, `-1500` produces `€-1.5K` instead of `-€1.5K`. The sign gets wedged between the currency symbol and number.
-
-**25. `houseCalculations` doesn't guard `purchaseAge < currentAge`** — In `houseCalculations.ts:26`, `yearsUntilPurchase` goes negative, causing `Math.pow(...)` to return a fraction and the projected house price to shrink.
-
-**27. No validation that `fireAge <= pensionAge`** — The validation block in `useProjectionStore.ts:295-314` checks both ages individually but never checks their relationship. `fireAge > pensionAge` creates an impossible/overlapping lifecycle.
-
-**28. Tooltip shows wrong pro-rated month count** — `useExternalTooltip.ts:73` displays `getMonthsUntilYearEnd()` (months until Dec 31 *now*) but the projection uses `monthsUntilNextBirthday` (at calculation time). These are different values.
-
-**29. Dead code in ProjectionTable** — `ProjectionTable.tsx:128`: `void isWorkingPhase(row.age, results.fireAge)` calls the function, discards the result, and has no side effects.
-
----
-
-## Performance
-
-**30. `phaseBandsPlugin` registered 4 times** — `ChartJS.register(phaseBandsPlugin)` appears at module top-level in all four chart components. Should be registered once in `chartConfig.ts`.
-
-**31. Age-range slicing logic duplicated across 4 chart components** — The identical `useMemo` computing `slicedData`/`slicedPhaseBands` is copy-pasted in all four chart files. Extract to a shared `useSlicedChartData` hook.
-
-**32. No table virtualization** — `ProjectionTable.tsx` renders every year row (50+) into the DOM simultaneously. Consider `react-window` or `@tanstack/react-virtual` for long projections.
-
-**33. O(months × accounts) lookup in `computeAnnuals`** — `ProjectionTable.tsx:311-327`: `results.accountResults.find(...)` is called for every month inside a reduce, creating a quadratic lookup. Hoist the result outside the loop.
-
----
-
-## Dead Code & Unused Dependencies
-
-**34. Store sidebar state is unused** — `useProjectionStore.ts:47-51` defines `sidebarOpen`, `sidebarCollapsed`, `toggleSidebar`, `setSidebarOpen`, `toggleSidebarCollapse` — but `DashboardLayout.tsx:14-15` uses local `useState` for the same state. The store's sidebar actions are entirely dead code.
-
-**35. `@radix-ui/react-select` is installed but unused** — Listed in `package.json:18` but no `Select` component exists in the codebase. The `ProjectionTable` uses a native `<select>` instead.
-
-**36. Unused variable in `IncomeTimelineChart`** — `IncomeTimelineChart.tsx:34`: `const border = getCssColor('--border')` is captured but never referenced.
-
----
-
-## Security
-
-**37. XSS vector via `innerHTML` in tooltip** — `useExternalTooltip.ts:105`: `el.innerHTML = html` builds HTML from dataset labels. Use DOM APIs or sanitization instead of raw `innerHTML`.
-
----
-
-## SEO & Branding
-
-**38. Missing meta tags and default favicon** — `index.html` has no `<meta name="description">`, Open Graph, or Twitter Card tags. The favicon is still the Vite default (`vite.svg`).
-
----
-
-## Mobile
-
-**39. Fixed `h-[380px]` chart height** — All chart components hardcode `380px` height. Too tall on small phones, too short on large monitors. Use responsive sizing or `aspect-ratio`.
-
-**40. Mobile sheet ignores safe areas** — `DashboardLayout.tsx:143`: `h-[calc(100vh-120px)]` doesn't use `dvh` units or `env(safe-area-inset-bottom)`, so content clips behind the home bar on notched iPhones.
-
----
-
-## Type Safety & Consistency
-
-**41. `Set<string>` in Zustand store will break persistence** — `useProjectionStore.ts:48`: `expandedSections: Set<string>` doesn't serialize to JSON. When Prompt 10 (localStorage persistence) is implemented, this will silently corrupt. Convert to `string[]` or exclude from persistence.
-
-**42. Badge variant derivation duplicated** — The ternary `accountName === 'Savings' ? 'savings' : accountName === 'Pension' ? 'pension' : 'brokerage'` is copy-pasted in both `SummaryCards.tsx:67` and `MilestoneTimeline.tsx:120`. Extract to a `toBadgeVariant(name: AccountType)` utility.

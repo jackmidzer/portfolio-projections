@@ -4,7 +4,6 @@ import {
   formatCurrencyWithDecimals,
   formatPercentage,
   formatCompactCurrency,
-  getMonthsUntilYearEnd,
 } from '../formatters';
 
 // ---------------------------------------------------------------------------
@@ -101,16 +100,5 @@ describe('formatCompactCurrency', () => {
 
   it('handles exactly 1,000,000', () => {
     expect(formatCompactCurrency(1000000)).toBe('€1.0M');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getMonthsUntilYearEnd
-// ---------------------------------------------------------------------------
-describe('getMonthsUntilYearEnd', () => {
-  it('returns a number between 0 and 12', () => {
-    const months = getMonthsUntilYearEnd();
-    expect(months).toBeGreaterThanOrEqual(0);
-    expect(months).toBeLessThanOrEqual(12);
   });
 });

@@ -57,6 +57,13 @@ export function ProjectionChart({ results }: ProjectionChartProps) {
 
   const isFirstYearProRated = results.monthsUntilNextBirthday < 12;
 
+  // Months remaining in the current calendar year (Dec is month 11).
+  // This is what the first pro-rated year represents in the projection.
+  const monthsUntilYearEnd = useMemo(() => {
+    const today = new Date();
+    return 12 - today.getMonth() - 1; // months after the current month until end of year
+  }, []);
+
   const ages = useMemo(() => combined.map((d) => d.age), [combined]);
   const minAge = ages[0] ?? 0;
   const maxAge = ages[ages.length - 1] ?? 100;
@@ -80,6 +87,7 @@ export function ProjectionChart({ results }: ProjectionChartProps) {
     combined,
     phaseBands,
     isFirstYearProRated,
+    proRatedMonths: monthsUntilYearEnd,
     ageRange: chartAgeRange,
   };
 

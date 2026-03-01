@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PortfolioResults } from '@/types';
 import { formatCurrency } from '@/utils/formatters';
+import { toBadgeVariant } from '@/utils/badgeVariant';
 
 interface SummaryCardsProps {
   results: PortfolioResults;
@@ -62,13 +63,12 @@ export function SummaryCards({ results }: SummaryCardsProps) {
       {/* Account Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {results.accountResults.map((result) => {
-          const variant = result.accountName === 'Savings' ? 'savings'
-            : result.accountName === 'Pension' ? 'pension' : 'brokerage';
+          const variant = toBadgeVariant(result.accountName);
           return (
             <Card key={result.accountName} className="overflow-hidden">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <Badge variant={variant as 'savings' | 'pension' | 'brokerage'}>{result.accountName}</Badge>
+                  <Badge variant={variant}>{result.accountName}</Badge>
                 </div>
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between">

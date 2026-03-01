@@ -1,7 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { Chart, TooltipModel } from 'chart.js';
 import { formatCompactCurrency } from '@/utils/formatters';
-import { getMonthsUntilYearEnd } from '@/utils/formatters';
 import type { CombinedYearData } from '@/utils/calculations';
 
 interface ExternalTooltipProps {
@@ -9,39 +8,48 @@ interface ExternalTooltipProps {
   combined: CombinedYearData[];
   /** Whether the first year is pro-rated */
   isFirstYearProRated: boolean;
+  /** Number of months in the pro-rated first year (from projection, not wall-clock time) */
+  proRatedMonths?: number;
   /** Whether to show percentage breakdowns next to each item (default: true) */
   showPercentages?: boolean;
+}
+
+/** Simple helper to create a DOM element with classes */
+function el(tag: string, classes?: string): HTMLElement {
+  const e = document.createElement(tag);
+  if (classes) e.className = classes;
+  return e;
 }
 
 /**
  * Returns an `external` tooltip handler for Chart.js that renders
  * a styled HTML tooltip matching the shadcn popover aesthetic.
+ * Uses DOM APIs instead of innerHTML to prevent XSS from dataset labels.
  */
-export function useExternalTooltip({ combined, isFirstYearProRated, showPercentages = true }: ExternalTooltipProps) {
+export function useExternalTooltip({ combined, isFirstYearProRated, proRatedMonths, showPercentages = true }: ExternalTooltipProps) {
   const tooltipRef = useRef<HTMLDivElement | null>(null);
 
   // Create the tooltip element once on mount
   useEffect(() => {
-    let el = document.getElementById('chartjs-tooltip') as HTMLDivElement | null;
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'chartjs-tooltip';
-      el.className = 'chartjs-tooltip-container';
-      // Styles set via inline so it works in any context
-      Object.assign(el.style, {
+    let container = document.getElementById('chartjs-tooltip') as HTMLDivElement | null;
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'chartjs-tooltip';
+      container.className = 'chartjs-tooltip-container';
+      Object.assign(container.style, {
         position: 'absolute',
         pointerEvents: 'none',
         opacity: '0',
         transition: 'opacity 0.15s ease, transform 0.15s ease',
         zIndex: '50',
       });
-      document.body.appendChild(el);
+      document.body.appendChild(container);
     }
-    tooltipRef.current = el;
+    tooltipRef.current = container;
 
     return () => {
-      if (el && el.parentNode) {
-        el.parentNode.removeChild(el);
+      if (container && container.parentNode) {
+        container.parentNode.removeChild(container);
         tooltipRef.current = null;
       }
     };
@@ -50,27 +58,37 @@ export function useExternalTooltip({ combined, isFirstYearProRated, showPercenta
   const handler = useCallback(
     (context: { chart: Chart; tooltip: TooltipModel<any> }) => {
       const { chart, tooltip } = context;
-      const el = tooltipRef.current;
-      if (!el) return;
+      const root = tooltipRef.current;
+      if (!root) return;
 
       if (tooltip.opacity === 0) {
-        el.style.opacity = '0';
+        root.style.opacity = '0';
         return;
       }
 
-      // Build content
+      // Clear previous content
+      root.textContent = '';
+
       const dataIndex = tooltip.dataPoints?.[0]?.dataIndex;
       const age = combined[dataIndex ?? 0]?.age;
       const isProRated = isFirstYearProRated && dataIndex === 0;
 
-      let html = `<div class="rounded-lg border bg-popover p-3 shadow-md text-popover-foreground" style="min-width:160px;font-family:Inter,system-ui,sans-serif">`;
-      html += `<p class="mb-2 text-sm font-semibold">Age ${age ?? ''}`;
-      if (isProRated) {
-        html += `<span class="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Pro-rated (${getMonthsUntilYearEnd()}m)</span>`;
-      }
-      html += `</p>`;
+      // Outer card
+      const card = el('div', 'rounded-lg border bg-popover p-3 shadow-md text-popover-foreground');
+      card.style.minWidth = '160px';
+      card.style.fontFamily = 'Inter, system-ui, sans-serif';
 
-      // Sort entries by value descending for readability
+      // Header
+      const header = el('p', 'mb-2 text-sm font-semibold');
+      header.textContent = `Age ${age ?? ''}`;
+      if (isProRated && proRatedMonths != null) {
+        const badge = el('span', 'ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-700 dark:bg-amber-900/30 dark:text-amber-400');
+        badge.textContent = `Pro-rated (${proRatedMonths}m)`;
+        header.appendChild(badge);
+      }
+      card.appendChild(header);
+
+      // Sort entries by absolute value descending
       const items = (tooltip.dataPoints || [])
         .map((pt) => ({
           color: pt.dataset.borderColor as string,
@@ -79,46 +97,61 @@ export function useExternalTooltip({ combined, isFirstYearProRated, showPercenta
         }))
         .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 
-      // Total
       const total = items.reduce((sum, i) => sum + i.value, 0);
 
       for (const item of items) {
         const pct = total !== 0 ? ((item.value / total) * 100).toFixed(1) : '0.0';
-        html += `<div class="flex items-center justify-between gap-4 text-xs py-0.5">`;
-        html += `<span class="flex items-center gap-1.5">`;
-        html += `<span class="inline-block h-2 w-2 rounded-full flex-shrink-0" style="background:${item.color}"></span>`;
-        html += `<span>${item.label}</span>`;
-        html += `</span>`;
-        html += `<span class="font-medium tabular-nums whitespace-nowrap">${formatCompactCurrency(item.value)}`;
+
+        const row = el('div', 'flex items-center justify-between gap-4 text-xs py-0.5');
+
+        // Left side: color dot + label
+        const left = el('span', 'flex items-center gap-1.5');
+        const dot = el('span', 'inline-block h-2 w-2 rounded-full flex-shrink-0');
+        dot.style.background = item.color;
+        left.appendChild(dot);
+        const labelSpan = el('span');
+        labelSpan.textContent = item.label;
+        left.appendChild(labelSpan);
+        row.appendChild(left);
+
+        // Right side: value + optional percentage
+        const right = el('span', 'font-medium tabular-nums whitespace-nowrap');
+        right.textContent = formatCompactCurrency(item.value);
         if (showPercentages) {
-          html += ` <span class="text-muted-foreground">(${pct}%)</span>`;
+          const pctSpan = el('span', 'text-muted-foreground');
+          pctSpan.textContent = ` (${pct}%)`;
+          right.appendChild(pctSpan);
         }
-        html += `</span>`;
-        html += `</div>`;
+        row.appendChild(right);
+
+        card.appendChild(row);
       }
 
       // Total row if multiple items
       if (items.length > 1) {
-        html += `<div class="mt-1.5 border-t pt-1.5 flex items-center justify-between text-xs font-semibold">`;
-        html += `<span>Total</span>`;
-        html += `<span class="tabular-nums">${formatCompactCurrency(total)}</span>`;
-        html += `</div>`;
+        const totalRow = el('div', 'mt-1.5 border-t pt-1.5 flex items-center justify-between text-xs font-semibold');
+        const totalLabel = el('span');
+        totalLabel.textContent = 'Total';
+        totalRow.appendChild(totalLabel);
+        const totalValue = el('span', 'tabular-nums');
+        totalValue.textContent = formatCompactCurrency(total);
+        totalRow.appendChild(totalValue);
+        card.appendChild(totalRow);
       }
 
-      html += `</div>`;
-      el.innerHTML = html;
+      root.appendChild(card);
 
-      // Position — use getBoundingClientRect for correct placement regardless of nesting / scroll
+      // Position
       const rect = chart.canvas.getBoundingClientRect();
       const left = rect.left + window.scrollX + tooltip.caretX;
       const top = rect.top + window.scrollY + tooltip.caretY;
 
-      el.style.opacity = '1';
-      el.style.left = `${left}px`;
-      el.style.top = `${top - 10}px`;
-      el.style.transform = 'translate(-50%, -100%)';
+      root.style.opacity = '1';
+      root.style.left = `${left}px`;
+      root.style.top = `${top - 10}px`;
+      root.style.transform = 'translate(-50%, -100%)';
     },
-    [combined, isFirstYearProRated, showPercentages],
+    [combined, isFirstYearProRated, proRatedMonths, showPercentages],
   );
 
   return handler;

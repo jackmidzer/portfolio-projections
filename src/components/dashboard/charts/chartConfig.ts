@@ -12,6 +12,7 @@ import {
   type TooltipItem,
 } from 'chart.js';
 import annotationPlugin from 'chartjs-plugin-annotation';
+import { phaseBandsPlugin } from './phaseBandsPlugin';
 import { formatCompactCurrency } from '@/utils/formatters';
 import { getCssColor } from './chartTheme';
 
@@ -26,10 +27,19 @@ ChartJS.register(
   Tooltip,
   Legend,
   annotationPlugin,
+  phaseBandsPlugin,
 );
 
 /** Default animation duration for smooth tab transitions */
 const TRANSITION_DURATION = 600;
+
+/** Returns 0 when user prefers reduced motion, otherwise the default duration */
+export function getAnimationDuration(): number {
+  if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    return 0;
+  }
+  return TRANSITION_DURATION;
+}
 
 /**
  * Build shared base chart options.
@@ -43,7 +53,7 @@ export function getBaseOptions(overrides?: Partial<ChartOptions<'line'>>): Chart
     responsive: true,
     maintainAspectRatio: false,
     animation: {
-      duration: TRANSITION_DURATION,
+      duration: getAnimationDuration(),
       easing: 'easeInOutCubic',
     },
     interaction: {

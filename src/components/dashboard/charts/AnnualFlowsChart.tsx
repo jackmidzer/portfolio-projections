@@ -1,22 +1,21 @@
 import { useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
-// chartConfig imported for side-effect registration
-import { phaseBandsPlugin, type PhaseBandsOptions } from './phaseBandsPlugin';
+import type { PhaseBandsOptions } from './phaseBandsPlugin';
 import { useExternalTooltip } from './useExternalTooltip';
 import { formatCompactCurrency } from '@/utils/formatters';
 import { getCssColor } from './chartTheme';
+import { getAnimationDuration } from './chartConfig';
 import { useThemeKey } from '@/hooks/useThemeKey';
+import { useSlicedChartData } from './useSlicedChartData';
 import type { CombinedYearData } from '@/utils/calculations';
-
-import { Chart as ChartJS } from 'chart.js';
-ChartJS.register(phaseBandsPlugin);
 
 interface AnnualFlowsChartProps {
   data: ChartData<'bar'>;
   combined: CombinedYearData[];
   phaseBands: PhaseBandsOptions;
   isFirstYearProRated: boolean;
+  proRatedMonths?: number;
   ageRange?: [number, number];
 }
 
@@ -25,37 +24,28 @@ export function AnnualFlowsChart({
   combined,
   phaseBands,
   isFirstYearProRated,
+  proRatedMonths,
   ageRange,
 }: AnnualFlowsChartProps) {
   const themeKey = useThemeKey();
   const muted = getCssColor('--muted-foreground');
   const border = getCssColor('--border');
 
-  const { slicedData, slicedCombined, slicedPhaseBands } = useMemo(() => {
-    if (!ageRange) return { slicedData: data, slicedCombined: combined, slicedPhaseBands: phaseBands };
-    const ages = phaseBands.ages;
-    const startIdx = ages.findIndex((a) => a >= ageRange[0]);
-    const endIdx = ages.findIndex((a) => a > ageRange[1]);
-    const si = startIdx >= 0 ? startIdx : 0;
-    const ei = endIdx >= 0 ? endIdx : ages.length;
-    return {
-      slicedData: {
-        labels: (data.labels as number[]).slice(si, ei),
-        datasets: data.datasets.map((ds) => ({ ...ds, data: (ds.data as number[]).slice(si, ei) })),
-      } as ChartData<'bar'>,
-      slicedCombined: combined.slice(si, ei),
-      slicedPhaseBands: { ...phaseBands, ages: ages.slice(si, ei) },
-    };
-  }, [data, combined, phaseBands, ageRange]);
+  const { slicedData, slicedCombined, slicedPhaseBands } = useSlicedChartData<'bar'>({
+    data,
+    combined,
+    phaseBands,
+    ageRange,
+  });
 
-  const tooltipHandler = useExternalTooltip({ combined: slicedCombined, isFirstYearProRated, showPercentages: false });
+  const tooltipHandler = useExternalTooltip({ combined: slicedCombined, isFirstYearProRated, proRatedMonths, showPercentages: false });
 
   const options = useMemo<ChartOptions<'bar'>>(() => {
     return {
       responsive: true,
       maintainAspectRatio: false,
       animation: {
-        duration: 600,
+        duration: getAnimationDuration(),
         easing: 'easeInOutCubic',
       },
       interaction: {
@@ -107,7 +97,7 @@ export function AnnualFlowsChart({
   }, [tooltipHandler, slicedPhaseBands, muted, border, themeKey]);
 
   return (
-    <div className="relative h-[380px] w-full">
+    <div className="relative h-[280px] sm:h-[340px] lg:h-[380px] xl:h-[420px] w-full" role="img" aria-label="Annual financial flows chart showing contributions, withdrawals, and income by age">
       <Bar data={slicedData} options={options} />
     </div>
   );

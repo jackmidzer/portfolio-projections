@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { PortfolioResults, AccountType, YearlyBreakdown, MonthlyBreakdown } from '@/types';
 import { formatCurrency } from '@/utils/formatters';
 import {
-  isWorkingPhase,
   isBridgingPhase,
   isDrawdownPhase,
 } from '@/utils/phaseHelpers';
@@ -73,6 +72,7 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
           <select
             value={selectedAccount}
             onChange={(e) => setSelectedAccount(e.target.value as AccountType | 'All')}
+            aria-label="Select account to display"
             className="h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="All">All Accounts</option>
@@ -105,7 +105,6 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
                 const isProRated = results.monthsUntilNextBirthday < 12 && row.year === 0;
                 const isBridging = isBridgingPhase(row.age, results.fireAge, results.pensionAge);
                 const isDrawdown = isDrawdownPhase(row.age, results.pensionAge);
-                void isWorkingPhase(row.age, results.fireAge);
                 const isExpanded = expandedYear === row.year;
 
                 const { annualIncome, annualTax, annualNetIncome } = computeAnnuals(row, isBridging, isDrawdown, selectedAccount, results);
@@ -122,7 +121,7 @@ export function ProjectionTable({ results }: ProjectionTableProps) {
                       isDrawdown && 'bg-emerald-50/50 dark:bg-emerald-900/10',
                     )}>
                       <td className="px-2 py-2 text-center">
-                        <button onClick={() => toggleExpanded(row.year)} className="text-muted-foreground hover:text-foreground">
+                        <button onClick={() => toggleExpanded(row.year)} className="text-muted-foreground hover:text-foreground" aria-label={`${isExpanded ? 'Collapse' : 'Expand'} year ${row.age} details`} aria-expanded={isExpanded}>
                           <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')} />
                         </button>
                       </td>
@@ -312,18 +311,20 @@ function computeAnnuals(
     (s: number, m: MonthlyBreakdown) => s + (m.statePensionIncome || 0), 0
   );
 
+  // Hoist account lookups outside the reduce loop to avoid O(n×accounts) per month
+  const brokerageResult = results.accountResults.find(r => r.accountName === 'Brokerage');
+  const pensionResult = results.accountResults.find(r => r.accountName === 'Pension');
+
   const withdrawalIncome = row.monthlyData.reduce((sum: number, month: MonthlyBreakdown) => {
     let inc = month.salary;
     if (isBridging) {
       if (selectedAccount === 'All') {
-        const brokerage = results.accountResults.find(r => r.accountName === 'Brokerage');
-        inc = brokerage?.yearlyData[row.year]?.monthlyData[month.month - 1]?.withdrawal || 0;
+        inc = brokerageResult?.yearlyData[row.year]?.monthlyData[month.month - 1]?.withdrawal || 0;
       } else if (selectedAccount === 'Brokerage') inc = month.withdrawal || 0;
       else inc = 0;
     } else if (isDrawdown) {
       if (selectedAccount === 'All') {
-        const pension = results.accountResults.find(r => r.accountName === 'Pension');
-        inc = pension?.yearlyData[row.year]?.monthlyData[month.month - 1]?.withdrawal || 0;
+        inc = pensionResult?.yearlyData[row.year]?.monthlyData[month.month - 1]?.withdrawal || 0;
       } else if (selectedAccount === 'Pension') inc = month.withdrawal || 0;
       else inc = 0;
     }
@@ -345,9 +346,7 @@ function computeAnnuals(
   let annualNetIncome = 0;
   if (isBridging && annualGrossIncome > 0) {
     // CGT tax on brokerage withdrawal (pre-computed, using cost-basis gain ratio)
-    const brokerageYd = results.accountResults
-      .find(r => r.accountName === 'Brokerage')
-      ?.yearlyData[row.year];
+    const brokerageYd = brokerageResult?.yearlyData[row.year];
     const sourceMonths = brokerageYd?.monthlyData ?? [];
     const brokerageTax = sourceMonths.reduce((s: number, m: MonthlyBreakdown) => s + (m.withdrawalTax || 0), 0);
     // PAYE/USC on state pension (taxable income)

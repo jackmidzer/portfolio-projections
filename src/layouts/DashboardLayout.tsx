@@ -38,6 +38,7 @@ export function DashboardLayout() {
             size="icon"
             className="h-8 w-8 flex-shrink-0"
             onClick={() => setSidebarCollapsed(true)}
+            aria-label="Collapse sidebar"
           >
             <PanelLeftClose className="h-4 w-4" />
           </Button>
@@ -65,6 +66,7 @@ export function DashboardLayout() {
               size="icon"
               className="lg:hidden h-9 w-9"
               onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
             </Button>
@@ -82,6 +84,7 @@ export function DashboardLayout() {
                     size="icon"
                     className="hidden lg:flex h-9 w-9"
                     onClick={() => setSidebarCollapsed(false)}
+                    aria-label="Expand sidebar"
                   >
                     <PanelLeft className="h-4 w-4" />
                   </Button>
@@ -138,7 +141,7 @@ export function DashboardLayout() {
             </SheetTitle>
             <SheetDescription>Configure your financial projections</SheetDescription>
           </SheetHeader>
-          <ScrollArea className="h-[calc(100vh-120px)]">
+          <ScrollArea className="h-[calc(100dvh-120px)] pb-[env(safe-area-inset-bottom)]">
             <div className="p-4">
               <SidebarForm onCalculated={() => setMobileOpen(false)} />
             </div>

@@ -2,20 +2,18 @@ import { useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
 import { getBaseOptions } from './chartConfig';
-import { phaseBandsPlugin, type PhaseBandsOptions } from './phaseBandsPlugin';
+import type { PhaseBandsOptions } from './phaseBandsPlugin';
 import { useExternalTooltip } from './useExternalTooltip';
+import { useSlicedChartData } from './useSlicedChartData';
 import { useThemeKey } from '@/hooks/useThemeKey';
 import type { CombinedYearData } from '@/utils/calculations';
-
-// Ensure plugin is registered
-import { Chart as ChartJS } from 'chart.js';
-ChartJS.register(phaseBandsPlugin);
 
 interface PortfolioGrowthChartProps {
   data: ChartData<'line'>;
   combined: CombinedYearData[];
   phaseBands: PhaseBandsOptions;
   isFirstYearProRated: boolean;
+  proRatedMonths?: number;
   ageRange?: [number, number];
 }
 
@@ -24,29 +22,14 @@ export function PortfolioGrowthChart({
   combined,
   phaseBands,
   isFirstYearProRated,
+  proRatedMonths,
   ageRange,
 }: PortfolioGrowthChartProps) {
   const themeKey = useThemeKey();
 
-  // Slice data to visible age range
-  const { slicedData, slicedCombined, slicedPhaseBands } = useMemo(() => {
-    if (!ageRange) return { slicedData: data, slicedCombined: combined, slicedPhaseBands: phaseBands };
-    const ages = phaseBands.ages;
-    const startIdx = ages.findIndex((a) => a >= ageRange[0]);
-    const endIdx = ages.findIndex((a) => a > ageRange[1]);
-    const si = startIdx >= 0 ? startIdx : 0;
-    const ei = endIdx >= 0 ? endIdx : ages.length;
-    return {
-      slicedData: {
-        labels: (data.labels as number[]).slice(si, ei),
-        datasets: data.datasets.map((ds) => ({ ...ds, data: (ds.data as number[]).slice(si, ei) })),
-      } as ChartData<'line'>,
-      slicedCombined: combined.slice(si, ei),
-      slicedPhaseBands: { ...phaseBands, ages: ages.slice(si, ei) },
-    };
-  }, [data, combined, phaseBands, ageRange]);
+  const { slicedData, slicedCombined, slicedPhaseBands } = useSlicedChartData({ data, combined, phaseBands, ageRange });
 
-  const tooltipHandler = useExternalTooltip({ combined: slicedCombined, isFirstYearProRated });
+  const tooltipHandler = useExternalTooltip({ combined: slicedCombined, isFirstYearProRated, proRatedMonths });
 
   const options = useMemo<ChartOptions<'line'>>(() => {
     const base = getBaseOptions();
@@ -66,7 +49,7 @@ export function PortfolioGrowthChart({
   }, [tooltipHandler, slicedPhaseBands, themeKey]);
 
   return (
-    <div className="relative h-[380px] w-full">
+    <div className="relative h-[280px] sm:h-[340px] lg:h-[380px] xl:h-[420px] w-full" role="img" aria-label="Portfolio growth chart showing balance projections over time by account">
       <Line data={slicedData} options={options} />
     </div>
   );

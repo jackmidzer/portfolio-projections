@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PortfolioResults, MilestoneSnapshot } from '@/types';
 import { formatCurrency } from '@/utils/formatters';
+import { toBadgeVariant } from '@/utils/badgeVariant';
 import { cn } from '@/lib/utils';
 
 interface MilestoneTimelineProps {
@@ -84,6 +85,8 @@ export function MilestoneTimeline({ results }: MilestoneTimelineProps) {
                     type="button"
                     onClick={() => setExpanded(isExpanded ? null : milestone.id)}
                     className="w-full text-left rounded-lg p-3 hover:bg-accent/50 transition-colors"
+                    aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${milestone.label} milestone`}
+                    aria-expanded={isExpanded}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -131,11 +134,10 @@ export function MilestoneTimeline({ results }: MilestoneTimelineProps) {
                           {/* Account breakdown */}
                           <div className="space-y-2">
                             {milestone.snapshot.accountBalances.map(account => {
-                              const variant = account.accountName === 'Savings' ? 'savings'
-                                : account.accountName === 'Pension' ? 'pension' : 'brokerage';
+                              const variant = toBadgeVariant(account.accountName);
                               return (
                                 <div key={account.accountName} className="flex items-center justify-between text-sm">
-                                  <Badge variant={variant as 'savings' | 'pension' | 'brokerage'} className="text-xs">
+                                  <Badge variant={variant} className="text-xs">
                                     {account.accountName}
                                   </Badge>
                                   <span className="font-medium tabular-nums">{formatCurrency(account.finalBalance)}</span>

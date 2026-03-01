@@ -20,8 +20,8 @@ export const calculateHouseMetrics = (
   houseAnnualPriceIncrease: number,
   mortgageExemption: boolean = true
 ): HouseDepositCalculation => {
-  // Calculate years until purchase
-  const yearsUntilPurchase = purchaseAge - currentAge;
+  // Calculate years until purchase (guard against purchaseAge in the past)
+  const yearsUntilPurchase = Math.max(0, purchaseAge - currentAge);
   
   // Calculate house price at purchase age using compound growth
   const projectedHousePrice = baseHousePrice * Math.pow(1 + houseAnnualPriceIncrease / 100, yearsUntilPurchase);

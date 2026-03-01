@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { AccountInput as AccountInputType, PortfolioResults, TaxCalculationResult, HouseDepositCalculation } from '@/types';
 import { calculatePortfolioGrowth } from '@/utils/calculations';
 import { calculateNetSalary, calculateBonusTaxBurden } from '@/utils/taxCalculations';
@@ -48,9 +49,7 @@ export interface FormInputs {
 // ─── UI State Slice ──────────────────────────────────────────────────
 
 interface UIState {
-  sidebarOpen: boolean;
-  sidebarCollapsed: boolean;
-  expandedSections: Set<string>;
+  expandedSections: string[];
   showAdvancedOptions: boolean;
   isCalculating: boolean;
   validationErrors: Record<string, string>;
@@ -74,9 +73,6 @@ interface ProjectionStore extends FormInputs, UIState, ResultsState {
   resetForm: () => void;
 
   // UI actions
-  toggleSidebar: () => void;
-  setSidebarOpen: (open: boolean) => void;
-  toggleSidebarCollapse: () => void;
   toggleSection: (section: string) => void;
   setShowAdvancedOptions: (show: boolean) => void;
   setIsCalculating: (value: boolean) => void;
@@ -185,16 +181,20 @@ function getPensionPercentForAge(age: number, accounts: AccountInputType[]): num
   return brackets.age60plus;
 }
 
+// ─── Persistence key ─────────────────────────────────────────────────
+
+const STORAGE_KEY = 'portfolio-projections-storage';
+
 // ─── Store ───────────────────────────────────────────────────────────
 
-export const useProjectionStore = create<ProjectionStore>((set, get) => ({
+export const useProjectionStore = create<ProjectionStore>()(
+  persist(
+    (set, get) => ({
   // Default form inputs
   ...defaultFormInputs,
 
   // Default UI state
-  sidebarOpen: false,
-  sidebarCollapsed: false,
-  expandedSections: new Set(['personal', 'income', 'accounts']),
+  expandedSections: ['personal', 'income', 'accounts'],
   showAdvancedOptions: false,
   isCalculating: false,
   validationErrors: {},
@@ -218,26 +218,25 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
     return { accounts: newAccounts, validationErrors: validateInputs(updated) };
   }),
 
-  resetForm: () => set({
-    ...defaultFormInputs,
-    results: null,
-    taxCalculationResult: null,
-    bonusTaxBurden: 0,
-    lastCalculatedBonusPercent: 0,
-  }),
+  resetForm: () => {
+    localStorage.removeItem(STORAGE_KEY);
+    set({
+      ...defaultFormInputs,
+      results: null,
+      taxCalculationResult: null,
+      bonusTaxBurden: 0,
+      lastCalculatedBonusPercent: 0,
+    });
+  },
 
   // ─── UI Actions ────────────────────────────────────────────────
-  toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
-  setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  toggleSidebarCollapse: () => set(state => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   toggleSection: (section) => set(state => {
-    const newSet = new Set(state.expandedSections);
-    if (newSet.has(section)) {
-      newSet.delete(section);
-    } else {
-      newSet.add(section);
-    }
-    return { expandedSections: newSet };
+    const sections = state.expandedSections;
+    return {
+      expandedSections: sections.includes(section)
+        ? sections.filter(s => s !== section)
+        : [...sections, section],
+    };
   }),
   setShowAdvancedOptions: (show) => set({ showAdvancedOptions: show }),
   setIsCalculating: (value) => set({ isCalculating: value }),
@@ -324,6 +323,7 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
     }
     if (isNaN(withdrawal) || withdrawal <= 0 || withdrawal > 20) errors.push('Withdrawal rate must be between 0% and 20%');
     if (isNaN(fireAge) || fireAge < 18 || fireAge > 100) errors.push('FIRE age must be between 18 and 100');
+    if (!isNaN(fireAge) && !isNaN(pension) && fireAge > pension) errors.push('FIRE age must be ≤ pension drawdown age');
     if (isNaN(replacement) || replacement <= 0 || replacement > 100) errors.push('Salary replacement rate must be between 0% and 100%');
     if (isNaN(brokerageRate) || brokerageRate < 0 || brokerageRate > 100) errors.push('Lump sum brokerage allocation must be between 0% and 100%');
     if (state.enableHouseWithdrawal) {
@@ -388,4 +388,37 @@ export const useProjectionStore = create<ProjectionStore>((set, get) => ({
 
     return { errors: [] };
   },
-}));
+    }),
+    {
+      name: STORAGE_KEY,
+      version: 1,
+      migrate: (persisted, _version) => persisted as any,
+      partialize: (state) => ({
+        dateOfBirth: state.dateOfBirth,
+        targetAge: state.targetAge,
+        currentSalary: state.currentSalary,
+        annualSalaryIncrease: state.annualSalaryIncrease,
+        bonusPercent: state.bonusPercent,
+        taxBikValue: state.taxBikValue,
+        accounts: state.accounts,
+        pensionAge: state.pensionAge,
+        fireAge: state.fireAge,
+        withdrawalRate: state.withdrawalRate,
+        salaryReplacementRate: state.salaryReplacementRate,
+        enablePensionLumpSum: state.enablePensionLumpSum,
+        pensionLumpSumAge: state.pensionLumpSumAge,
+        pensionLumpSumMaxAmount: state.pensionLumpSumMaxAmount,
+        lumpSumToBrokerageRate: state.lumpSumToBrokerageRate,
+        enableHouseWithdrawal: state.enableHouseWithdrawal,
+        houseWithdrawalAge: state.houseWithdrawalAge,
+        houseDepositFromBrokerageRate: state.houseDepositFromBrokerageRate,
+        mortgageExemption: state.mortgageExemption,
+        baseHousePrice: state.baseHousePrice,
+        houseAnnualPriceIncrease: state.houseAnnualPriceIncrease,
+        includeStatePension: state.includeStatePension,
+        statePensionAge: state.statePensionAge,
+        statePensionWeeklyAmount: state.statePensionWeeklyAmount,
+      }) as any,
+    },
+  ),
+);

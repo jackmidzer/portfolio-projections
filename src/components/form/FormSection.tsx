@@ -13,7 +13,7 @@ interface FormSectionProps {
 }
 
 export function FormSection({ id, title, icon: Icon, children, description }: FormSectionProps) {
-  const expanded = useProjectionStore(s => s.expandedSections.has(id));
+  const expanded = useProjectionStore(s => s.expandedSections.includes(id));
   const toggleSection = useProjectionStore(s => s.toggleSection);
 
   return (
