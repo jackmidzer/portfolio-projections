@@ -159,9 +159,9 @@ function Row({ label, value, bold, indent, muted, className }: {
   label: string; value: string; bold?: boolean; indent?: boolean; muted?: boolean; className?: string;
 }) {
   return (
-    <div className={`flex justify-between text-sm ${indent ? 'ml-2' : ''} ${className || ''}`}>
-      <span className={muted ? 'text-muted-foreground' : bold ? 'font-semibold' : ''}>{label}</span>
-      <span className={`tabular-nums font-mono ${bold ? 'font-semibold' : ''}`}>{value}</span>
+    <div className={`flex justify-between gap-2 text-sm ${indent ? 'ml-2' : ''} ${className || ''}`}>
+      <span className={`min-w-0 ${muted ? 'text-muted-foreground' : bold ? 'font-semibold' : ''}`}>{label}</span>
+      <span className={`tabular-nums font-mono shrink-0 ${bold ? 'font-semibold' : ''}`}>{value}</span>
     </div>
   );
 }

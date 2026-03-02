@@ -104,7 +104,7 @@ export function ScenarioComparison({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="grid grid-cols-3 gap-3 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
             <div>
               <span className="text-xs text-muted-foreground">Final Balance</span>
               <p className="font-bold tabular-nums">{formatCurrency(currentFinal)}</p>
@@ -201,7 +201,7 @@ export function ScenarioComparison({
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="grid grid-cols-3 gap-3 text-sm">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                   <MetricCell
                     label="Final Balance"
                     value={scenFinal}

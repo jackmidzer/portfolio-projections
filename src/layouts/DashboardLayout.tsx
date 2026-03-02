@@ -172,7 +172,7 @@ export function DashboardLayout() {
         {/* Main Content */}
         <main className="flex-1 overflow-auto">
           <NegativeBalanceBanner />
-          <div className="p-6 max-w-7xl mx-auto">
+          <div className="p-3 sm:p-6 max-w-7xl mx-auto">
             {results ? (
               <DashboardContent />
             ) : (
@@ -188,7 +188,7 @@ export function DashboardLayout() {
         </main>
 
         {/* Footer */}
-        <footer className="border-t px-4 h-14 bg-background flex-shrink-0 flex items-center justify-center">
+        <footer className="border-t px-4 py-3 sm:h-14 sm:py-0 bg-background flex-shrink-0 flex items-center justify-center">
           <p className="text-xs text-muted-foreground text-center">
             This calculator is a planning tool, not professional financial advice. Results are estimates based on your inputs.
           </p>
@@ -197,7 +197,7 @@ export function DashboardLayout() {
 
       {/* Mobile Sidebar Sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-[340px] p-0">
+        <SheetContent side="left" className="w-[min(340px,85vw)] p-0">
           <SheetHeader className="p-4 border-b">
             <SheetTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-primary" />
