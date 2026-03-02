@@ -16,26 +16,41 @@ import {
   PENSION_LUMP_SUM_STANDARD_RATE,
   PENSION_LUMP_SUM_MARGINAL_RATE,
   getTaxBands,
+  getIndexedTaxBands,
+  getIndexedUSCRates,
   getPersonalTaxCredit,
   getEarnedIncomeCredit,
   getMedicalInsuranceCredit,
   getRentReliefCredit,
+  PRSI_WEEKS_PER_YEAR,
+  PRSI_MIN_CONTRIBUTIONS,
+  PRSI_FULL_CONTRIBUTIONS,
 } from '../constants/irishTaxRates2026';
-import { TaxCalculationResult } from '../types/index';
+import { TaxCalculationResult, CareerBreak } from '../types/index';
+
+export { PRSI_MIN_CONTRIBUTIONS, PRSI_FULL_CONTRIBUTIONS, PRSI_WEEKS_PER_YEAR };
 
 export interface TaxCalculationInput {
   grossSalary: number;
   pensionContribution: number;
   bikValue: number;
+  claimRentRelief?: boolean;       // true = apply €1,000 Rent Relief credit (renters only)
+  claimMedicalInsurance?: boolean; // true = apply €200 Medical Insurance credit (VHI/private health)
+  /** Pre-computed threshold multiplier: (1 + indexation%)^yearsFromBase. Default 1 = no indexation. */
+  taxBandMultiplier?: number;
 }
 
 /**
  * Calculate PAYE tax with band details
+ * @param taxBandMultiplier - cumulative threshold multiplier for band indexation (default 1)
  */
 function calculatePayeTaxWithDetails(
-  taxableIncome: number
+  taxableIncome: number,
+  claimRentRelief = true,
+  claimMedicalInsurance = true,
+  taxBandMultiplier = 1,
 ): { totalTax: number; bands: Array<{ startThreshold: number; threshold: number; rate: number; incomeInBand: number; taxInBand: number }>; creditsApplied: { personal: number; earned: number; medicalInsurance: number; rentRelief: number; total: number } } {
-  const taxBands = getTaxBands();
+  const taxBands = taxBandMultiplier !== 1 ? getIndexedTaxBands(taxBandMultiplier) : getTaxBands();
   let tax = 0;
   let previousThreshold = 0;
   const bands: Array<{ startThreshold: number; threshold: number; rate: number; incomeInBand: number; taxInBand: number }> = [];
@@ -64,8 +79,8 @@ function calculatePayeTaxWithDetails(
   // Apply tax credits
   const personalCredit = getPersonalTaxCredit();
   const earnedCredit = getEarnedIncomeCredit();
-  const medicalInsuranceCredit = getMedicalInsuranceCredit();
-  const rentReliefCredit = getRentReliefCredit();
+  const medicalInsuranceCredit = claimMedicalInsurance ? getMedicalInsuranceCredit() : 0;
+  const rentReliefCredit = claimRentRelief ? getRentReliefCredit() : 0;
   const totalCredits = personalCredit + earnedCredit + medicalInsuranceCredit + rentReliefCredit;
 
   // Tax cannot be negative after credits
@@ -86,15 +101,18 @@ function calculatePayeTaxWithDetails(
 
 /**
  * Calculate USC with band details
+ * @param taxBandMultiplier - cumulative threshold multiplier for band indexation (default 1)
  */
 function calculateUSCWithDetails(
-  grossSalary: number
+  grossSalary: number,
+  taxBandMultiplier = 1,
 ): { totalUSC: number; bands: Array<{ startThreshold: number; threshold: number; rate: number; incomeInBand: number; uscInBand: number }> } {
+  const uscRates = taxBandMultiplier !== 1 ? getIndexedUSCRates(taxBandMultiplier) : USC_RATES;
   let usc = 0;
   let previousThreshold = 0;
   const bands: Array<{ startThreshold: number; threshold: number; rate: number; incomeInBand: number; uscInBand: number }> = [];
 
-  for (const band of USC_RATES) {
+  for (const band of uscRates) {
     const bandLimit = band.threshold;
     const bandIncome = Math.min(grossSalary, bandLimit) - previousThreshold;
 
@@ -123,9 +141,10 @@ function calculateUSCWithDetails(
 
 /**
  * Calculate PAYE tax based on taxable income
+ * @param taxBandMultiplier - cumulative threshold multiplier for band indexation (default 1)
  */
-export function calculatePayeTax(taxableIncome: number): number {
-  const taxBands = getTaxBands();
+export function calculatePayeTax(taxableIncome: number, claimRentRelief = true, claimMedicalInsurance = true, taxBandMultiplier = 1): number {
+  const taxBands = taxBandMultiplier !== 1 ? getIndexedTaxBands(taxBandMultiplier) : getTaxBands();
   let tax = 0;
   let previousThreshold = 0;
 
@@ -145,9 +164,9 @@ export function calculatePayeTax(taxableIncome: number): number {
   // Apply tax credits
   const personalCredit = getPersonalTaxCredit();
   const earnedCredit = getEarnedIncomeCredit();
-  const medicalInsuranceCredit = getMedicalInsuranceCredit();
-  const rentReliefCredit = getRentReliefCredit();
-  const totalCredits = personalCredit + earnedCredit + medicalInsuranceCredit + rentReliefCredit;
+  const medicalInsuranceCreditVal = claimMedicalInsurance ? getMedicalInsuranceCredit() : 0;
+  const rentReliefCreditVal = claimRentRelief ? getRentReliefCredit() : 0;
+  const totalCredits = personalCredit + earnedCredit + medicalInsuranceCreditVal + rentReliefCreditVal;
 
   // Tax cannot be negative after credits
   return Math.max(0, tax - totalCredits);
@@ -156,12 +175,14 @@ export function calculatePayeTax(taxableIncome: number): number {
 /**
  * Calculate Universal Social Charge (USC)
  * USC is applied to gross income (not reduced by pension contributions)
+ * @param taxBandMultiplier - cumulative threshold multiplier for band indexation (default 1)
  */
-export function calculateUSC(grossSalary: number): number {
+export function calculateUSC(grossSalary: number, taxBandMultiplier = 1): number {
+  const uscRates = taxBandMultiplier !== 1 ? getIndexedUSCRates(taxBandMultiplier) : USC_RATES;
   let usc = 0;
   let previousThreshold = 0;
 
-  for (const band of USC_RATES) {
+  for (const band of uscRates) {
     const bandLimit = band.threshold;
     const bandIncome = Math.min(grossSalary, bandLimit) - previousThreshold;
 
@@ -211,7 +232,7 @@ export function calculateTaxableIncome(
  * Main function: Calculate complete tax breakdown for Irish salary
  */
 export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationResult {
-  const { grossSalary, pensionContribution, bikValue } = input;
+  const { grossSalary, pensionContribution, bikValue, claimRentRelief = true, claimMedicalInsurance = true, taxBandMultiplier = 1 } = input;
 
   // BIK is added to gross income for all tax purposes
   const grossIncomeWithBIK = grossSalary + bikValue;
@@ -221,13 +242,13 @@ export function calculateNetSalary(input: TaxCalculationInput): TaxCalculationRe
   const taxableIncome = calculateTaxableIncome(grossIncomeWithBIK, pensionContribution);
 
   // Calculate PAYE with band details and apply reliefs
-  const payeeTaxDetails = calculatePayeTaxWithDetails(taxableIncome);
+  const payeeTaxDetails = calculatePayeTaxWithDetails(taxableIncome, claimRentRelief, claimMedicalInsurance, taxBandMultiplier);
   const payeTax = payeeTaxDetails.totalTax;
   const payeTaxBands = payeeTaxDetails.bands;
   const taxCredits = payeeTaxDetails.creditsApplied;
 
   // Calculate USC with band details
-  const uscDetails = calculateUSCWithDetails(grossIncomeWithBIK);
+  const uscDetails = calculateUSCWithDetails(grossIncomeWithBIK, taxBandMultiplier);
   const usc = uscDetails.totalUSC;
   const uscBands = uscDetails.bands;
 
@@ -292,7 +313,10 @@ export function calculateBonusTaxBurden(
   grossSalary: number,
   bonusPercent: number,
   pensionContributionPercent: number,
-  bikValue: number = 0
+  bikValue: number = 0,
+  claimRentRelief = true,
+  claimMedicalInsurance = true,
+  taxBandMultiplier = 1,
 ): number {
   if (bonusPercent <= 0) {
     return 0;
@@ -313,14 +337,14 @@ export function calculateBonusTaxBurden(
   const combinedTaxableIncome = calculateTaxableIncome(combinedGrossIncomeWithBIK, combinedPensionContribution);
 
   // Calculate tax on salary only
-  const salaryPayeTax = calculatePayeTax(salaryTaxableIncome);
-  const salaryUSC = calculateUSC(salaryGrossIncomeWithBIK);
+  const salaryPayeTax = calculatePayeTax(salaryTaxableIncome, claimRentRelief, claimMedicalInsurance, taxBandMultiplier);
+  const salaryUSC = calculateUSC(salaryGrossIncomeWithBIK, taxBandMultiplier);
   const salaryPRSI = calculatePRSI(salaryGrossIncomeWithBIK);
   const salaryTotalTax = salaryPayeTax + salaryUSC + salaryPRSI;
 
   // Calculate tax on salary + bonus
-  const combinedPayeTax = calculatePayeTax(combinedTaxableIncome);
-  const combinedUSC = calculateUSC(combinedGrossIncomeWithBIK);
+  const combinedPayeTax = calculatePayeTax(combinedTaxableIncome, claimRentRelief, claimMedicalInsurance, taxBandMultiplier);
+  const combinedUSC = calculateUSC(combinedGrossIncomeWithBIK, taxBandMultiplier);
   const combinedPRSI = calculatePRSI(combinedGrossIncomeWithBIK);
   const combinedTotalTax = combinedPayeTax + combinedUSC + combinedPRSI;
 
@@ -338,7 +362,10 @@ export function calculateNetBonus(
   grossSalary: number,
   bonusPercent: number,
   pensionContributionPercent: number,
-  bikValue: number = 0
+  bikValue: number = 0,
+  claimRentRelief = true,
+  claimMedicalInsurance = true,
+  taxBandMultiplier = 1,
 ): { grossBonus: number; bonusNetSalary: number; bonusTaxBurden: number; bonusPensionContribution: number } {
   if (bonusPercent <= 0) {
     return {
@@ -351,7 +378,7 @@ export function calculateNetBonus(
 
   const grossBonus = grossSalary * (bonusPercent / 100);
   const bonusPensionContribution = (grossBonus * pensionContributionPercent) / 100;
-  const bonusTaxBurden = calculateBonusTaxBurden(grossSalary, bonusPercent, pensionContributionPercent, bikValue);
+  const bonusTaxBurden = calculateBonusTaxBurden(grossSalary, bonusPercent, pensionContributionPercent, bikValue, claimRentRelief, claimMedicalInsurance, taxBandMultiplier);
   const bonusNetSalary = grossBonus - bonusPensionContribution - bonusTaxBurden;
 
   return {
@@ -368,7 +395,7 @@ export function calculateNetBonus(
  * PRSI applies when age < 66 (state pension age)
  * Includes a €245 age tax credit when in pension phase (age 66+)
  */
-export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPhase: boolean, age: number): {
+export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPhase: boolean, age: number, taxBandMultiplier = 1): {
   grossWithdrawal: number;
   payeTax: number;
   usc: number;
@@ -379,11 +406,11 @@ export function calculatePensionWithdrawalTax(withdrawal: number, isInPensionPha
 } {
   // Pension withdrawals are treated as income for tax purposes
   // Apply PAYE tax on the withdrawal amount
-  const payeTaxDetails = calculatePayeTaxWithDetails(withdrawal);
-  const payeTax = payeTaxDetails.totalTax;
+  const payeeTaxDetails = calculatePayeTaxWithDetails(withdrawal, true, true, taxBandMultiplier);
+  const payeTax = payeeTaxDetails.totalTax;
 
   // Apply USC (no reduction for pension contributions on withdrawal income)
-  const uscDetails = calculateUSCWithDetails(withdrawal);
+  const uscDetails = calculateUSCWithDetails(withdrawal, taxBandMultiplier);
   const usc = uscDetails.totalUSC;
 
   // PRSI applies to pension withdrawals when age < 66 (state pension age)
@@ -574,4 +601,160 @@ export function calculateDirtTax(interest: number): number {
  */
 export function getNetInterestAfterDirt(interest: number): number {
   return interest - calculateDirtTax(interest);
+}
+
+// ─── PRSI Contribution Summary ───────────────────────────────────────────────
+
+export interface PrsiSummary {
+  /** User-declared PRSI contributions already paid before the projection start */
+  priorContributions: number;
+  /** Class A: projected contributions during employment (currentAge → fireAge, minus full breaks) */
+  projectedEmploymentContributions: number;
+  /**
+   * Class S: projected contributions during private pension drawdown phase
+   * (pensionAge → min(statePensionAge, 66)). PRSI stops at 66 regardless.
+   * Zero if pensionAge ≥ statePensionAge, or if no pensionAge was provided.
+   */
+  projectedPensionContributions: number;
+  /** Total projected new contributions (employment + pension drawdown) */
+  projectedNewContributions: number;
+  /** Total estimated contributions (prior + projected) */
+  totalContributions: number;
+  /** Weeks still needed to reach the minimum threshold (520); 0 if already met */
+  shortfallToMinimum: number;
+  /** Weeks still needed to reach the full-rate threshold (2080); 0 if already met */
+  shortfallToFull: number;
+  /** Additional full working years needed beyond FIRE age to reach 2,080 contributions; 0 if met */
+  additionalYearsToFull: number;
+  /**
+   * 'full'    – projected contributions ≥ 2,080 (full rate)
+   * 'partial' – projected contributions ≥ 520 but < 2,080
+   * 'none'    – projected contributions < 520 (no entitlement)
+   */
+  status: 'full' | 'partial' | 'none';
+  /** Percentage of full-rate contributions achieved (capped at 100) */
+  percentOfFull: number;
+  /** Estimated weekly State Pension (proportional to contributions; 0 if below minimum) */
+  estimatedWeeklyStatePension: number;
+  /** Estimated annual State Pension */
+  estimatedAnnualStatePension: number;
+}
+
+/**
+ * Estimate the total PRSI (Pay Related Social Insurance) contributions a user
+ * will have made by their State Pension age, split by contribution source.
+ *
+ * Phase A – Employment (Class A): currentAge → fireAge
+ *   - 52 contributions/year of salaried work.
+ *   - Full career breaks (salaryPercent = 0) pause contributions.
+ *   - Part-time breaks (salaryPercent > 0) still count as employment.
+ *
+ * Phase B – Bridging (fireAge → pensionAge): NO PRSI
+ *   - Living off brokerage/savings; no employment income or pension income,
+ *     so no PRSI liability.
+ *
+ * Phase C – Pension drawdown (Class S): pensionAge → min(statePensionAge, 66)
+ *   - Occupational pension income below age 66 is subject to Class S PRSI.
+ *   - 52 contributions/year until PRSI exemption kicks in at 66.
+ *
+ * Thresholds (Irish Social Protection):
+ * - 520 contributions  (10 years) → minimum entitlement to ANY State Pension
+ * - 2,080 contributions (40 years) → full-rate State Pension
+ *
+ * State Pension estimate uses simple proportional scaling between the
+ * minimum (520) and full (2,080) thresholds against the provided weekly rate.
+ */
+export function calculatePrsiSummary(params: {
+  currentAge: number;
+  fireAge: number;
+  priorContributions: number;
+  careerBreaks: CareerBreak[];
+  /** Age when private pension drawdown begins (Class S PRSI starts here) */
+  pensionAge?: number;
+  /** Age when State Pension starts (PRSI exempt from this age, max 66) */
+  statePensionAge?: number;
+  /** Full-rate weekly State Pension used to scale partial estimates */
+  statePensionWeeklyAmount?: number;
+}): PrsiSummary {
+  const {
+    currentAge,
+    fireAge,
+    priorContributions,
+    careerBreaks,
+    pensionAge,
+    statePensionAge = 66,
+    statePensionWeeklyAmount = 299.30,
+  } = params;
+
+  // ── Phase A: employment (Class A) ──────────────────────────────────────────
+  let breakWeeks = 0;
+  for (const cb of careerBreaks) {
+    if (cb.salaryPercent > 0) continue; // still employed part-time → PRSI accrues
+    const overlapFrom = Math.max(cb.fromAge, currentAge);
+    const overlapTo   = Math.min(cb.toAge, fireAge);
+    if (overlapTo > overlapFrom) {
+      breakWeeks += Math.round((overlapTo - overlapFrom) * PRSI_WEEKS_PER_YEAR);
+    }
+  }
+  const workingYears = Math.max(0, fireAge - currentAge);
+  const projectedEmploymentContributions = Math.max(
+    0,
+    Math.round(workingYears * PRSI_WEEKS_PER_YEAR) - breakWeeks,
+  );
+
+  // ── Phase C: pension drawdown (Class S) ────────────────────────────────────
+  // PRSI is exempt from statePensionAge (capped at 66 regardless).
+  const prsiExemptAge = Math.min(statePensionAge, 66);
+  const pensionPrsiYears =
+    pensionAge !== undefined
+      ? Math.max(0, prsiExemptAge - Math.max(pensionAge, fireAge))
+      : 0;
+  const projectedPensionContributions = Math.round(pensionPrsiYears * PRSI_WEEKS_PER_YEAR);
+
+  // ── Totals ─────────────────────────────────────────────────────────────────
+  const projectedNewContributions = projectedEmploymentContributions + projectedPensionContributions;
+  const totalContributions = priorContributions + projectedNewContributions;
+
+  const shortfallToMinimum = Math.max(0, PRSI_MIN_CONTRIBUTIONS - totalContributions);
+  const shortfallToFull    = Math.max(0, PRSI_FULL_CONTRIBUTIONS - totalContributions);
+  const additionalYearsToFull = shortfallToFull > 0
+    ? Math.ceil(shortfallToFull / PRSI_WEEKS_PER_YEAR)
+    : 0;
+
+  const percentOfFull = Math.min(100, Math.round((totalContributions / PRSI_FULL_CONTRIBUTIONS) * 100));
+
+  let status: PrsiSummary['status'];
+  if (totalContributions >= PRSI_FULL_CONTRIBUTIONS) {
+    status = 'full';
+  } else if (totalContributions >= PRSI_MIN_CONTRIBUTIONS) {
+    status = 'partial';
+  } else {
+    status = 'none';
+  }
+
+  // ── State Pension estimate (proportional within min→full band) ─────────────
+  const estimatedWeeklyStatePension =
+    status === 'none'
+      ? 0
+      : Math.min(
+          statePensionWeeklyAmount,
+          (Math.min(totalContributions, PRSI_FULL_CONTRIBUTIONS) / PRSI_FULL_CONTRIBUTIONS) *
+            statePensionWeeklyAmount,
+        );
+  const estimatedAnnualStatePension = estimatedWeeklyStatePension * 52;
+
+  return {
+    priorContributions,
+    projectedEmploymentContributions,
+    projectedPensionContributions,
+    projectedNewContributions,
+    totalContributions,
+    shortfallToMinimum,
+    shortfallToFull,
+    additionalYearsToFull,
+    status,
+    percentOfFull,
+    estimatedWeeklyStatePension,
+    estimatedAnnualStatePension,
+  };
 }

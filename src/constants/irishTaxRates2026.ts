@@ -61,11 +61,39 @@ export const STATE_PENSION_WEEKLY = 299.30;  // Weekly payment
 export const STATE_PENSION_AGE = 66;          // Eligibility age
 export const STATE_PENSION_ANNUAL = 299.30 * 52; // Annual amount at current rate (~€15,564/yr)
 
+// PRSI Contribution Thresholds for State Pension Eligibility
+// Source: gov.ie / Department of Social Protection
+export const PRSI_WEEKS_PER_YEAR = 52;                // PRSI contributions per full year of employment
+export const PRSI_MIN_CONTRIBUTIONS = 520;             // Minimum paid contributions for ANY entitlement (10 years)
+export const PRSI_FULL_CONTRIBUTIONS = 2080;           // Contributions required for FULL rate pension (40 years)
+
 /**
  * Get applicable tax bands
  */
 export function getTaxBands() {
   return PAYE_TAX_BANDS;
+}
+
+/**
+ * Get PAYE tax bands scaled by a cumulative threshold multiplier.
+ * Used for tax band indexation over multi-year projections.
+ * Infinite thresholds (top band) are left unchanged.
+ */
+export function getIndexedTaxBands(multiplier: number) {
+  return PAYE_TAX_BANDS.map((b) =>
+    b.threshold === Infinity ? b : { ...b, threshold: b.threshold * multiplier },
+  );
+}
+
+/**
+ * Get USC rates scaled by a cumulative threshold multiplier.
+ * Used for tax band indexation over multi-year projections.
+ * Infinite thresholds (top band) are left unchanged.
+ */
+export function getIndexedUSCRates(multiplier: number) {
+  return USC_RATES.map((b) =>
+    b.threshold === Infinity ? b : { ...b, threshold: b.threshold * multiplier },
+  );
 }
 
 /**

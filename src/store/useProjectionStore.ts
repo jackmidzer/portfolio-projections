@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AccountInput as AccountInputType, PortfolioResults, TaxCalculationResult, HouseDepositCalculation, CareerBreak } from '@/types';
+import { AccountInput as AccountInputType, PortfolioResults, TaxCalculationResult, HouseDepositCalculation, CareerBreak, Windfall } from '@/types';
 import { calculateNetSalary, calculateBonusTaxBurden } from '@/utils/taxCalculations';
 import { calculateHouseMetrics } from '@/utils/houseCalculations';
 import { validateInputs } from '@/utils/validation';
 import type { CalcWorkerResponse, CalcWorkerError } from '@/workers/calculationWorker';
+import type { MCWorkerResponse, MCWorkerError } from '@/workers/monteCarloWorker';
 
 // ─── Web Worker singleton ────────────────────────────────────────────
 
@@ -18,6 +19,18 @@ function getCalcWorker(): Worker {
     );
   }
   return calcWorker;
+}
+
+let mcWorker: Worker | null = null;
+
+function getMCWorker(): Worker {
+  if (!mcWorker) {
+    mcWorker = new Worker(
+      new URL('../workers/monteCarloWorker.ts', import.meta.url),
+      { type: 'module' },
+    );
+  }
+  return mcWorker;
 }
 
 // ─── Form Inputs Slice ───────────────────────────────────────────────
@@ -61,9 +74,25 @@ export interface FormInputs {
   includeStatePension: boolean;
   statePensionAge: number | '';
   statePensionWeeklyAmount: number | '';
+  /** Number of PRSI weeks already paid before the projection starts (default 0) */
+  prsiContributionsToDate: number | '';
 
   // Career Breaks
   careerBreaks: CareerBreak[];
+
+  // Windfalls
+  windfalls: Windfall[];
+
+  // Tax Credits
+  claimRentRelief: boolean;
+  claimMedicalInsurance: boolean;
+  /** Annual % rate at which PAYE/USC thresholds are indexed (default 1.5%) */
+  taxBandIndexation: number | '';
+
+  // Monte Carlo simulation
+  monteCarloEnabled: boolean;
+  monteCarloSimulations: number;
+  returnVolatility: number;
 }
 
 // ─── UI State Slice ──────────────────────────────────────────────────
@@ -88,11 +117,23 @@ interface UIState {
 
 // ─── Results Slice ───────────────────────────────────────────────────
 
+/** Monte Carlo percentile paths indexed by projection year */
+export interface MonteCarloPercentiles {
+  p10: number[];
+  p25: number[];
+  p50: number[];
+  p75: number[];
+  p90: number[];
+  ages: number[];
+}
+
 interface ResultsState {
   results: PortfolioResults | null;
   taxCalculationResult: TaxCalculationResult | null;
   bonusTaxBurden: number;
   lastCalculatedBonusPercent: number;
+  monteCarloPercentiles: MonteCarloPercentiles | null;
+  isMonteCarloRunning: boolean;
 }
 
 // ─── Combined Store ──────────────────────────────────────────────────
@@ -118,6 +159,7 @@ interface ProjectionStore extends FormInputs, UIState, ResultsState {
 
   // Calculation actions
   calculate: () => Promise<{ errors: string[] }>;
+  runMonteCarloSimulations: () => void;
 
   // Computed helpers
   getCurrentAge: () => number | '';
@@ -185,9 +227,23 @@ const defaultFormInputs: FormInputs = {
   includeStatePension: true,
   statePensionAge: 66,
   statePensionWeeklyAmount: 299.30,
+  prsiContributionsToDate: 208,
 
   // Career Breaks
   careerBreaks: [],
+
+  // Windfalls
+  windfalls: [],
+
+  // Tax Credits
+  claimRentRelief: true,
+  claimMedicalInsurance: true,
+  taxBandIndexation: 1.5,
+
+  // Monte Carlo
+  monteCarloEnabled: false,
+  monteCarloSimulations: 500,
+  returnVolatility: 2,
 };
 
 // ─── Helper Functions ────────────────────────────────────────────────
@@ -252,6 +308,8 @@ export const useProjectionStore = create<ProjectionStore>()(
   taxCalculationResult: null,
   bonusTaxBurden: 0,
   lastCalculatedBonusPercent: 0,
+  monteCarloPercentiles: null,
+  isMonteCarloRunning: false,
 
   // ─── Form Actions ──────────────────────────────────────────────
   updateField: (field, value) => set(state => {
@@ -322,7 +380,15 @@ export const useProjectionStore = create<ProjectionStore>()(
       includeStatePension: state.includeStatePension,
       statePensionAge: state.statePensionAge,
       statePensionWeeklyAmount: state.statePensionWeeklyAmount,
+      prsiContributionsToDate: state.prsiContributionsToDate,
       careerBreaks: JSON.parse(JSON.stringify(state.careerBreaks)),
+      windfalls: JSON.parse(JSON.stringify(state.windfalls)),
+      claimRentRelief: state.claimRentRelief,
+      claimMedicalInsurance: state.claimMedicalInsurance,
+      taxBandIndexation: state.taxBandIndexation,
+      monteCarloEnabled: state.monteCarloEnabled,
+      monteCarloSimulations: state.monteCarloSimulations,
+      returnVolatility: state.returnVolatility,
     };
     const scenario: SavedScenario = { id, label, inputs, results: state.results };
     return { scenarios: [...state.scenarios, scenario] };
@@ -442,6 +508,9 @@ export const useProjectionStore = create<ProjectionStore>()(
       grossSalary: salary,
       pensionContribution: (salary * currentPensionPercent) / 100,
       bikValue: typeof state.taxBikValue === 'number' ? state.taxBikValue : 0,
+      claimRentRelief: state.claimRentRelief,
+      claimMedicalInsurance: state.claimMedicalInsurance,
+      taxBandIndexation: typeof state.taxBandIndexation === 'number' ? state.taxBandIndexation : 0,
     };
 
     set({ isCalculating: true });
@@ -472,7 +541,9 @@ export const useProjectionStore = create<ProjectionStore>()(
       includeStatePension: state.includeStatePension,
       statePensionAge: typeof state.statePensionAge === 'number' ? state.statePensionAge : 66,
       statePensionWeeklyAmount: typeof state.statePensionWeeklyAmount === 'number' ? state.statePensionWeeklyAmount : 299.30,
+      prsiContributionsToDate: typeof state.prsiContributionsToDate === 'number' ? state.prsiContributionsToDate : 0,
       careerBreaks: state.careerBreaks,
+      windfalls: state.windfalls,
     };
 
     try {
@@ -513,6 +584,8 @@ export const useProjectionStore = create<ProjectionStore>()(
         isCalculating: false,
       });
 
+      // Leave existing Monte Carlo percentiles in place until the user manually re-runs.
+
       return { errors: [] };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -522,6 +595,102 @@ export const useProjectionStore = create<ProjectionStore>()(
       });
       return { errors: [message] };
     }
+  },
+
+  // ─── Monte Carlo ──────────────────────────────────────────────
+  runMonteCarloSimulations: () => {
+    const state = get();
+
+    const currentAge = state.getCurrentAge();
+    const monthsUntilBirthday = state.getMonthsUntilBirthday();
+    const houseDepositMetrics = state.getHouseDepositMetrics();
+    const currentPensionPercent = state.getCurrentPensionPercent();
+
+    const age = typeof currentAge === 'number' ? currentAge : NaN;
+    const future = typeof state.targetAge === 'number' ? state.targetAge : NaN;
+    const salary = typeof state.currentSalary === 'number' ? state.currentSalary : NaN;
+    const increase = typeof state.annualSalaryIncrease === 'number' ? state.annualSalaryIncrease : NaN;
+    const bonus = typeof state.bonusPercent === 'number' ? state.bonusPercent : 0;
+    const pension = typeof state.pensionAge === 'number' ? state.pensionAge : NaN;
+    const withdrawal = typeof state.withdrawalRate === 'number' ? state.withdrawalRate : NaN;
+    const fireAge = typeof state.fireAge === 'number' ? state.fireAge : NaN;
+    const replacement = typeof state.salaryReplacementRate === 'number' ? state.salaryReplacementRate : NaN;
+    const brokerageRate = typeof state.lumpSumToBrokerageRate === 'number' ? state.lumpSumToBrokerageRate : NaN;
+    const lumpSumAge = typeof state.pensionLumpSumAge === 'number' ? state.pensionLumpSumAge : NaN;
+    const lumpSumMaxAmount = typeof state.pensionLumpSumMaxAmount === 'number' ? state.pensionLumpSumMaxAmount : NaN;
+    const houseAge = typeof state.houseWithdrawalAge === 'number' ? state.houseWithdrawalAge : NaN;
+    const houseBrokerageRate = typeof state.houseDepositFromBrokerageRate === 'number' ? state.houseDepositFromBrokerageRate : NaN;
+    const timeHorizon = future - age + 1;
+    const taxInputData = {
+      grossSalary: salary,
+      pensionContribution: (salary * currentPensionPercent) / 100,
+      bikValue: typeof state.taxBikValue === 'number' ? state.taxBikValue : 0,
+      claimRentRelief: state.claimRentRelief,
+      claimMedicalInsurance: state.claimMedicalInsurance,
+      taxBandIndexation: typeof state.taxBandIndexation === 'number' ? state.taxBandIndexation : 0,
+    };
+
+    const baseOptions = {
+      accounts: state.accounts,
+      timeHorizon,
+      currentAge: age,
+      currentSalary: salary,
+      annualSalaryIncrease: increase,
+      monthsUntilNextBirthday: monthsUntilBirthday,
+      dateOfBirth: new Date(state.dateOfBirth),
+      pensionAge: pension,
+      withdrawalRate: withdrawal,
+      fireAge,
+      salaryReplacementRate: replacement,
+      lumpSumToBrokerageRate: brokerageRate,
+      bonusPercent: bonus,
+      houseWithdrawalAge: houseAge,
+      enableHouseWithdrawal: state.enableHouseWithdrawal,
+      houseDepositCalculation: houseDepositMetrics || undefined,
+      houseDepositFromBrokerageRate: houseBrokerageRate,
+      enablePensionLumpSum: state.enablePensionLumpSum,
+      taxInputs: taxInputData,
+      pensionLumpSumAge: lumpSumAge,
+      mortgageExemption: state.mortgageExemption,
+      pensionLumpSumMaxAmount: lumpSumMaxAmount,
+      includeStatePension: state.includeStatePension,
+      statePensionAge: typeof state.statePensionAge === 'number' ? state.statePensionAge : 66,
+      statePensionWeeklyAmount: typeof state.statePensionWeeklyAmount === 'number' ? state.statePensionWeeklyAmount : 299.30,
+      prsiContributionsToDate: typeof state.prsiContributionsToDate === 'number' ? state.prsiContributionsToDate : 0,
+      careerBreaks: state.careerBreaks,
+      windfalls: state.windfalls,
+    };
+
+    set({ isMonteCarloRunning: true });
+
+    const worker = getMCWorker();
+    const onMessage = (event: MessageEvent<MCWorkerResponse | MCWorkerError>) => {
+      worker.removeEventListener('message', onMessage);
+      worker.removeEventListener('error', onError);
+      if (event.data.type === 'result') {
+        set({
+          monteCarloPercentiles: event.data.percentiles,
+          isMonteCarloRunning: false,
+        });
+      } else {
+        console.warn('[Monte Carlo] Worker error:', event.data.message);
+        set({ isMonteCarloRunning: false });
+      }
+    };
+    const onError = (event: ErrorEvent) => {
+      worker.removeEventListener('message', onMessage);
+      worker.removeEventListener('error', onError);
+      console.warn('[Monte Carlo] Worker error:', event.message);
+      set({ isMonteCarloRunning: false });
+    };
+    worker.addEventListener('message', onMessage);
+    worker.addEventListener('error', onError);
+    worker.postMessage({
+      type: 'run',
+      baseOptions,
+      simulations: state.monteCarloSimulations,
+      returnVolatility: state.returnVolatility,
+    });
   },
     }),
     {
@@ -555,9 +724,17 @@ export const useProjectionStore = create<ProjectionStore>()(
         includeStatePension: state.includeStatePension,
         statePensionAge: state.statePensionAge,
         statePensionWeeklyAmount: state.statePensionWeeklyAmount,
+        prsiContributionsToDate: state.prsiContributionsToDate,
         careerBreaks: state.careerBreaks,
+        windfalls: state.windfalls,
         inflationRate: state.inflationRate,
         scenarios: state.scenarios,
+        claimRentRelief: state.claimRentRelief,
+        claimMedicalInsurance: state.claimMedicalInsurance,
+        taxBandIndexation: state.taxBandIndexation,
+        monteCarloEnabled: state.monteCarloEnabled,
+        monteCarloSimulations: state.monteCarloSimulations,
+        returnVolatility: state.returnVolatility,
       }) as any,
     },
   ),

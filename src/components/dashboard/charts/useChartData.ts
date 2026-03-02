@@ -10,11 +10,13 @@ import {
 } from './chartTheme';
 import type { PhaseBandsOptions } from './phaseBandsPlugin';
 import { useThemeKey } from '@/hooks/useThemeKey';
+import type { MonteCarloPercentiles } from '@/store/useProjectionStore';
 
 interface UseChartDataOptions {
   showRealValues?: boolean;
   inflationRate?: number;
   currentAge?: number;
+  monteCarloPercentiles?: MonteCarloPercentiles | null;
 }
 
 /**
@@ -22,13 +24,13 @@ interface UseChartDataOptions {
  * for all four chart views, plus shared milestone annotations and phase config.
  */
 export function useChartData(results: PortfolioResults, options?: UseChartDataOptions) {
-  const { showRealValues = false, inflationRate = 2.5, currentAge = 28 } = options ?? {};
+  const { showRealValues = false, inflationRate = 2.5, currentAge = 28, monteCarloPercentiles = null } = options ?? {};
   // Re-compute colors when dark/light mode changes
   const themeKey = useThemeKey();
 
   // Combined data (O(n) optimised)
   const combined = useMemo(
-    () => combineYearlyData(results.accountResults, results.fireAge, results.pensionAge),
+    () => combineYearlyData(results.accountResults, results.fireAge, results.pensionAge, results.taxInputs),
     [results],
   );
 
@@ -105,6 +107,106 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
     }),
     [combined, ages, themeKey, showRealValues, inflationRate, currentAge],
   );
+
+  // ── 1b. Monte Carlo chart (standalone) ──────────────────────────────────────
+  const monteCarloChartData: ChartData<'line'> | null = useMemo(() => {
+    if (!monteCarloPercentiles) return null;
+    const { p10, p25, p50, p75, p90, ages: mcAges } = monteCarloPercentiles;
+    const mcByAge = new Map<number, { p10: number; p25: number; p50: number; p75: number; p90: number }>();
+    for (let i = 0; i < mcAges.length; i++) {
+      mcByAge.set(mcAges[i], { p10: p10[i], p25: p25[i], p50: p50[i], p75: p75[i], p90: p90[i] });
+    }
+    const p10Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p10, a) : null; });
+    const p25Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p25, a) : null; });
+    const p50Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p50, a) : null; });
+    const p75Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p75, a) : null; });
+    const p90Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p90, a) : null; });
+    // Also include the deterministic total for reference
+    const totalData = combined.map((d) => adj(d.Savings + d.Pension + d.Brokerage, d.age));
+
+    return {
+      labels: ages,
+      datasets: [
+        {
+          label: '90th Percentile',
+          data: p90Data,
+          borderColor: 'hsla(260, 60%, 55%, 0.5)',
+          backgroundColor: 'hsla(260, 60%, 55%, 0.06)',
+          fill: '+4', // fill down to P10 (skip P75, P50, P25)
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1.5,
+          borderDash: [4, 2],
+          order: 4,
+        },
+        {
+          label: '75th Percentile',
+          data: p75Data,
+          borderColor: 'hsla(260, 60%, 55%, 0.35)',
+          backgroundColor: 'hsla(260, 60%, 55%, 0.10)',
+          fill: '+2', // fill down to P25 (skip P50)
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1,
+          borderDash: [2, 2],
+          order: 3,
+        },
+        {
+          label: 'Median (P50)',
+          data: p50Data,
+          borderColor: 'hsl(260, 60%, 55%)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 2.5,
+          order: 0,
+        },
+        {
+          label: '25th Percentile',
+          data: p25Data,
+          borderColor: 'hsla(260, 60%, 55%, 0.35)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1,
+          borderDash: [2, 2],
+          order: 2,
+        },
+        {
+          label: '10th Percentile',
+          data: p10Data,
+          borderColor: 'hsla(260, 60%, 55%, 0.5)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1.5,
+          borderDash: [4, 2],
+          order: 5,
+        },
+        {
+          label: 'Deterministic',
+          data: totalData,
+          borderColor: 'hsl(220, 14%, 55%)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1.5,
+          borderDash: [6, 4],
+          order: 1,
+        },
+      ],
+    };
+  }, [monteCarloPercentiles, combined, ages, showRealValues, inflationRate, currentAge]);
 
   // ── 2. Contributions vs Growth (stacked area) ───────────────────────────────
   const contributionsGrowthData: ChartData<'line'> = useMemo(
@@ -291,6 +393,7 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
     ages,
     phaseBands,
     portfolioGrowthData,
+    monteCarloChartData,
     contributionsGrowthData,
     annualFlowsData,
     incomeTimelineData,

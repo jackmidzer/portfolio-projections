@@ -1,4 +1,4 @@
-import type { AccountInput, CareerBreak } from '@/types';
+import type { AccountInput, CareerBreak, Windfall } from '@/types';
 
 // Mirrors the FormInputs fields needed for validation
 export interface ValidatableInputs {
@@ -25,6 +25,8 @@ export interface ValidatableInputs {
   statePensionWeeklyAmount?: number | '';
   // Career Breaks
   careerBreaks?: CareerBreak[];
+  // Windfalls
+  windfalls?: Windfall[];
 }
 
 function getAgeFromDOB(dob: string): number | null {
@@ -184,6 +186,24 @@ export function validateInputs(inputs: ValidatableInputs): Record<string, string
           errors[`careerBreaks.${index}.overlap`] = 'Career break periods must not overlap';
           break;
         }
+      }
+    });
+  }
+
+  // ─── Windfalls ────────────────────────────────────────────────────
+  if (inputs.windfalls && inputs.windfalls.length > 0) {
+    const targetAge = typeof inputs.targetAge === 'number' ? inputs.targetAge : 150;
+
+    inputs.windfalls.forEach((wf, index) => {
+      if (currentAge !== null && wf.age <= currentAge) {
+        errors[`windfalls.${index}.age`] = `Must be greater than current age (${currentAge})`;
+      } else if (wf.age < 18 || wf.age > 100) {
+        errors[`windfalls.${index}.age`] = 'Age must be between 18 and 100';
+      } else if (wf.age > targetAge) {
+        errors[`windfalls.${index}.age`] = `Must be ≤ target age (${targetAge})`;
+      }
+      if (wf.amount <= 0) {
+        errors[`windfalls.${index}.amount`] = 'Amount must be greater than 0';
       }
     });
   }

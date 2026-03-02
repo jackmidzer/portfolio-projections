@@ -15,6 +15,9 @@ import {
   calculatePensionLumpSumTax,
   calculateDirtTax,
   getNetInterestAfterDirt,
+  calculatePrsiSummary,
+  PRSI_FULL_CONTRIBUTIONS,
+  PRSI_WEEKS_PER_YEAR,
 } from '../taxCalculations';
 import {
   PRSI_SETTINGS,
@@ -596,5 +599,175 @@ describe('calculateBrokerageWithdrawalTax', () => {
     expect(result.etfExitTax).toBeCloseTo(3200 * EXIT_TAX_RATE, 2);
     // Stock: 2000 * 0.4 * 0.33 = 264
     expect(result.stockCgt).toBeCloseTo(800 * CGT_RATE, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculatePrsiSummary
+// ---------------------------------------------------------------------------
+describe('calculatePrsiSummary', () => {
+  it('full-rate status when 40 years of employment', () => {
+    const result = calculatePrsiSummary({
+      currentAge: 25,
+      fireAge: 65,
+      priorContributions: 0,
+      careerBreaks: [],
+    });
+    // 40 years * 52 = 2080 contributions → full
+    expect(result.projectedEmploymentContributions).toBe(2080);
+    expect(result.totalContributions).toBe(2080);
+    expect(result.status).toBe('full');
+    expect(result.shortfallToFull).toBe(0);
+    expect(result.percentOfFull).toBe(100);
+  });
+
+  it('partial status when between 520 and 2080 contributions', () => {
+    // 15 years of work = 780 contributions (no prior)
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 45,
+      priorContributions: 0,
+      careerBreaks: [],
+    });
+    expect(result.projectedEmploymentContributions).toBe(15 * PRSI_WEEKS_PER_YEAR);
+    expect(result.totalContributions).toBe(15 * PRSI_WEEKS_PER_YEAR);
+    expect(result.status).toBe('partial');
+  });
+
+  it('none status when under 520 contributions', () => {
+    // 5 years = 260 contributions
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 35,
+      priorContributions: 0,
+      careerBreaks: [],
+    });
+    expect(result.totalContributions).toBe(5 * PRSI_WEEKS_PER_YEAR);
+    expect(result.status).toBe('none');
+    expect(result.estimatedWeeklyStatePension).toBe(0);
+  });
+
+  it('priorContributions are included in total', () => {
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 40,
+      priorContributions: 520,
+      careerBreaks: [],
+    });
+    // 520 prior + 10 years * 52 = 520 + 520 = 1040
+    expect(result.totalContributions).toBe(1040);
+    expect(result.priorContributions).toBe(520);
+  });
+
+  it('full career break (0% salary) reduces employment contributions', () => {
+    // 10 years working, 2-year full break
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 40,
+      priorContributions: 0,
+      careerBreaks: [{ id: 'c1', fromAge: 32, toAge: 34, salaryPercent: 0 }],
+    });
+    // 10 years = 520 minus 2*52 = 104 break weeks → 416 contributions
+    expect(result.projectedEmploymentContributions).toBe(520 - 104);
+  });
+
+  it('part-time career break (>0% salary) does NOT reduce contributions', () => {
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 40,
+      priorContributions: 0,
+      careerBreaks: [{ id: 'c1', fromAge: 32, toAge: 34, salaryPercent: 50 }],
+    });
+    // Part-time break still accrues PRSI → full 10 years
+    expect(result.projectedEmploymentContributions).toBe(10 * PRSI_WEEKS_PER_YEAR);
+  });
+
+  it('shortfallToMinimum is 0 when contributions >= 520', () => {
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 45,
+      priorContributions: 0,
+      careerBreaks: [],
+    });
+    expect(result.shortfallToMinimum).toBe(0);
+  });
+
+  it('calculates shortfallToFull correctly', () => {
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 35,
+      priorContributions: 0,
+      careerBreaks: [],
+    });
+    const total = 5 * PRSI_WEEKS_PER_YEAR;   // 260
+    expect(result.shortfallToFull).toBe(PRSI_FULL_CONTRIBUTIONS - total);
+  });
+
+  it('additionalYearsToFull is 0 when already full', () => {
+    const result = calculatePrsiSummary({
+      currentAge: 25,
+      fireAge: 65,
+      priorContributions: 0,
+      careerBreaks: [],
+    });
+    expect(result.additionalYearsToFull).toBe(0);
+  });
+
+  it('pension drawdown phase (Class S) adds contributions before statePensionAge', () => {
+    // Returns from pension at 60, state pension at 66 → 6 years class S = 312 contributions
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 50,
+      priorContributions: 0,
+      careerBreaks: [],
+      pensionAge: 60,
+      statePensionAge: 66,
+    });
+    expect(result.projectedPensionContributions).toBe(6 * PRSI_WEEKS_PER_YEAR);
+  });
+
+  it('no pension contributions when pensionAge is undefined', () => {
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 50,
+      priorContributions: 0,
+      careerBreaks: [],
+    });
+    expect(result.projectedPensionContributions).toBe(0);
+  });
+
+  it('estimatedWeeklyStatePension scales proportionally for partial', () => {
+    // 20 years = 1040 contributions; full = 2080; weekly = 300
+    // expected proportional: 1040/2080 * 300 = 150
+    const result = calculatePrsiSummary({
+      currentAge: 30,
+      fireAge: 50,
+      priorContributions: 0,
+      careerBreaks: [],
+      statePensionWeeklyAmount: 300,
+    });
+    const expectedWeekly = (1040 / PRSI_FULL_CONTRIBUTIONS) * 300;
+    expect(result.estimatedWeeklyStatePension).toBeCloseTo(expectedWeekly, 0);
+  });
+
+  it('estimated annual state pension = weekly * 52', () => {
+    const result = calculatePrsiSummary({
+      currentAge: 25,
+      fireAge: 65,
+      priorContributions: 0,
+      careerBreaks: [],
+      statePensionWeeklyAmount: 299.30,
+    });
+    expect(result.estimatedAnnualStatePension).toBeCloseTo(result.estimatedWeeklyStatePension * 52, 0);
+  });
+
+  it('percentOfFull is capped at 100', () => {
+    const result = calculatePrsiSummary({
+      currentAge: 25,
+      fireAge: 65,
+      priorContributions: 1000,   // already over 2080 with employment
+      careerBreaks: [],
+    });
+    expect(result.percentOfFull).toBe(100);
   });
 });

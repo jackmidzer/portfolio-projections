@@ -114,7 +114,7 @@ export function ProjectionChart({
   const scenarioOverlayDatasets = useMemo(() =>
     visibleScenarios.map((scenario, idx) => {
       const scenResults = scenario.results!;
-      const scenCombined = combineYearlyData(scenResults.accountResults, scenResults.fireAge, scenResults.pensionAge);
+      const scenCombined = combineYearlyData(scenResults.accountResults, scenResults.fireAge, scenResults.pensionAge, scenResults.taxInputs);
       const color = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
       return { scenario, scenCombined, color, idx };
     }),

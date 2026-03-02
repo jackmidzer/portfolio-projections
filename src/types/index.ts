@@ -1,5 +1,15 @@
 export type AccountType = 'Savings' | 'Pension' | 'Brokerage';
 
+/** A one-off cash injection at a specific age (inheritance, redundancy, business sale, etc.) */
+export interface Windfall {
+  id: string;
+  age: number;
+  amount: number;
+  destination: AccountType;
+  /** Optional human-readable description shown in the UI */
+  label?: string;
+}
+
 /** A period of career break or part-time work */
 export interface CareerBreak {
   id: string;
@@ -137,6 +147,8 @@ export interface AccountGrowthOptions {
   statePensionWeeklyAmount?: number;
   /** Career breaks / part-time periods */
   careerBreaks?: CareerBreak[];
+  /** One-off cash injections at specific ages */
+  windfalls?: Windfall[];
 }
 
 /** Options object for calculatePortfolioGrowth */
@@ -167,8 +179,12 @@ export interface PortfolioGrowthOptions {
   includeStatePension?: boolean;
   statePensionAge?: number;
   statePensionWeeklyAmount?: number;
+  /** PRSI contributions already paid before the projection start (used to scale the effective state pension amount) */
+  prsiContributionsToDate?: number;
   /** Career breaks / part-time periods */
   careerBreaks?: CareerBreak[];
+  /** One-off cash injections at specific ages */
+  windfalls?: Windfall[];
 }
 
 export interface MilestoneSnapshot {
@@ -224,6 +240,10 @@ export interface TaxInputs {
   grossSalary: number; // Annual gross salary in EUR
   pensionContribution: number; // Annual pension contribution in EUR
   bikValue: number; // Benefit in Kind value in EUR
+  claimRentRelief?: boolean; // true = apply €1,000 Rent Relief credit (renters only)
+  claimMedicalInsurance?: boolean; // true = apply €200 Medical Insurance credit (VHI/private health)
+  /** Annual % rate at which PAYE/USC thresholds are indexed upward (default 0 = no indexation) */
+  taxBandIndexation?: number;
 }
 
 export interface TaxCalculationResult {

@@ -37,7 +37,12 @@ export function useAutoCalculate() {
       statePensionAge: s.statePensionAge,
       statePensionWeeklyAmount: s.statePensionWeeklyAmount,
       careerBreaks: s.careerBreaks,
+      windfalls: s.windfalls,
       inflationRate: s.inflationRate,
+      claimRentRelief: s.claimRentRelief,
+      claimMedicalInsurance: s.claimMedicalInsurance,
+      taxBandIndexation: s.taxBandIndexation,
+      monteCarloEnabled: s.monteCarloEnabled,
     })),
   );
 

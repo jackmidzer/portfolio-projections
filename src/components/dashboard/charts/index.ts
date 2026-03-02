@@ -17,6 +17,7 @@ export type { PhaseBandsOptions } from './phaseBandsPlugin';
 export { useChartData } from './useChartData';
 export { useExternalTooltip } from './useExternalTooltip';
 export { PortfolioGrowthChart } from './PortfolioGrowthChart';
+export { MonteCarloChart } from './MonteCarloChart';
 export { ContributionsGrowthChart } from './ContributionsGrowthChart';
 export { AnnualFlowsChart } from './AnnualFlowsChart';
 export { IncomeTimelineChart } from './IncomeTimelineChart';

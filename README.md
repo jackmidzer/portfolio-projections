@@ -1,6 +1,6 @@
 # Portfolio Projections
 
-A comprehensive Irish financial planning tool built with React and TypeScript. Project your wealth across multiple account types (Savings, Pension, and Brokerage) with sophisticated tax calculations, pension planning, early retirement scenarios, and house purchase planning.
+A comprehensive Irish financial planning tool built with React and TypeScript. Project your wealth across multiple account types (Savings, Pension, and Brokerage) with sophisticated tax calculations, pension planning, early retirement scenarios, house purchase planning, Monte Carlo simulations, and scenario comparison.
 
 ## Features
 
@@ -10,36 +10,52 @@ A comprehensive Irish financial planning tool built with React and TypeScript. P
   - DIRT (Deposit Interest Retention Tax) on savings account interest
   - Capital Gains Tax on brokerage withdrawals
   - Pension relief and contributions validation
-- **Pension Planning**: Age-bracket based contributions (15–40%), employer contributions, lump sum withdrawals
-- **Early Retirement Scenarios**: Plan early retirement with salary replacement rates and portfolio withdrawals
+- **Pension Planning**: Age-bracket based contributions (15–40%), employer contributions, lump sum withdrawals, state pension modelling
+- **Early Retirement Scenarios**: Plan early retirement with salary replacement rates and portfolio withdrawals; FIRE countdown widget
+- **Career Breaks**: Model periods of reduced or zero income with configurable salary percentage
+- **Windfalls**: Schedule one-off lump sum deposits to any account at a specific age
+- **Monte Carlo Simulation**: Run thousands of randomised return scenarios to see probability distributions of outcomes
+- **Scenario Comparison**: Save, load, duplicate, and visually compare multiple named scenarios side-by-side
+- **Event Timeline**: Filterable lifecycle event timeline showing every key financial event across the projection
 - **Milestone Timeline**: Animated timeline of key financial milestones (pension eligibility, FIRE age, house purchase)
+- **FIRE Countdown**: Live countdown (years and months) to target FIRE age
 - **House Purchase Planning**: Calculate deposit requirements based on projected house prices and mortgage affordability
 - **Monthly Compounding**: Precise monthly interest calculations with regular contributions
 - **Year-by-Year Breakdown**: Detailed expandable table showing monthly and yearly progression with tax impacts
+- **CSV Export**: Download the full projection table as a CSV file
+- **URL State Sharing**: Share your exact scenario via a compressed URL (`?s=` query parameter)
 - **Interactive Charts**: Portfolio growth, contributions vs growth, annual flows, and income timeline charts built with Chart.js — with age-range slider and lifecycle phase bands
 - **Summary Cards**: At-a-glance cards for each account showing final balance, total contributions, and total interest/growth
+- **PRSI Contribution Card**: Dedicated card surfacing PRSI metrics
 - **Tax Breakdown**: Comprehensive tax summary card showing PAYE, USC, PRSI, DIRT, and CGT totals
+- **Negative Balance Banner**: Warning banner whenever any account is projected to go negative
+- **FAQ & Glossary**: Inline FAQ guide and financial terms glossary
+- **Form Validation**: Real-time validation with inline error messages
+- **Auto-Calculate**: Inputs automatically trigger a debounced recalculation (400 ms) via a Web Worker
 - **Dark Mode**: Eye-friendly dark theme with system preference detection
 - **Responsive Design**: Sidebar form with collapsible sections on desktop; bottom-sheet drawer on mobile
 - **Framer Motion Animations**: Smooth transitions and entrance animations throughout the UI
+- **Error Boundary**: Graceful error fallback UI to prevent full-page crashes
 
 ## Tech Stack
 
 - **React 18** with **TypeScript** for type-safe component development
-- **Vite** for fast development and optimized builds
+- **Vite** for fast development and optimised builds
 - **Tailwind CSS** + **tailwindcss-animate** for utility-first styling and animations
 - **Chart.js** / **react-chartjs-2** + **chartjs-plugin-annotation** for interactive data visualisation
 - **Zustand** for lightweight, hook-based state management
 - **Radix UI** primitives (Collapsible, Dialog, Dropdown Menu, Label, Scroll Area, Select, Separator, Slider, Switch, Tabs, Tooltip)
 - **Framer Motion** for declarative animations
 - **Lucide React** for icons
+- **lz-string** for LZ-based URL-safe state compression (shareable links)
 - **class-variance-authority** + **clsx** + **tailwind-merge** for component variant styling
+- **Vitest** + **@testing-library/react** for unit and component testing
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 16+ and npm (or yarn/pnpm)
+- Node.js 18+ and npm (or yarn/pnpm)
 
 ### Installation
 
@@ -71,34 +87,52 @@ The optimised files will be in the `dist` folder.
 npm run preview
 ```
 
+### Run Tests
+
+```bash
+npm test          # watch mode
+npm run test:ci   # single run (for CI)
+```
+
 ## Project Structure
 
 ```
 portfolio-projections/
 ├── src/
 │   ├── App.tsx                            # Root application component
-│   ├── main.tsx                           # Application entry point
+│   ├── main.tsx                           # Application entry point; URL state hydration
 │   ├── index.css                          # Global styles and Tailwind directives
 │   ├── components/
+│   │   ├── ErrorBoundary.tsx              # React error boundary wrapper
+│   │   ├── ErrorFallback.tsx              # Fallback UI for unhandled errors
 │   │   ├── ThemeToggle.tsx                # Dark / light mode toggle button
 │   │   ├── dashboard/
 │   │   │   ├── DashboardContent.tsx       # Main results area (charts, table, cards)
+│   │   │   ├── EventTimeline.tsx          # Filterable lifecycle event timeline
+│   │   │   ├── FAQGuide.tsx               # Inline FAQ and glossary accordion
+│   │   │   ├── FIRECountdown.tsx          # Live countdown to FIRE target age
 │   │   │   ├── HouseDepositCard.tsx       # House purchase and deposit metrics card
-│   │   │   ├── MilestoneTimeline.tsx      # Animated financial milestones timeline
+│   │   │   ├── MilestoneTimeline.tsx      # Animated key milestones timeline
+│   │   │   ├── MonteCarloTab.tsx          # Monte Carlo simulation controls and results
+│   │   │   ├── NegativeBalanceBanner.tsx  # Warning banner for negative projected balances
+│   │   │   ├── PRSIContributionCard.tsx   # PRSI metrics summary card
 │   │   │   ├── ProjectionChart.tsx        # Tabbed chart container (4 chart views)
 │   │   │   ├── ProjectionTable.tsx        # Year-by-year expandable breakdown table
+│   │   │   ├── ScenarioComparison.tsx     # Save / compare named scenarios
 │   │   │   ├── SummaryCards.tsx           # Per-account summary cards
-│   │   │   ├── TaxBreakdown.tsx           # Irish tax totals card
+│   │   │   └── TaxBreakdown.tsx           # Irish tax totals card
 │   │   │   └── charts/
 │   │   │       ├── AgeRangeSlider.tsx     # Slider to filter chart age range
 │   │   │       ├── AnnualFlowsChart.tsx   # Stacked bar chart of annual flows
-│   │   │       ├── ContributionsGrowthChart.tsx # Contributions vs growth area chart
-│   │   │       ├── IncomeTimelineChart.tsx # Income sources over time
-│   │   │       ├── PortfolioGrowthChart.tsx # Main portfolio balance line chart
+│   │   │       ├── chartAnnotations.ts    # Helpers for Chart.js annotation config
 │   │   │       ├── chartConfig.ts         # Shared Chart.js defaults and registration
 │   │   │       ├── chartTheme.ts          # CSS variable-aware colour helpers
-│   │   │       ├── index.ts              # Re-exports for chart components
+│   │   │       ├── ContributionsGrowthChart.tsx # Contributions vs growth area chart
+│   │   │       ├── IncomeTimelineChart.tsx # Income sources over time
+│   │   │       ├── index.ts               # Re-exports for chart components
+│   │   │       ├── MonteCarloChart.tsx    # Percentile fan chart for Monte Carlo results
 │   │   │       ├── phaseBandsPlugin.ts    # Custom Chart.js plugin for phase background bands
+│   │   │       ├── PortfolioGrowthChart.tsx # Main portfolio balance line chart
 │   │   │       ├── useChartData.ts        # Hook to transform projection data for charts
 │   │   │       └── useExternalTooltip.ts  # Shared external HTML tooltip logic
 │   │   ├── form/
@@ -106,11 +140,13 @@ portfolio-projections/
 │   │   │   ├── FormField.tsx              # Reusable labelled input wrapper
 │   │   │   ├── FormSection.tsx            # Collapsible form section wrapper
 │   │   │   ├── AccountsSection.tsx        # Account type balances, returns, contributions
+│   │   │   ├── CareerBreaksSection.tsx    # Career break periods with reduced/zero income
 │   │   │   ├── HousePurchaseSection.tsx   # House purchase toggle and settings
 │   │   │   ├── IncomeSection.tsx          # Salary, bonus, and employer pension inputs
 │   │   │   ├── LumpSumSection.tsx         # Pension lump sum configuration
 │   │   │   ├── PersonalSection.tsx        # Date of birth, target age inputs
 │   │   │   ├── RetirementSection.tsx      # FIRE age, pension age, replacement rate
+│   │   │   ├── WindfallSection.tsx        # One-off lump sum deposits to any account
 │   │   │   └── WithdrawalSection.tsx      # Withdrawal strategy and priority inputs
 │   │   └── ui/                            # Reusable UI primitives (shadcn/ui style)
 │   │       ├── badge.tsx
@@ -129,8 +165,10 @@ portfolio-projections/
 │   │       ├── tabs.tsx
 │   │       └── tooltip.tsx
 │   ├── constants/
-│   │   └── irishTaxRates2026.ts           # Irish tax rates and thresholds
+│   │   ├── glossary.ts                    # Financial terms glossary entries
+│   │   └── irishTaxRates2026.ts           # Irish tax rates and thresholds (2026)
 │   ├── hooks/
+│   │   ├── useAutoCalculate.ts            # Debounced auto-recalculation on input changes
 │   │   ├── useDarkMode.ts                 # System-aware dark mode hook
 │   │   └── useThemeKey.ts                 # Chart re-render key on theme change
 │   ├── layouts/
@@ -141,12 +179,25 @@ portfolio-projections/
 │   │   └── useProjectionStore.ts          # Zustand store (form inputs, UI state, results, calculate)
 │   ├── types/
 │   │   └── index.ts                       # TypeScript type definitions
-│   └── utils/
-│       ├── calculations.ts                # Portfolio growth and compound interest logic
-│       ├── formatters.ts                  # Currency and number formatting utilities
-│       ├── houseCalculations.ts           # House purchase and deposit calculations
-│       ├── phaseHelpers.ts                # Financial phase (working, FIRE, pension) helpers
-│       └── taxCalculations.ts             # Irish tax calculation logic (PAYE, USC, PRSI, DIRT, CGT)
+│   ├── utils/
+│   │   ├── badgeVariant.ts                # Badge colour variant helpers
+│   │   ├── calculations.ts                # Portfolio growth and compound interest logic
+│   │   ├── eventHelpers.ts                # Lifecycle event generation for timeline
+│   │   ├── exportCsv.ts                   # CSV and chart image export utilities
+│   │   ├── formatters.ts                  # Currency and number formatting utilities
+│   │   ├── houseCalculations.ts           # House purchase and deposit calculations
+│   │   ├── phaseHelpers.ts                # Financial phase (working, FIRE, pension) helpers
+│   │   ├── taxCalculations.ts             # Irish tax logic (PAYE, USC, PRSI, DIRT, CGT)
+│   │   ├── validation.ts                  # Form validation rules and error messages
+│   │   └── _tests/                        # Vitest unit tests for utils
+│   │       ├── calculations.test.ts
+│   │       ├── formatters.test.ts
+│   │       ├── houseCalculations.test.ts
+│   │       ├── phaseHelpers.test.ts
+│   │       └── taxcalculations.test.ts
+│   └── workers/
+│       ├── calculationWorker.ts           # Web Worker: off-main-thread portfolio calculation
+│       └── monteCarloWorker.ts            # Web Worker: off-main-thread Monte Carlo simulation
 ├── index.html                             # HTML template
 ├── package.json                           # Project dependencies and scripts
 ├── tsconfig.json                          # TypeScript configuration
@@ -166,13 +217,17 @@ The app projects your finances month-by-month through three potential phases:
 2. **Early Retirement (FIRE) Phase** (optional): Stop earning salary, withdraw from brokerage to fund living expenses
 3. **Pension Phase**: Access pension (with optional lump sum), potentially continue brokerage withdrawals
 
+Calculations run off the main thread inside a **Web Worker** (`calculationWorker.ts`) to keep the UI responsive. Inputs are automatically debounced (400 ms) and recalculated via `useAutoCalculate`.
+
 ### Monthly Compounding
 
 For each month, the app:
 - Calculates net salary (after PAYE, USC, PRSI taxes and pension contributions)
+- Applies any career break salary reduction for that period
 - Calculates interest on each account: `interest = balance × (annualRate / 12)`
 - Applies account-specific taxes (DIRT on savings interest)
 - Adds contributions (salary percentage or fixed amounts, including bonuses)
+- Adds any windfall amount scheduled for that age
 - Updates balances and tracks cumulative totals
 
 ### Irish Tax Calculations
@@ -196,12 +251,24 @@ For each month, the app:
 
 At pension age, withdraw up to 25% as a lump sum (first €200,000 tax-free), with the remainder transferred to brokerage/savings and drawn down as retirement income.
 
+### Monte Carlo Simulation
+
+Run N simulations (configurable, default 1,000) where each year's return is sampled from a normal distribution centred on the expected return with a configurable volatility (standard deviation). Results are presented as percentile fan bands (10th, 25th, 50th, 75th, 90th) on the chart. The simulation runs in a dedicated **Web Worker** (`monteCarloWorker.ts`) to avoid blocking the UI.
+
 ### Early Retirement Planning
 
 Define a replacement income target (e.g., 80% of current salary) and the app:
 - Withdraws from brokerage and pension accounts to meet the target
 - Applies appropriate taxes to withdrawals
 - Adjusts portfolio allocations
+
+### Career Breaks
+
+Define one or more career break periods (from age / to age) with a salary percentage (0% = fully unpaid, 50% = half pay). Contributions and income taxes are scaled accordingly during those years.
+
+### Windfalls
+
+Schedule one-off lump sums at any age that are deposited into a chosen account (Savings, Brokerage, or Pension).
 
 ### House Purchase Planning
 
@@ -210,6 +277,10 @@ Calculate deposit requirements by:
 - Calculating maximum mortgage (4× salary + 2× bonus)
 - Determining deposit needed and loan-to-value ratio
 - Identifying if deposits can be funded from projected savings/brokerage
+
+### URL State Sharing
+
+The full form state is LZ-compressed and encoded into a `?s=` URL parameter, allowing you to share an exact scenario with anyone. On load, `main.tsx` detects and hydrates this state automatically, then removes the parameter from the URL.
 
 ### Key Tax Formula Example
 
@@ -228,14 +299,22 @@ For Savings Account Interest:
 2. **Configure Income**: Current salary, expected raises, annual bonus, employer pension contribution
 3. **Configure Accounts**: Set current balances, expected returns, and contribution rates for Savings, Pension, and Brokerage
 4. **Set Retirement Goals**: FIRE age, pension access age, salary replacement rate, withdrawal strategy
-5. **Optional — House Purchase**: Enable house purchase planning with target age, projected price, and mortgage parameters
-6. **Calculate & Review**:
+5. **Optional — Career Breaks**: Add any periods with reduced or no income
+6. **Optional — Windfalls**: Schedule one-off lump sums into any account
+7. **Optional — House Purchase**: Enable house purchase planning with target age, projected price, and mortgage parameters
+8. **Calculate & Review**:
    - Summary cards showing projected final balances per account
    - Tax breakdown card with PAYE, USC, PRSI, DIRT, and CGT totals
-   - Milestone timeline with key lifecycle dates
+   - PRSI contribution card
+   - FIRE countdown and milestone timeline
    - House deposit card (if enabled)
+   - Negative balance warning banner (if applicable)
    - Four interactive charts with age-range slider and phase bands
-   - Detailed year-by-year expandable table
+   - Monte Carlo tab for probabilistic outcome analysis
+   - Scenario comparison panel for side-by-side what-if analysis
+   - Detailed year-by-year expandable table with CSV export
+   - Filterable event timeline
+   - FAQ guide and glossary
 
 ## Architecture & Code Quality
 
@@ -249,9 +328,15 @@ The codebase is structured for maintainability and future enhancements:
 
 4. **Tax localisation**: Irish tax logic is concentrated in `utils/taxCalculations.ts` and `constants/irishTaxRates2026.ts` for easy updates when rates change
 
-5. **State management**: Zustand store (`store/useProjectionStore.ts`) manages all form inputs, UI state, and computed results with a single `calculate()` action
+5. **State management**: Zustand store (`store/useProjectionStore.ts`) manages all form inputs, UI state, saved scenarios, and computed results with a single `calculate()` action
 
-6. **Chart architecture**: Chart.js with react-chartjs-2 wrappers, a shared config/theme layer, a custom phase bands plugin, and a reusable external tooltip hook
+6. **Web Workers**: Both the main projection calculation and Monte Carlo simulations run in dedicated Web Workers to keep the UI always responsive
+
+7. **Auto-recalculation**: `useAutoCalculate` debounces all input changes and automatically triggers recalculation without any manual "Calculate" button press
+
+8. **Chart architecture**: Chart.js with react-chartjs-2 wrappers, a shared config/theme layer, a custom phase bands plugin, and a reusable external tooltip hook
+
+9. **Testing**: Vitest unit tests in `utils/_tests/` cover core calculation, tax, formatting, and helper logic
 
 ## Contributing
 

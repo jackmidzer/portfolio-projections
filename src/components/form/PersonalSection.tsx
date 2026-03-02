@@ -3,6 +3,9 @@ import { FormSection } from './FormSection';
 import { FormField, NumberField } from './FormField';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { useProjectionStore } from '@/store/useProjectionStore';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +13,9 @@ export function PersonalSection() {
   const dateOfBirth = useProjectionStore(s => s.dateOfBirth);
   const targetAge = useProjectionStore(s => s.targetAge);
   const inflationRate = useProjectionStore(s => s.inflationRate);
+  const taxBandIndexation = useProjectionStore(s => s.taxBandIndexation);
+  const claimRentRelief = useProjectionStore(s => s.claimRentRelief);
+  const claimMedicalInsurance = useProjectionStore(s => s.claimMedicalInsurance);
   const updateField = useProjectionStore(s => s.updateField);
   const getCurrentAge = useProjectionStore(s => s.getCurrentAge);
   const getMonthsUntilBirthday = useProjectionStore(s => s.getMonthsUntilBirthday);
@@ -47,16 +53,32 @@ export function PersonalSection() {
         />
       </div>
 
-      <NumberField
-        label="Inflation Rate (%)"
-        id="inflationRate"
-        value={inflationRate}
-        onChange={(v) => updateField('inflationRate', v)}
-        min={0}
-        max={20}
-        step={0.1}
-        placeholder="2.5"
-      />
+      <div className="grid grid-cols-2 gap-3">
+        <NumberField
+          label="Inflation Rate"
+          id="inflationRate"
+          value={inflationRate}
+          onChange={(v) => updateField('inflationRate', v)}
+          min={0}
+          max={20}
+          step={0.1}
+          suffix="%"
+          placeholder="2.5"
+        />
+
+        <NumberField
+          label="Tax Band Growth"
+          id="taxBandIndexation"
+          value={taxBandIndexation}
+          onChange={(v) => updateField('taxBandIndexation', v)}
+          min={0}
+          max={10}
+          step={0.1}
+          suffix="%"
+          placeholder="1.5"
+          hint="Annual threshold uplift"
+        />
+      </div>
 
       {typeof currentAge === 'number' && (
         <div className="flex flex-wrap gap-2">
@@ -69,6 +91,32 @@ export function PersonalSection() {
           )}
         </div>
       )}
+
+      <Separator />
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tax Credits</p>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="claimRentRelief" className="text-xs text-muted-foreground cursor-pointer leading-snug">
+            Rent Relief Credit <span className="text-muted-foreground/60">(€1,000 — renters only)</span>
+          </Label>
+          <Switch
+            id="claimRentRelief"
+            checked={claimRentRelief}
+            onCheckedChange={(checked) => updateField('claimRentRelief', checked)}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="claimMedicalInsurance" className="text-xs text-muted-foreground cursor-pointer leading-snug">
+            Medical Insurance Credit <span className="text-muted-foreground/60">(€200 — VHI / private health)</span>
+          </Label>
+          <Switch
+            id="claimMedicalInsurance"
+            checked={claimMedicalInsurance}
+            onCheckedChange={(checked) => updateField('claimMedicalInsurance', checked)}
+          />
+        </div>
+      </div>
     </FormSection>
   );
 }

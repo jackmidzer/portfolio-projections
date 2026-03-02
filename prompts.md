@@ -37,3 +37,17 @@ Requirements:
 - Ideally move the Monte Carlo computation into a Web Worker
   (`src/workers/monteCarloWorker.ts`) to avoid blocking the main thread
 ```
+
+---
+
+🧮 New Calculation Features
+
+Withdrawal Order Priority
+During the bridging phase, the app withdraws exclusively from brokerage. But some users may prefer to draw down savings first (to avoid DIRT), or draw proportionally from multiple accounts. Adding a drag-to-reorder withdrawal priority list in WithdrawalSection.tsx (Savings → Brokerage → Pension, or any order) and respecting it in calculations.ts would give users meaningful control over their drawdown strategy and its tax implications.
+
+---
+
+📊 Dashboard & UX
+
+"FIRE Readiness" Indicator
+A live indicator showing whether the current portfolio — at the current age — already generates enough to cover the target income at the user's withdrawal rate. Something like a progress bar or a simple "€X of €Y target monthly income covered" badge on the Summary Cards. This is the most emotionally resonant number in any FIRE calculator and currently isn't surfaced directly.

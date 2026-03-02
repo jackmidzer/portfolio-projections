@@ -427,6 +427,13 @@ function computeAnnuals(
 
   let annualTax = 0;
   let annualNetIncome = 0;
+
+  // Compute indexed threshold multiplier for this year of the projection
+  const taxBandIndexationRate = results.taxInputs?.taxBandIndexation ?? 0;
+  const taxBandMultiplier = taxBandIndexationRate > 0
+    ? Math.pow(1 + taxBandIndexationRate / 100, row.year)
+    : 1;
+
   if (isBridging && annualGrossIncome > 0) {
     // CGT tax on brokerage withdrawal (pre-computed, using cost-basis gain ratio)
     const brokerageYd = brokerageResult?.yearlyData[row.year];
@@ -434,14 +441,14 @@ function computeAnnuals(
     const brokerageTax = sourceMonths.reduce((s: number, m: MonthlyBreakdown) => s + (m.withdrawalTax || 0), 0);
     // PAYE/USC on state pension (taxable income)
     const spTax = annualStatePension > 0 && showStatePension
-      ? calculatePensionWithdrawalTax(annualStatePension, true, row.age).totalTax
+      ? calculatePensionWithdrawalTax(annualStatePension, true, row.age, taxBandMultiplier).totalTax
       : 0;
     annualTax = brokerageTax + spTax;
     annualNetIncome = annualIncome - annualTax;
   } else if (isDrawdown && annualGrossIncome > 0) {
     // Pension + state pension combined tax (progressive PAYE/USC applied to total taxable income)
     const totalTaxableIncome = annualGrossIncome + (showStatePension ? annualStatePension : 0);
-    const taxR = calculatePensionWithdrawalTax(totalTaxableIncome, true, row.age);
+    const taxR = calculatePensionWithdrawalTax(totalTaxableIncome, true, row.age, taxBandMultiplier);
     annualTax = taxR.totalTax;
     annualNetIncome = taxR.netWithdrawal;
   } else if (!isBridging && !isDrawdown) {

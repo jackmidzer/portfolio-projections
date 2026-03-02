@@ -4,6 +4,7 @@ import {
   formatCurrencyWithDecimals,
   formatPercentage,
   formatCompactCurrency,
+  deflate,
 } from '../formatters';
 
 // ---------------------------------------------------------------------------
@@ -100,5 +101,46 @@ describe('formatCompactCurrency', () => {
 
   it('handles exactly 1,000,000', () => {
     expect(formatCompactCurrency(1000000)).toBe('€1.0M');
+  });
+
+  it('handles negative thousands', () => {
+    expect(formatCompactCurrency(-2500)).toBe('-€2.5K');
+  });
+
+  it('handles negative millions', () => {
+    expect(formatCompactCurrency(-1500000)).toBe('-€1.5M');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deflate
+// ---------------------------------------------------------------------------
+describe('deflate', () => {
+  it('returns amount unchanged when years <= 0', () => {
+    expect(deflate(10000, 0, 3)).toBe(10000);
+    expect(deflate(10000, -5, 3)).toBe(10000);
+  });
+
+  it('returns amount unchanged when inflationRate is 0', () => {
+    expect(deflate(10000, 10, 0)).toBe(10000);
+  });
+
+  it('deflates by correct compound factor', () => {
+    // 10000 / (1.03)^5
+    const expected = 10000 / Math.pow(1.03, 5);
+    expect(deflate(10000, 5, 3)).toBeCloseTo(expected, 4);
+  });
+
+  it('deflated value is less than original for positive inflation', () => {
+    expect(deflate(50000, 10, 2)).toBeLessThan(50000);
+  });
+
+  it('works with fractional inflation rates', () => {
+    const expected = 1000 / Math.pow(1.025, 1);
+    expect(deflate(1000, 1, 2.5)).toBeCloseTo(expected, 4);
+  });
+
+  it('deflates to near zero for very long horizons and high inflation', () => {
+    expect(deflate(100, 100, 20)).toBeCloseTo(100 / Math.pow(1.2, 100), 2);
   });
 });

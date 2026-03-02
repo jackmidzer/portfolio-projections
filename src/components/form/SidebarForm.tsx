@@ -7,6 +7,7 @@ import { WithdrawalSection } from './WithdrawalSection';
 import { LumpSumSection } from './LumpSumSection';
 import { HousePurchaseSection } from './HousePurchaseSection';
 import { CareerBreaksSection } from './CareerBreaksSection';
+import { WindfallSection } from './WindfallSection';
 
 interface SidebarFormProps {
   onCalculated?: () => void;
@@ -36,6 +37,7 @@ export function SidebarForm({ onCalculated, formId }: SidebarFormProps) {
       <LumpSumSection />
       <HousePurchaseSection />
       <CareerBreaksSection />
+      <WindfallSection />
 
       {/* Hidden submit to allow enter-key submission */}
       <button type="submit" className="hidden" aria-hidden="true" disabled={hasValidationErrors} />

@@ -119,6 +119,12 @@ const FAQ_ITEMS: FAQItem[] = [
     question: 'How does the State Pension work?',
     answer: 'The Irish State Pension (Contributory) currently pays €299.30 per week from age 66 (2026 rates). It is taxable income subject to PAYE and USC. During the bridging phase, the State Pension reduces how much you need to withdraw from your brokerage. During drawdown, it is combined with pension withdrawals for progressive tax calculation.',
   },
+  {
+    category: 'State Pension',
+    icon: Clock,
+    question: 'How are PRSI contributions tracked?',
+    answer: 'Irish Revenue requires a minimum of 520 paid PRSI contributions (10 years) for any State Pension entitlement, and 2,080 contributions (40 years) for the full rate.\n\nThe calculator estimates your projected contribution count by assuming 52 contributions per year of PRSI-paying employment between now and your FIRE age. Full career breaks (0% salary) pause contributions; part-time breaks still count.\n\nYou can enter existing contributions already paid in the "Retirement Planning" form section. The PRSI Eligibility card on the dashboard and the inline indicator in the sidebar both flag if you fall short of the minimum or full threshold.',
+  },
 
   // ── House ──
   {
@@ -126,6 +132,32 @@ const FAQ_ITEMS: FAQItem[] = [
     icon: Home,
     question: 'How is the house deposit calculated?',
     answer: 'The calculator projects house prices and your salary to your target purchase age. Maximum mortgage is calculated as:\n\n• With exemption: (salary + bonus ÷ 2) × 4.5\n• Without exemption: (salary + bonus ÷ 2) × 4\n\nThe deposit required is the house price minus the mortgage, capped at 90% LTV. Funds are withdrawn from your Savings and Brokerage accounts based on the deposit-from-brokerage rate setting. The brokerage portion is subject to CGT/exit tax on any gains.',
+  },
+
+  // ── Monte Carlo ──
+  {
+    category: 'Monte Carlo',
+    icon: TrendingUp,
+    question: 'What is Monte Carlo simulation?',
+    answer: 'Monte Carlo simulation runs hundreds of randomised return scenarios to illustrate how uncertainty in annual returns affects your portfolio over time. Instead of a single deterministic line, it produces a fan of outcomes — showing the range of plausible futures based on a normal distribution of returns around your expected rate.',
+  },
+  {
+    category: 'Monte Carlo',
+    icon: TrendingUp,
+    question: 'What do the probability bands mean?',
+    answer: 'The chart displays five percentile lines from the simulation:\n\n• P10 / P90 — Outer band. Only 10% of simulated outcomes fell below P10 or above P90. This is the pessimistic/optimistic tail range.\n• P25 / P75 — Inner band (shaded). This is the interquartile range — 50% of all outcomes landed within this band.\n• Median (P50) — The middle outcome. Half of all simulations ended above this line and half below.\n\nA narrower fan indicates more predictable outcomes; a wider fan reflects greater uncertainty over a long horizon.',
+  },
+  {
+    category: 'Monte Carlo',
+    icon: TrendingUp,
+    question: 'What does Return Volatility control?',
+    answer: 'Return Volatility sets the standard deviation of annual returns used in the simulation. Each year, every simulation draws a return from a normal distribution centred on your account\'s expected return, with this figure as the spread.\n\nA lower value (e.g. 2%) produces a tighter fan — useful for conservative bond-heavy portfolios. A higher value (e.g. 15–20%) creates a wider fan reflecting the historical volatility of equity markets. The default of 2% is intentionally conservative; adjust upward to stress-test equity-heavy portfolios.',
+  },
+  {
+    category: 'Monte Carlo',
+    icon: TrendingUp,
+    question: 'Why does the simulation show a different result each time?',
+    answer: 'Each run generates fresh random return shocks, so the exact percentile values will vary slightly between runs — especially with a low simulation count. Increasing the number of simulations (e.g. to 1,000–2,000) reduces this variance and produces more stable bands. The Deterministic line (dashed grey) always matches the main projection chart and serves as a reference.',
   },
 
   // ── Charts ──

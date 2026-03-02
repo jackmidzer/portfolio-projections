@@ -50,7 +50,7 @@ export function HousePurchaseSection() {
                   onChange={(v) => updateField('baseHousePrice', v === '' ? 0 : Math.max(1, v))}
                   prefix="€"
                   min={1}
-                  step={1000}
+                  step={1}
                   placeholder="387000"
                 />
 

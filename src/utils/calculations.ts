@@ -1,5 +1,5 @@
 import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, MilestoneSnapshot, PensionLumpSumTaxBreakdown, AccountGrowthOptions, PortfolioGrowthOptions, TaxInputs } from '../types';
-import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageWithdrawalTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax, calculatePensionLumpSumTax, calculateExitTax } from './taxCalculations';
+import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageWithdrawalTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax, calculatePensionLumpSumTax, calculateExitTax, calculatePrsiSummary } from './taxCalculations';
 import { isBridgingPhase, isDrawdownPhase, getPhaseType } from './phaseHelpers';
 import { DEEMED_DISPOSAL_PERIOD_YEARS, CGT_ANNUAL_EXEMPTION } from '../constants/irishTaxRates2026';
 
@@ -134,6 +134,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     statePensionAge,
     statePensionWeeklyAmount,
     careerBreaks,
+    windfalls,
   } = options;
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
@@ -267,6 +268,13 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
     let monthlyTax = 0;
     let monthlyGrossIncome = 0;
     let monthlyPensionDeduction = 0;
+
+    // Compute cumulative PAYE/USC threshold multiplier for this year.
+    // januarysSeen represents years elapsed since simulation start (2026 base).
+    const taxBandIndexationRate = taxInputs?.taxBandIndexation ?? 0;
+    const taxBandMultiplier = taxBandIndexationRate > 0
+      ? Math.pow(1 + taxBandIndexationRate / 100, januarysSeen)
+      : 1;
     
     if (salaryAtMonth > 0 && taxInputs) {
       // Use tax calculation: calculate annual net salary then divide by 12
@@ -283,6 +291,9 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
         grossSalary: salaryAtMonth,
         pensionContribution: dynamicPensionContribution,
         bikValue: taxInputs.bikValue || 0,
+        claimRentRelief: taxInputs.claimRentRelief,
+        claimMedicalInsurance: taxInputs.claimMedicalInsurance,
+        taxBandMultiplier,
       });
       
       // Monthly tax = (PAYE + USC + PRSI) / 12, except in December when bonus is included
@@ -310,7 +321,10 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
           salaryAtMonth,
           bonusPercent,
           pensionPercent,
-          taxInputs.bikValue || 0
+          taxInputs.bikValue || 0,
+          taxInputs.claimRentRelief,
+          taxInputs.claimMedicalInsurance,
+          taxBandMultiplier,
         );
         
         monthlyTax = baseMonthlyTax + bonusTaxBurden;
@@ -414,6 +428,15 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
         lumpSumContribution = pensionLumpSumAmount;
         // Also track as withdrawal for display in withdrawal column (not subtracted from balance, separate from recurring withdrawals)
         monthWithdrawal = pensionLumpSumAmount;
+      }
+
+      // Windfall injections: one-off cash injections at a specific age into a specific account
+      if (windfalls && windfalls.length > 0) {
+        for (const wf of windfalls) {
+          if (wf.age === ageAtMonth && wf.destination === account.name && wf.amount > 0) {
+            lumpSumContribution += wf.amount;
+          }
+        }
       }
     }
 
@@ -597,7 +620,7 @@ export function calculateAccountGrowth(options: AccountGrowthOptions): AccountRe
       else if (isPensionAccount && isInDrawdownPhase) {
         withdrawalPhase = 'drawdown';
         // Pension withdrawals: PAYE + USC + PRSI (if age < 66) + €245 age credit
-        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, true, ageAtMonth);
+        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, true, ageAtMonth, taxBandMultiplier);
         withdrawalTax = taxResult.totalTax;
         withdrawalNetAmount = taxResult.netWithdrawal;
       }
@@ -888,7 +911,9 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
     includeStatePension,
     statePensionAge,
     statePensionWeeklyAmount,
+    prsiContributionsToDate,
     careerBreaks,
+    windfalls,
   } = options;
   const pensionAgeValue = pensionAge ?? 65;
   const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
@@ -909,7 +934,9 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
       currentSalary,
       bonusPercent,
       pensionPercent,
-      taxInputs.bikValue || 0
+      taxInputs.bikValue || 0,
+      taxInputs.claimRentRelief,
+      taxInputs.claimMedicalInsurance,
     );
     netBonusValue = netBonusResult.bonusNetSalary;
   }
@@ -944,6 +971,24 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
       ...taxResult,
     };
   }
+
+  // Compute the effective state pension amount based on PRSI contribution eligibility.
+  // If the user hasn't accumulated enough contributions for the full rate, scale the amount
+  // proportionally rather than always paying the full configured weekly amount.
+  const rawStatePensionWeekly = statePensionWeeklyAmount ?? 299.30;
+  const effectiveStatePensionWeekly = (() => {
+    if (!includeStatePension) return rawStatePensionWeekly;
+    const prsiSummary = calculatePrsiSummary({
+      currentAge,
+      fireAge: fireAgeValue,
+      priorContributions: typeof prsiContributionsToDate === 'number' ? prsiContributionsToDate : 0,
+      careerBreaks: careerBreaks ?? [],
+      pensionAge: pensionAgeValue,
+      statePensionAge: statePensionAge ?? 66,
+      statePensionWeeklyAmount: rawStatePensionWeekly,
+    });
+    return prsiSummary.estimatedWeeklyStatePension;
+  })();
 
   // Calculate all accounts with lump sum information
   const accountResults = accounts.map((account) => {
@@ -984,8 +1029,9 @@ export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): Portf
       pensionLumpSumMaxAmount: pensionLumpSumMaxAmountValue,
       includeStatePension,
       statePensionAge,
-      statePensionWeeklyAmount,
+      statePensionWeeklyAmount: effectiveStatePensionWeekly,
       careerBreaks,
+      windfalls,
     });
   });
 
@@ -1083,6 +1129,7 @@ export function combineYearlyData(
   accountResults: AccountResults[],
   fireAge: number,
   pensionAge: number,
+  taxInputs?: import('../types').TaxInputs,
 ): CombinedYearData[] {
   const timeHorizon = accountResults[0]?.yearlyData.length || 0;
   const combined: CombinedYearData[] = [];
@@ -1095,8 +1142,16 @@ export function combineYearlyData(
     cumulativeInterest.set(r.accountName, 0);
   });
 
+  // Pre-compute indexation rate (0 = no indexation)
+  const taxBandIndexationRate = taxInputs?.taxBandIndexation ?? 0;
+
   for (let year = 0; year < timeHorizon; year++) {
     const age = accountResults[0]?.yearlyData[year]?.age ?? 0;
+
+    // Multiplier for this year: indexed thresholds grow from the base (year 0 = 2026)
+    const taxBandMultiplier = taxBandIndexationRate > 0
+      ? Math.pow(1 + taxBandIndexationRate / 100, year)
+      : 1;
 
     let totalEndingBalance = 0;
     let totalPrincipal = 0;
@@ -1162,7 +1217,7 @@ export function combineYearlyData(
       }
       // Add state pension net of PAYE/USC (state pension is taxable income)
       if (annualStatePensionIncome > 0) {
-        const spTaxR = calculatePensionWithdrawalTax(annualStatePensionIncome, true, age);
+        const spTaxR = calculatePensionWithdrawalTax(annualStatePensionIncome, true, age, taxBandMultiplier);
         netIncome += spTaxR.netWithdrawal;
       }
     } else if (phase === 'drawdown') {
@@ -1172,7 +1227,7 @@ export function combineYearlyData(
       // Calculate tax on combined pension withdrawal + state pension so progressive bands apply correctly
       const totalTaxableIncome = annualWithdrawal + annualStatePensionIncome;
       if (totalTaxableIncome > 0) {
-        const taxR = calculatePensionWithdrawalTax(totalTaxableIncome, true, age);
+        const taxR = calculatePensionWithdrawalTax(totalTaxableIncome, true, age, taxBandMultiplier);
         netIncome = taxR.netWithdrawal;
       }
     } else {

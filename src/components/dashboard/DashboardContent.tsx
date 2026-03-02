@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, CalendarClock, Table2, Receipt, HelpCircle, Download, FileSpreadsheet, Printer, Image, GitCompareArrows } from 'lucide-react';
+import { BarChart3, CalendarClock, Table2, Receipt, HelpCircle, Download, FileSpreadsheet, Printer, Image, GitCompareArrows, Activity } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SummaryCards } from './SummaryCards';
+import { FIRECountdown } from './FIRECountdown';
 import { HouseDepositCard } from './HouseDepositCard';
 import { MilestoneTimeline } from './MilestoneTimeline';
 import { EventTimeline } from './EventTimeline';
@@ -19,6 +20,8 @@ import { ProjectionTable } from './ProjectionTable';
 import { TaxBreakdown } from './TaxBreakdown';
 import { FAQGuide } from './FAQGuide';
 import { ScenarioComparison } from './ScenarioComparison';
+import { MonteCarloTab } from './MonteCarloTab';
+import { PRSIContributionCard } from './PRSIContributionCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorFallback } from '@/components/ErrorFallback';
@@ -61,6 +64,7 @@ export function DashboardContent() {
   const visibleScenarioIds = useProjectionStore(s => s.visibleScenarioIds);
   const toggleScenarioVisibility = useProjectionStore(s => s.toggleScenarioVisibility);
   const deleteScenario = useProjectionStore(s => s.deleteScenario);
+
 
   if (!results) return null;
 
@@ -139,6 +143,16 @@ export function DashboardContent() {
         <SummaryCards results={results} showRealValues={showRealValues} inflationRate={numInflationRate} currentAge={numCurrentAge} />
       </motion.div>
 
+      {/* FIRE Countdown – always visible when FIRE age is set */}
+      <motion.div variants={fadeInUp}>
+        <FIRECountdown />
+      </motion.div>
+
+      {/* PRSI Contribution Card – visible when State Pension is enabled */}
+      <motion.div variants={fadeInUp}>
+        <PRSIContributionCard />
+      </motion.div>
+
       {/* House Deposit – always visible when present */}
       {results.houseDepositCalculation && typeof results.houseWithdrawalAge === 'number' && (
         <motion.div variants={fadeInUp}>
@@ -161,6 +175,10 @@ export function DashboardContent() {
             <TabsTrigger value="charts" className="flex items-center gap-1.5 text-xs sm:text-sm">
               <BarChart3 className="h-3.5 w-3.5" />
               Charts
+            </TabsTrigger>
+            <TabsTrigger value="montecarlo" className="flex items-center gap-1.5 text-xs sm:text-sm">
+              <Activity className="h-3.5 w-3.5" />
+              Monte Carlo
             </TabsTrigger>
             <TabsTrigger value="data" className="flex items-center gap-1.5 text-xs sm:text-sm">
               <Table2 className="h-3.5 w-3.5" />
@@ -209,6 +227,16 @@ export function DashboardContent() {
                 />
               </Suspense>
             </ErrorBoundary>
+          </TabsContent>
+
+          {/* Monte Carlo Tab */}
+          <TabsContent value="montecarlo" className="mt-4">
+            <MonteCarloTab
+              results={results}
+              currentAge={numCurrentAge}
+              showRealValues={showRealValues}
+              inflationRate={numInflationRate}
+            />
           </TabsContent>
 
           {/* Data Tab */}
