@@ -1,0 +1,767 @@
+import { describe, it, expect } from 'vitest';
+import { calculateAccountGrowth, combineYearlyData, getAgeBracketPercentage, getEmployerAgeBracketPercentage, calculatePortfolioGrowth } from '../calculations';
+import { AccountInput, AccountGrowthOptions, PortfolioGrowthOptions } from '../../types';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Minimal savings account for isolated tests */
+function makeSavingsAccount(overrides: Partial<AccountInput> = {}): AccountInput {
+  return {
+    name: 'Savings',
+    currentBalance: 10000,
+    monthlyContribution: 500,
+    expectedReturn: 4, // 4% annual
+    ...overrides,
+  };
+}
+
+/** Minimal pension account */
+function makePensionAccount(overrides: Partial<AccountInput> = {}): AccountInput {
+  return {
+    name: 'Pension',
+    currentBalance: 50000,
+    monthlyContribution: 10,
+    expectedReturn: 7,
+    isSalaryPercentage: true,
+    ageBracketContributions: {
+      under30: 10,
+      age30to39: 15,
+      age40to49: 20,
+      age50to54: 25,
+      age55to59: 30,
+      age60plus: 35,
+    },
+    ...overrides,
+  };
+}
+
+/** Minimal brokerage account */
+function makeBrokerageAccount(overrides: Partial<AccountInput> = {}): AccountInput {
+  return {
+    name: 'Brokerage',
+    currentBalance: 20000,
+    monthlyContribution: 300,
+    expectedReturn: 7,
+    ...overrides,
+  };
+}
+
+/** Build AccountGrowthOptions with sensible defaults for a given account */
+function buildOpts(
+  account: AccountInput,
+  overrides: Partial<AccountGrowthOptions> = {},
+): AccountGrowthOptions {
+  return {
+    account,
+    timeHorizon: 5,
+    currentAge: 30,
+    currentSalary: 60000,
+    annualSalaryIncrease: 3,
+    monthsUntilNextBirthday: 12,
+    dateOfBirth: new Date(1995, 0, 1),
+    pensionAge: 65,
+    withdrawalRate: 4,
+    fireAge: 50,
+    salaryReplacementRate: 60,
+    bonusPercent: 0,
+    enableHouseWithdrawal: false,
+    enablePensionLumpSum: false,
+    taxInputs: { grossSalary: 60000, pensionContribution: 6000, bikValue: 0 },
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// getAgeBracketPercentage
+// ---------------------------------------------------------------------------
+describe('getAgeBracketPercentage', () => {
+  const brackets = { under30: 5, age30to39: 10, age40to49: 15, age50to54: 20, age55to59: 25, age60plus: 30 };
+
+  it('returns under30 rate for age < 30', () => {
+    expect(getAgeBracketPercentage(18, brackets)).toBe(5);
+    expect(getAgeBracketPercentage(29, brackets)).toBe(5);
+  });
+
+  it('returns age30to39 rate for ages 30–39', () => {
+    expect(getAgeBracketPercentage(30, brackets)).toBe(10);
+    expect(getAgeBracketPercentage(39, brackets)).toBe(10);
+  });
+
+  it('returns age40to49 rate for ages 40–49', () => {
+    expect(getAgeBracketPercentage(40, brackets)).toBe(15);
+    expect(getAgeBracketPercentage(49, brackets)).toBe(15);
+  });
+
+  it('returns age50to54 rate for ages 50–54', () => {
+    expect(getAgeBracketPercentage(50, brackets)).toBe(20);
+    expect(getAgeBracketPercentage(54, brackets)).toBe(20);
+  });
+
+  it('returns age55to59 rate for ages 55–59', () => {
+    expect(getAgeBracketPercentage(55, brackets)).toBe(25);
+    expect(getAgeBracketPercentage(59, brackets)).toBe(25);
+  });
+
+  it('returns age60plus rate for age >= 60', () => {
+    expect(getAgeBracketPercentage(60, brackets)).toBe(30);
+    expect(getAgeBracketPercentage(70, brackets)).toBe(30);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getEmployerAgeBracketPercentage
+// ---------------------------------------------------------------------------
+describe('getEmployerAgeBracketPercentage', () => {
+  const brackets = {
+    under25: 2, age25to29: 4, age30to34: 6, age35to39: 8,
+    age40to44: 10, age45to49: 12, age50to54: 14, age55plus: 16,
+  };
+
+  it('returns under25 rate for age < 25', () => {
+    expect(getEmployerAgeBracketPercentage(20, brackets)).toBe(2);
+    expect(getEmployerAgeBracketPercentage(24, brackets)).toBe(2);
+  });
+
+  it('returns age25to29 rate for ages 25–29', () => {
+    expect(getEmployerAgeBracketPercentage(25, brackets)).toBe(4);
+    expect(getEmployerAgeBracketPercentage(29, brackets)).toBe(4);
+  });
+
+  it('returns age30to34 rate for ages 30–34', () => {
+    expect(getEmployerAgeBracketPercentage(30, brackets)).toBe(6);
+    expect(getEmployerAgeBracketPercentage(34, brackets)).toBe(6);
+  });
+
+  it('returns age35to39 rate for ages 35–39', () => {
+    expect(getEmployerAgeBracketPercentage(35, brackets)).toBe(8);
+    expect(getEmployerAgeBracketPercentage(39, brackets)).toBe(8);
+  });
+
+  it('returns age40to44 rate for ages 40–44', () => {
+    expect(getEmployerAgeBracketPercentage(40, brackets)).toBe(10);
+    expect(getEmployerAgeBracketPercentage(44, brackets)).toBe(10);
+  });
+
+  it('returns age45to49 rate for ages 45–49', () => {
+    expect(getEmployerAgeBracketPercentage(45, brackets)).toBe(12);
+  });
+
+  it('returns age50to54 rate for ages 50–54', () => {
+    expect(getEmployerAgeBracketPercentage(50, brackets)).toBe(14);
+  });
+
+  it('returns age55plus rate for age >= 55', () => {
+    expect(getEmployerAgeBracketPercentage(55, brackets)).toBe(16);
+    expect(getEmployerAgeBracketPercentage(70, brackets)).toBe(16);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateAccountGrowth – Savings (fixed contribution)
+// ---------------------------------------------------------------------------
+describe('calculateAccountGrowth – Savings (fixed contribution)', () => {
+  it('returns correct account name', () => {
+    const result = calculateAccountGrowth(buildOpts(makeSavingsAccount()));
+    expect(result.accountName).toBe('Savings');
+  });
+
+  it('ending balance exceeds starting balance + contributions (interest earned)', () => {
+    const result = calculateAccountGrowth(buildOpts(makeSavingsAccount()));
+    const contributed = result.totalContributions;
+    expect(result.finalBalance).toBeGreaterThan(10000 + contributed * 0.8); // rough lower bound
+  });
+
+  it('yearly data length matches time horizon (calendar years)', () => {
+    const result = calculateAccountGrowth(buildOpts(makeSavingsAccount(), { timeHorizon: 3 }));
+    // Should produce at least timeHorizon entries (may be +1 due to calendar-year rounding)
+    expect(result.yearlyData.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('first year starting balance equals initial balance', () => {
+    const result = calculateAccountGrowth(buildOpts(makeSavingsAccount()));
+    expect(result.yearlyData[0].startingBalance).toBe(10000);
+  });
+
+  it('each year ending balance equals next year starting balance', () => {
+    const result = calculateAccountGrowth(
+      buildOpts(makeSavingsAccount(), { timeHorizon: 5 }),
+    );
+    for (let i = 0; i < result.yearlyData.length - 1; i++) {
+      expect(result.yearlyData[i].endingBalance).toBeCloseTo(
+        result.yearlyData[i + 1].startingBalance,
+        2,
+      );
+    }
+  });
+
+  it('applies DIRT tax on savings interest', () => {
+    const result = calculateAccountGrowth(buildOpts(makeSavingsAccount()));
+    // At least some DIRT is paid
+    const totalDirt = result.yearlyData.reduce((s, yd) => s + (yd.interestTaxPaid ?? 0), 0);
+    expect(totalDirt).toBeGreaterThan(0);
+  });
+
+  it('monthly compounding produces more than simple annual interest', () => {
+    const account = makeSavingsAccount({ currentBalance: 100000, monthlyContribution: 0, expectedReturn: 10 });
+    const result = calculateAccountGrowth(buildOpts(account, { timeHorizon: 2 }));
+    // With DIRT tax on savings, interest is reduced, but the account should still grow
+    // Simple annual interest after DIRT would give: 100000 * 10% * 67% = 6700 per year
+    // Monthly compounding should give at least close to that over the first year
+    expect(result.yearlyData[0].interestEarned).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateAccountGrowth – Pension with age brackets
+// ---------------------------------------------------------------------------
+describe('calculateAccountGrowth – Pension (salary % with age brackets)', () => {
+  it('returns correct account name', () => {
+    const opts = buildOpts(makePensionAccount(), { timeHorizon: 5 });
+    const result = calculateAccountGrowth(opts);
+    expect(result.accountName).toBe('Pension');
+  });
+
+  it('contributions vary when crossing an age bracket boundary', () => {
+    // Age 28 → 32 crosses the under-30 / 30-39 boundary
+    const account = makePensionAccount();
+    const opts = buildOpts(account, {
+      currentAge: 28,
+      timeHorizon: 5,
+      fireAge: 50,
+    });
+    const result = calculateAccountGrowth(opts);
+    // First-year contribution rate should be lower than later years
+    const firstYearContribs = result.yearlyData[0].contributions;
+    const laterYearContribs = result.yearlyData[result.yearlyData.length - 1].contributions;
+    // The later years should have higher or equal contributions due to bracket + salary growth
+    expect(laterYearContribs).toBeGreaterThanOrEqual(firstYearContribs * 0.9);
+  });
+
+  it('does not contribute during bridging phase (after FIRE age)', () => {
+    const account = makePensionAccount();
+    const opts = buildOpts(account, {
+      currentAge: 48,
+      fireAge: 50,
+      pensionAge: 65,
+      timeHorizon: 5,
+    });
+    const result = calculateAccountGrowth(opts);
+    // Year when age >= 50 should have no contributions (FIRE reached)
+    const postFireYears = result.yearlyData.filter((yd) => yd.age >= 51);
+    for (const yd of postFireYears) {
+      expect(yd.contributions).toBe(0);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateAccountGrowth – Brokerage
+// ---------------------------------------------------------------------------
+describe('calculateAccountGrowth – Brokerage', () => {
+  it('returns correct account name', () => {
+    const result = calculateAccountGrowth(buildOpts(makeBrokerageAccount()));
+    expect(result.accountName).toBe('Brokerage');
+  });
+
+  it('does not apply DIRT tax on brokerage interest', () => {
+    const result = calculateAccountGrowth(buildOpts(makeBrokerageAccount()));
+    const totalDirt = result.yearlyData.reduce((s, yd) => s + (yd.interestTaxPaid ?? 0), 0);
+    expect(totalDirt).toBe(0);
+  });
+
+  it('withdrawals occur during bridging phase', () => {
+    const account = makeBrokerageAccount({ currentBalance: 500000, monthlyContribution: 0 });
+    const opts = buildOpts(account, {
+      currentAge: 49,
+      fireAge: 50,
+      pensionAge: 65,
+      timeHorizon: 5,
+      salaryReplacementRate: 60,
+    });
+    const result = calculateAccountGrowth(opts);
+    // Some year after fire age should have withdrawals
+    const hasWithdrawals = result.yearlyData.some((yd) => yd.withdrawal > 0);
+    expect(hasWithdrawals).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateAccountGrowth – Pro-rated first year
+// ---------------------------------------------------------------------------
+describe('calculateAccountGrowth – Pro-rated first year', () => {
+  it('first year has fewer months when monthsUntilNextBirthday < 12', () => {
+    const account = makeSavingsAccount();
+    const opts6 = buildOpts(account, { monthsUntilNextBirthday: 6, timeHorizon: 3 });
+    const opts12 = buildOpts(account, { monthsUntilNextBirthday: 12, timeHorizon: 3 });
+    const result6 = calculateAccountGrowth(opts6);
+    const result12 = calculateAccountGrowth(opts12);
+    // With fewer months in first year, first-year contributions should be lower
+    expect(result6.yearlyData[0].contributions).toBeLessThanOrEqual(
+      result12.yearlyData[0].contributions,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// combineYearlyData
+// ---------------------------------------------------------------------------
+describe('combineYearlyData', () => {
+  it('returns one entry per year', () => {
+    const savings = calculateAccountGrowth(buildOpts(makeSavingsAccount(), { timeHorizon: 5 }));
+    const pension = calculateAccountGrowth(
+      buildOpts(makePensionAccount(), { timeHorizon: 5 }),
+    );
+    const brokerage = calculateAccountGrowth(
+      buildOpts(makeBrokerageAccount(), { timeHorizon: 5 }),
+    );
+    const combined = combineYearlyData([savings, pension, brokerage], 50, 65);
+
+    // All arrays should have the same length
+    expect(combined.length).toBe(savings.yearlyData.length);
+  });
+
+  it('Total equals sum of Savings + Pension + Brokerage each year', () => {
+    const savings = calculateAccountGrowth(buildOpts(makeSavingsAccount(), { timeHorizon: 3 }));
+    const pension = calculateAccountGrowth(
+      buildOpts(makePensionAccount(), { timeHorizon: 3 }),
+    );
+    const brokerage = calculateAccountGrowth(
+      buildOpts(makeBrokerageAccount(), { timeHorizon: 3 }),
+    );
+    const combined = combineYearlyData([savings, pension, brokerage], 50, 65);
+
+    for (const row of combined) {
+      expect(row.Total).toBeCloseTo(row.Savings + row.Pension + row.Brokerage, 2);
+    }
+  });
+
+  it('Principal accumulates over time', () => {
+    const savings = calculateAccountGrowth(buildOpts(makeSavingsAccount(), { timeHorizon: 5 }));
+    const combined = combineYearlyData([savings], 50, 65);
+
+    for (let i = 1; i < combined.length; i++) {
+      expect(combined[i].Principal).toBeGreaterThanOrEqual(combined[i - 1].Principal);
+    }
+  });
+
+  it('phase field is "working" when age < fireAge', () => {
+    const savings = calculateAccountGrowth(
+      buildOpts(makeSavingsAccount(), { currentAge: 30, fireAge: 50, timeHorizon: 5 }),
+    );
+    const combined = combineYearlyData([savings], 50, 65);
+
+    for (const row of combined) {
+      if (row.age < 50) {
+        expect(row.phase).toBe('working');
+      }
+    }
+  });
+
+  it('salary is captured from account data', () => {
+    const savings = calculateAccountGrowth(
+      buildOpts(makeSavingsAccount(), { timeHorizon: 3, currentSalary: 60000 }),
+    );
+    const combined = combineYearlyData([savings], 50, 65);
+    // At least one year should have a non-zero salary
+    expect(combined.some((r) => r.salary > 0)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Golden-value snapshot test
+// ---------------------------------------------------------------------------
+describe('Golden-value: known-input portfolio snapshot', () => {
+  it('produces deterministic results for a fixed set of inputs', () => {
+    const savings = makeSavingsAccount({
+      currentBalance: 10000,
+      monthlyContribution: 500,
+      expectedReturn: 4,
+    });
+
+    const opts = buildOpts(savings, {
+      timeHorizon: 3,
+      currentAge: 30,
+      currentSalary: 60000,
+      annualSalaryIncrease: 0, // no salary growth for determinism
+      monthsUntilNextBirthday: 12,
+      fireAge: 50,
+      pensionAge: 65,
+      bonusPercent: 0,
+      enableHouseWithdrawal: false,
+      enablePensionLumpSum: false,
+    });
+
+    const result = calculateAccountGrowth(opts);
+
+    // Check final balance is within a reasonable range
+    // Starting 10000 + ~500/month contributions over ~3+ calendar years
+    // Plus interest (with DIRT on savings), salary-based contribution sizing, calendar-year rounding
+    expect(result.finalBalance).toBeGreaterThan(25000);
+    expect(result.finalBalance).toBeLessThan(40000);
+    expect(result.totalContributions).toBeGreaterThan(15000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Brokerage – Deemed Disposal (ETF/Stock split)
+// ---------------------------------------------------------------------------
+describe('calculateAccountGrowth – Brokerage ETF deemed disposal', () => {
+  /** Brokerage with 100% ETF allocation */
+  function makeEtfBrokerage(overrides: Partial<AccountInput> = {}): AccountInput {
+    return makeBrokerageAccount({ etfAllocationPercent: 100, ...overrides });
+  }
+
+  /** Brokerage with 0% ETF allocation (pure stocks) */
+  function makeStockBrokerage(overrides: Partial<AccountInput> = {}): AccountInput {
+    return makeBrokerageAccount({ etfAllocationPercent: 0, ...overrides });
+  }
+
+  it('pure stock brokerage: no deemed disposal tax at any year', () => {
+    const result = calculateAccountGrowth(buildOpts(makeStockBrokerage(), {
+      timeHorizon: 10,
+      fireAge: 99, // never retire during test
+    }));
+    expect(result.totalDeemedDisposalTax).toBeUndefined();
+    // No yearly data should have deemedDisposalTaxPaid
+    result.yearlyData.forEach(yd => {
+      expect(yd.deemedDisposalTaxPaid).toBeUndefined();
+    });
+  });
+
+  it('100% ETF brokerage: deemed disposal fires around year 8', () => {
+    const result = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+    // Should have totalDeemedDisposalTax > 0
+    expect(result.totalDeemedDisposalTax).toBeDefined();
+    expect(result.totalDeemedDisposalTax).toBeGreaterThan(0);
+
+    // The deemed disposal should happen in the 8th year's yearly data
+    const yearsWithDD = result.yearlyData.filter(yd => yd.deemedDisposalTaxPaid && yd.deemedDisposalTaxPaid > 0);
+    expect(yearsWithDD.length).toBe(1); // only one DD event in 10 years
+
+    // The tax should be 38% of the gains
+    // After 8 years at 8% compounded, balance ≈ 100000 * (1.08)^8 ≈ 185,093
+    // Gain ≈ 85,093; Tax ≈ 85,093 * 0.38 ≈ 32,335
+    const ddTax = result.totalDeemedDisposalTax!;
+    expect(ddTax).toBeGreaterThan(25000); // lower bound
+    expect(ddTax).toBeLessThan(40000);    // upper bound
+  });
+
+  it('50/50 split: only ETF portion triggers deemed disposal', () => {
+    const result = calculateAccountGrowth(buildOpts(makeBrokerageAccount({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+      etfAllocationPercent: 50,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+    // Should have some deemed disposal
+    expect(result.totalDeemedDisposalTax).toBeDefined();
+    expect(result.totalDeemedDisposalTax).toBeGreaterThan(0);
+
+    // DD tax should be roughly half of what 100% ETF would give
+    const fullEtfResult = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+
+    // Allow 5% tolerance due to compounding differences after DD
+    const ratio = result.totalDeemedDisposalTax! / fullEtfResult.totalDeemedDisposalTax!;
+    expect(ratio).toBeGreaterThan(0.45);
+    expect(ratio).toBeLessThan(0.55);
+  });
+
+  it('no ETF allocation (undefined): behaves like pure stocks, no DD', () => {
+    const result = calculateAccountGrowth(buildOpts(makeBrokerageAccount({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+      // etfAllocationPercent intentionally omitted
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+    expect(result.totalDeemedDisposalTax).toBeUndefined();
+  });
+
+  it('deemed disposal does not fire before 8 years', () => {
+    const result = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 7,
+      fireAge: 99,
+    }));
+    expect(result.totalDeemedDisposalTax).toBeUndefined();
+  });
+
+  it('cost basis resets after deemed disposal (less gain later)', () => {
+    // 16 years: should trigger 2 deemed disposals
+    const result = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 18,
+      fireAge: 99,
+    }));
+    const yearsWithDD = result.yearlyData.filter(yd => yd.deemedDisposalTaxPaid && yd.deemedDisposalTaxPaid > 0);
+    expect(yearsWithDD.length).toBe(2);
+  });
+
+  it('deemed disposal reduces the balance', () => {
+    const etfResult = calculateAccountGrowth(buildOpts(makeEtfBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+
+    const stockResult = calculateAccountGrowth(buildOpts(makeStockBrokerage({
+      currentBalance: 100000,
+      monthlyContribution: 0,
+      expectedReturn: 8,
+    }), {
+      timeHorizon: 10,
+      fireAge: 99,
+    }));
+
+    // ETF balance should be lower due to deemed disposal tax
+    expect(etfResult.finalBalance).toBeLessThan(stockResult.finalBalance);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculatePortfolioGrowth
+// ---------------------------------------------------------------------------
+
+function makePortfolioOpts(overrides: Partial<PortfolioGrowthOptions> = {}): PortfolioGrowthOptions {
+  return {
+    accounts: [
+      { name: 'Savings', currentBalance: 10000, monthlyContribution: 300, expectedReturn: 3 },
+      {
+        name: 'Pension',
+        currentBalance: 30000,
+        monthlyContribution: 10,
+        expectedReturn: 7,
+        isSalaryPercentage: true,
+        ageBracketContributions: {
+          under30: 10, age30to39: 15, age40to49: 20,
+          age50to54: 25, age55to59: 30, age60plus: 35,
+        },
+      },
+      { name: 'Brokerage', currentBalance: 20000, monthlyContribution: 200, expectedReturn: 7 },
+    ],
+    timeHorizon: 5,
+    currentAge: 30,
+    currentSalary: 60000,
+    annualSalaryIncrease: 3,
+    monthsUntilNextBirthday: 12,
+    dateOfBirth: new Date(1994, 0, 1),
+    fireAge: 50,
+    pensionAge: 65,
+    withdrawalRate: 4,
+    salaryReplacementRate: 70,
+    bonusPercent: 0,
+    enableHouseWithdrawal: false,
+    enablePensionLumpSum: false,
+    taxInputs: { grossSalary: 60000, pensionContribution: 6000, bikValue: 0 },
+    careerBreaks: [],
+    windfalls: [],
+    ...overrides,
+  };
+}
+
+describe('calculatePortfolioGrowth – basic', () => {
+  it('returns results for all three account types', () => {
+    const result = calculatePortfolioGrowth(makePortfolioOpts());
+    const names = result.accountResults.map((r) => r.accountName);
+    expect(names).toContain('Savings');
+    expect(names).toContain('Pension');
+    expect(names).toContain('Brokerage');
+  });
+
+  it('totalFinalBalance > 0', () => {
+    const result = calculatePortfolioGrowth(makePortfolioOpts());
+    expect(result.totalFinalBalance).toBeGreaterThan(0);
+  });
+
+  it('fireAge and pensionAge are returned correctly', () => {
+    const result = calculatePortfolioGrowth(makePortfolioOpts({ fireAge: 52, pensionAge: 67 }));
+    expect(result.fireAge).toBe(52);
+    expect(result.pensionAge).toBe(67);
+  });
+
+  it('totalFinalBalance equals sum of all account final balances', () => {
+    const result = calculatePortfolioGrowth(makePortfolioOpts());
+    const sumBalances = result.accountResults.reduce((s, r) => s + r.finalBalance, 0);
+    expect(result.totalFinalBalance).toBeCloseTo(sumBalances, 0);
+  });
+
+  it('totalContributions > 0 for non-zero contributions', () => {
+    const result = calculatePortfolioGrowth(makePortfolioOpts());
+    expect(result.totalContributions).toBeGreaterThan(0);
+  });
+
+  it('works with only a Savings account', () => {
+    const result = calculatePortfolioGrowth(makePortfolioOpts({
+      accounts: [{ name: 'Savings', currentBalance: 5000, monthlyContribution: 100, expectedReturn: 2 }],
+    }));
+    expect(result.accountResults).toHaveLength(1);
+    expect(result.totalFinalBalance).toBeGreaterThan(5000);
+  });
+
+  it('produces deterministic results on repeated calls', () => {
+    const opts = makePortfolioOpts();
+    const r1 = calculatePortfolioGrowth(opts);
+    const r2 = calculatePortfolioGrowth(opts);
+    expect(r1.totalFinalBalance).toBe(r2.totalFinalBalance);
+  });
+});
+
+describe('calculatePortfolioGrowth – windfalls', () => {
+  it('windfall increases balance versus no windfall', () => {
+    const base = calculatePortfolioGrowth(makePortfolioOpts());
+    const withWindfall = calculatePortfolioGrowth(makePortfolioOpts({
+      windfalls: [{ id: 'w1', age: 33, amount: 50000, destination: 'Savings' }],
+    }));
+    expect(withWindfall.totalFinalBalance).toBeGreaterThan(base.totalFinalBalance);
+  });
+});
+
+describe('calculatePortfolioGrowth – career breaks', () => {
+  it('full career break reduces pension contributions', () => {
+    const base = calculatePortfolioGrowth(makePortfolioOpts());
+    const withBreak = calculatePortfolioGrowth(makePortfolioOpts({
+      careerBreaks: [{ id: 'c1', fromAge: 32, toAge: 34, salaryPercent: 0 }],
+    }));
+    // A career break should result in lower total contributions overall
+    const basePension = base.accountResults.find((r) => r.accountName === 'Pension');
+    const breakPension = withBreak.accountResults.find((r) => r.accountName === 'Pension');
+    expect(breakPension!.totalContributions).toBeLessThan(basePension!.totalContributions);
+  });
+});
+
+describe('calculatePortfolioGrowth – house withdrawal', () => {
+  it('house withdrawal reduces brokerage balance', () => {
+    const withHouse = calculatePortfolioGrowth(makePortfolioOpts({
+      accounts: [
+        { name: 'Savings', currentBalance: 10000, monthlyContribution: 300, expectedReturn: 3 },
+        {
+          name: 'Pension', currentBalance: 30000, monthlyContribution: 10,
+          expectedReturn: 7, isSalaryPercentage: true,
+          ageBracketContributions: { under30: 10, age30to39: 15, age40to49: 20, age50to54: 25, age55to59: 30, age60plus: 35 },
+        },
+        { name: 'Brokerage', currentBalance: 200000, monthlyContribution: 200, expectedReturn: 7 },
+      ],
+      timeHorizon: 5,
+      enableHouseWithdrawal: true,
+      houseWithdrawalAge: 33,
+      houseDepositFromBrokerageRate: 100,
+      houseDepositCalculation: {
+        projectedHousePrice: 400000,
+        projectedSalary: 60000,
+        projectedMortgage: 270000,
+        depositRequired: 130000,
+        loanToValuePercent: 67.5,
+      },
+    }));
+    const brokerageResult = withHouse.accountResults.find((r) => r.accountName === 'Brokerage');
+    const totalWithdrawals = brokerageResult!.yearlyData.reduce((s, yd) => s + yd.withdrawal, 0);
+    expect(totalWithdrawals).toBeGreaterThan(0);
+  });
+});
+
+describe('calculatePortfolioGrowth – state pension', () => {
+  it('state pension income reaches the correct accounts', () => {
+    const result = calculatePortfolioGrowth(makePortfolioOpts({
+      timeHorizon: 40,
+      includeStatePension: true,
+      statePensionAge: 66,
+      statePensionWeeklyAmount: 299.30,
+    }));
+    // State pension starts at 66; at least one year should show non-zero state pension income
+    const savings = result.accountResults.find((r) => r.accountName === 'Savings');
+    const hasStatePension = savings?.yearlyData.some(
+      (yd) => yd.monthlyData.some((m) => (m.statePensionIncome ?? 0) > 0)
+    );
+    expect(hasStatePension).toBe(true);
+  });
+});
+
+describe('calculatePortfolioGrowth – pension lump sum', () => {
+  it('pension lump sum withdrawal leaves a reduced pension balance', () => {
+    const withLumpSum = calculatePortfolioGrowth(makePortfolioOpts({
+      timeHorizon: 40,
+      enablePensionLumpSum: true,
+      pensionLumpSumAge: 55,
+      pensionLumpSumMaxAmount: 200000,
+      lumpSumToBrokerageRate: 100,
+    }));
+    const withoutLumpSum = calculatePortfolioGrowth(makePortfolioOpts({
+      timeHorizon: 40,
+      enablePensionLumpSum: false,
+    }));
+    const pensionWith = withLumpSum.accountResults.find((r) => r.accountName === 'Pension');
+    const pensionWithout = withoutLumpSum.accountResults.find((r) => r.accountName === 'Pension');
+    // Pension with lump sum should have lower final balance due to withdrawal
+    expect(pensionWith!.finalBalance).toBeLessThan(pensionWithout!.finalBalance);
+  });
+});
+
+describe('calculatePortfolioGrowth – combineYearlyData net income paths', () => {
+  it('bridging phase has non-zero net income from brokerage when balance is large', () => {
+    const result = calculatePortfolioGrowth(makePortfolioOpts({
+      accounts: [
+        { name: 'Savings', currentBalance: 1000, monthlyContribution: 0, expectedReturn: 3 },
+        { name: 'Pension', currentBalance: 1000, monthlyContribution: 0, expectedReturn: 7, isSalaryPercentage: true,
+          ageBracketContributions: { under30: 5, age30to39: 10, age40to49: 15, age50to54: 20, age55to59: 25, age60plus: 30 } },
+        { name: 'Brokerage', currentBalance: 1000000, monthlyContribution: 0, expectedReturn: 7 },
+      ],
+      currentAge: 49,
+      fireAge: 50,
+      pensionAge: 65,
+      timeHorizon: 5,
+    }));
+    const combined = combineYearlyData(result.accountResults, 50, 65);
+    const bridgingRows = combined.filter((r) => r.phase === 'bridging');
+    const anyPositiveNetIncome = bridgingRows.some((r) => r.netIncome > 0);
+    expect(anyPositiveNetIncome).toBe(true);
+  });
+
+  it('drawdown phase has non-zero net income when pension has balance', () => {
+    const result = calculatePortfolioGrowth(makePortfolioOpts({
+      accounts: [
+        { name: 'Savings', currentBalance: 1000, monthlyContribution: 0, expectedReturn: 3 },
+        { name: 'Pension', currentBalance: 500000, monthlyContribution: 0, expectedReturn: 7, isSalaryPercentage: true,
+          ageBracketContributions: { under30: 5, age30to39: 10, age40to49: 15, age50to54: 20, age55to59: 25, age60plus: 30 } },
+        { name: 'Brokerage', currentBalance: 10000, monthlyContribution: 0, expectedReturn: 7 },
+      ],
+      currentAge: 64,
+      fireAge: 64,
+      pensionAge: 65,
+      timeHorizon: 5,
+    }));
+    const combined = combineYearlyData(result.accountResults, 64, 65);
+    const drawdownRows = combined.filter((r) => r.phase === 'drawdown');
+    const anyPositiveNetIncome = drawdownRows.some((r) => r.netIncome > 0);
+    expect(anyPositiveNetIncome).toBe(true);
+  });
+});

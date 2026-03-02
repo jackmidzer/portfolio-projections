@@ -1,17 +1,32 @@
-import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, MonthlyBreakdown, TaxInputs, MilestoneSnapshot, HouseDepositCalculation } from '../types';
-import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageCapitalGainsTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax } from './taxCalculations';
-import { isEarlyRetirementPhase, isPensionPhase } from './phaseHelpers';
+import { AccountInput, AccountResults, YearlyBreakdown, PortfolioResults, AgeBracketContributions, EmployerAgeBracketContributions, MonthlyBreakdown, MilestoneSnapshot, PensionLumpSumTaxBreakdown, AccountGrowthOptions, PortfolioGrowthOptions, TaxInputs } from '../types';
+import { calculateNetSalary, calculatePensionWithdrawalTax, calculateBrokerageWithdrawalTax, calculateBonusTaxBurden, calculateNetBonus, calculateDirtTax, calculatePensionLumpSumTax, calculateExitTax, calculatePrsiSummary } from './taxCalculations';
+import { isBridgingPhase, isDrawdownPhase, getPhaseType } from './phaseHelpers';
+import { DEEMED_DISPOSAL_PERIOD_YEARS, CGT_ANNUAL_EXEMPTION } from '../constants/irishTaxRates2026';
 
 /**
  * Get the contribution percentage for a given age from age bracket contributions
  */
-function getAgeBracketPercentage(age: number, brackets: AgeBracketContributions): number {
+export function getAgeBracketPercentage(age: number, brackets: AgeBracketContributions): number {
   if (age < 30) return brackets.under30;
   if (age < 40) return brackets.age30to39;
   if (age < 50) return brackets.age40to49;
   if (age < 55) return brackets.age50to54;
   if (age < 60) return brackets.age55to59;
   return brackets.age60plus;
+}
+
+/**
+ * Get the employer contribution percentage for a given age from employer age bracket contributions
+ */
+export function getEmployerAgeBracketPercentage(age: number, brackets: EmployerAgeBracketContributions): number {
+  if (age < 25) return brackets.under25;
+  if (age < 30) return brackets.age25to29;
+  if (age < 35) return brackets.age30to34;
+  if (age < 40) return brackets.age35to39;
+  if (age < 45) return brackets.age40to44;
+  if (age < 50) return brackets.age45to49;
+  if (age < 55) return brackets.age50to54;
+  return brackets.age55plus;
 }
 
 /**
@@ -90,30 +105,37 @@ function extractMilestoneSnapshot(accountResults: AccountResults[], targetAge: n
  * Calculate month-by-month breakdown for a single account with compound interest and monthly contributions
  * Results are then aggregated into yearly breakdowns while preserving monthly detail
  */
-export function calculateAccountGrowth(
-  account: AccountInput,
-  timeHorizon: number,
-  currentAge: number,
-  currentSalary?: number,
-  annualSalaryIncrease?: number,
-  monthsUntilNextBirthday?: number,
-  dateOfBirth?: Date,
-  pensionAge?: number,
-  withdrawalRate?: number,
-  earlyRetirementAge?: number,
-  salaryReplacementRate?: number,
-  pensionLumpSumAmount?: number,
-  bonusPercent?: number,
-  houseWithdrawalAge?: number,
-  enableHouseWithdrawal?: boolean,
-  houseDepositCalculation?: HouseDepositCalculation,
-  houseDepositFromBrokerageRate?: number,
-  enablePensionLumpSum?: boolean,
-  taxInputs?: TaxInputs,
-  pensionAgeBracketContributions?: AgeBracketContributions,
-  netBonusValue?: number,
-  pensionLumpSumAge?: number
-): AccountResults {
+export function calculateAccountGrowth(options: AccountGrowthOptions): AccountResults {
+  const {
+    account,
+    timeHorizon,
+    currentAge,
+    currentSalary,
+    annualSalaryIncrease,
+    monthsUntilNextBirthday,
+    dateOfBirth,
+    pensionAge,
+    withdrawalRate,
+    fireAge,
+    salaryReplacementRate,
+    pensionLumpSumAmount,
+    bonusPercent,
+    houseWithdrawalAge,
+    enableHouseWithdrawal,
+    houseDepositCalculation,
+    houseDepositFromBrokerageRate,
+    enablePensionLumpSum,
+    taxInputs,
+    pensionAgeBracketContributions,
+    netBonusValue,
+    pensionLumpSumAge,
+    pensionLumpSumMaxAmount,
+    includeStatePension,
+    statePensionAge,
+    statePensionWeeklyAmount,
+    careerBreaks,
+    windfalls,
+  } = options;
   const monthlyRate = account.expectedReturn / 100 / 12;
   const firstYearMonths = monthsUntilNextBirthday || 12;
   let totalMonths = firstYearMonths + (timeHorizon - 1) * 12;
@@ -121,14 +143,37 @@ export function calculateAccountGrowth(
   const isBrokerageAccount = account.name === 'Brokerage';
   const pensionAgeValue = pensionAge ?? 65;
   const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
+  const pensionLumpSumMaxAmountValue = pensionLumpSumMaxAmount ?? Infinity;
   const withdrawalRateValue = withdrawalRate ?? 4;
-  const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
-  const salaryReplacementRateValue = salaryReplacementRate ?? 80;
+  const fireAgeValue = fireAge ?? 50;
+  const salaryReplacementRateValue = salaryReplacementRate ?? 60;
+  const statePensionAgeValue = statePensionAge ?? 66;
+  const statePensionWeekly = statePensionWeeklyAmount ?? 299.30;
+  const statePensionAnnual = statePensionWeekly * 52;
+  const statePensionMonthly = statePensionAnnual / 12;
 
   // Store all monthly data throughout the entire time horizon
   const allMonthlyData: MonthlyBreakdown[] = [];
   let currentBalance = account.currentBalance;
-  
+
+  // Track cost basis for brokerage account (cumulative contributions, proportionally reduced on withdrawal)
+  // Initialised to currentBalance — assumes the opening balance is entirely cost (no unrealised gain)
+  let costBasis = isBrokerageAccount ? account.currentBalance : 0;
+
+  // ETF / Stock sub-balance tracking for brokerage deemed disposal & blended tax
+  const etfAllocationPct = isBrokerageAccount ? (account.etfAllocationPercent ?? 0) / 100 : 0;
+  let etfBalance = isBrokerageAccount ? account.currentBalance * etfAllocationPct : 0;
+  let stockBalance = isBrokerageAccount ? account.currentBalance * (1 - etfAllocationPct) : 0;
+  let etfCostBasis = etfBalance;   // assumes no unrealised gain at start
+  let stockCostBasis = stockBalance;
+  let deemedDisposalMonthCounter = 0; // months since simulation start (8-year clock)
+  const deemedDisposalPeriodMonths = DEEMED_DISPOSAL_PERIOD_YEARS * 12;
+  let cumulativeDeemedDisposalTax = 0;
+  let cumulativeExitTaxOnWithdrawals = 0;
+
+  // CGT annual exemption tracking — resets each January
+  let cgtExemptionUsedThisYear = 0;
+
   // Initialize date tracking
   let monthDate = new Date();
   if (dateOfBirth) {
@@ -142,18 +187,18 @@ export function calculateAccountGrowth(
   const monthsToYearEnd = endCalendarMonth === 11 ? 0 : (11 - endCalendarMonth);
   totalMonths += monthsToYearEnd;
 
-  // Calculate the month when user reaches early retirement age
-  const monthReachEarlyRetirement = firstYearMonths + (earlyRetirementAgeValue - currentAge - 1) * 12;
-  // Early retirement withdrawals start in the next January after reaching the age
+  // Calculate the month when user reaches FIRE age
+  const monthReachFire = firstYearMonths + (fireAgeValue - currentAge - 1) * 12;
+  // FIRE withdrawals start in the next January after reaching the age
   // Find which calendar month they turn the age
   let tempDate = new Date(monthDate);
-  for (let i = 0; i < monthReachEarlyRetirement; i++) {
+  for (let i = 0; i < monthReachFire; i++) {
     tempDate.setMonth(tempDate.getMonth() + 1);
   }
   const retirementCalendarMonth = tempDate.getMonth(); // 0=Jan, 11=Dec
   // Calculate months until next January (0) from the retirement month
   const monthsToNextJanuary = retirementCalendarMonth === 0 ? 12 : (12 - retirementCalendarMonth);
-  const earlyRetirementYearStartMonth = monthReachEarlyRetirement + monthsToNextJanuary;
+  const fireYearStartMonth = monthReachFire + monthsToNextJanuary;
 
   // Track January-based salary growth
   let januarysSeen = monthDate.getMonth() === 0 ? 1 : 0;
@@ -168,7 +213,7 @@ export function calculateAccountGrowth(
 
   // Track annual withdrawal amounts (calculated in January, spread across 12 months)
   let annualPensionWithdrawal = 0;
-  let annualEarlyRetirementWithdrawal = 0;
+  let annualBridgingWithdrawal = 0;
   let lastYearCalculated = -1;
 
   // Main monthly loop - iterate through all months in the time horizon
@@ -177,6 +222,8 @@ export function calculateAccountGrowth(
     // Increment January counter if we've entered a new January since last month
     if (month > 0 && monthDate.getMonth() === 0) {
       januarysSeen++;
+      // Reset CGT annual exemption for the new calendar year
+      cgtExemptionUsedThisYear = 0;
     }
     
     // Calculate current age based on number of full birthdays passed
@@ -190,6 +237,19 @@ export function calculateAccountGrowth(
       // Salary increases each January
       salaryAtMonth = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, januarysSeen);
     }
+
+    // Apply career break / part-time salary scaling
+    let careerBreakSalaryPercent = 100;
+    if (careerBreaks && careerBreaks.length > 0) {
+      for (const cb of careerBreaks) {
+        if (ageAtMonth >= cb.fromAge && ageAtMonth < cb.toAge) {
+          careerBreakSalaryPercent = cb.salaryPercent;
+          break;
+        }
+      }
+      salaryAtMonth = salaryAtMonth * (careerBreakSalaryPercent / 100);
+    }
+    const isOnFullCareerBreak = careerBreakSalaryPercent === 0;
 
     const isJanuary = monthDate.getMonth() === 0;
     const currentYear = monthDate.getFullYear();
@@ -208,6 +268,13 @@ export function calculateAccountGrowth(
     let monthlyTax = 0;
     let monthlyGrossIncome = 0;
     let monthlyPensionDeduction = 0;
+
+    // Compute cumulative PAYE/USC threshold multiplier for this year.
+    // januarysSeen represents years elapsed since simulation start (2026 base).
+    const taxBandIndexationRate = taxInputs?.taxBandIndexation ?? 0;
+    const taxBandMultiplier = taxBandIndexationRate > 0
+      ? Math.pow(1 + taxBandIndexationRate / 100, januarysSeen)
+      : 1;
     
     if (salaryAtMonth > 0 && taxInputs) {
       // Use tax calculation: calculate annual net salary then divide by 12
@@ -224,6 +291,9 @@ export function calculateAccountGrowth(
         grossSalary: salaryAtMonth,
         pensionContribution: dynamicPensionContribution,
         bikValue: taxInputs.bikValue || 0,
+        claimRentRelief: taxInputs.claimRentRelief,
+        claimMedicalInsurance: taxInputs.claimMedicalInsurance,
+        taxBandMultiplier,
       });
       
       // Monthly tax = (PAYE + USC + PRSI) / 12, except in December when bonus is included
@@ -251,7 +321,10 @@ export function calculateAccountGrowth(
           salaryAtMonth,
           bonusPercent,
           pensionPercent,
-          taxInputs.bikValue || 0
+          taxInputs.bikValue || 0,
+          taxInputs.claimRentRelief,
+          taxInputs.claimMedicalInsurance,
+          taxBandMultiplier,
         );
         
         monthlyTax = baseMonthlyTax + bonusTaxBurden;
@@ -289,45 +362,48 @@ export function calculateAccountGrowth(
     // Only enter pension phase if it's the following calendar year, or if pension age was reached on January 1st
     const shouldDeferPensionPhase = yearPensionAgeReached !== null && currentYear === yearPensionAgeReached && monthDate.getMonth() !== 0;
     
-    // Extend early retirement phase to include deferral period
-    let isInEarlyRetirementPhase = isEarlyRetirementPhase(ageAtMonth, earlyRetirementAgeValue, pensionAgeValue) || shouldDeferPensionPhase;
-    let isInPensionPhase = isPensionPhase(ageAtMonth, pensionAgeValue) && !shouldDeferPensionPhase;
+    // Extend bridging phase to include deferral period
+    let isInBridgingPhase = isBridgingPhase(ageAtMonth, fireAgeValue, pensionAgeValue) || shouldDeferPensionPhase;
+    let isInDrawdownPhase = isDrawdownPhase(ageAtMonth, pensionAgeValue) && !shouldDeferPensionPhase;
     
     // Calculate annual withdrawal amounts in January (only when year changes)
     if (isJanuary && lastYearCalculated !== currentYear) {
       lastYearCalculated = currentYear;
       annualPensionWithdrawal = 0;
-      annualEarlyRetirementWithdrawal = 0;
+      annualBridgingWithdrawal = 0;
 
-      // [PENSION PHASE] Calculate annual pension regular withdrawal
-      if (isPensionAccount && isInPensionPhase) {
-        // Apply forced withdrawal rates at specific ages, otherwise use user's chosen method
+      // [DRAWDOWN PHASE] Calculate annual pension regular withdrawal
+      if (isPensionAccount && isInDrawdownPhase) {
+        // Apply forced withdrawal rates at specific ages as minimums, otherwise use user's chosen rate
         let effectiveWithdrawalRate = withdrawalRateValue;
         if (ageAtMonth >= 71) {
-          // Age 71+: forced 5% withdrawal rate
-          effectiveWithdrawalRate = 5;
+          // Age 71+: forced 5% minimum withdrawal rate
+          effectiveWithdrawalRate = Math.max(withdrawalRateValue, 5);
           annualPensionWithdrawal = monthStartBalance * (effectiveWithdrawalRate / 100);
         } else if (ageAtMonth >= 61) {
-          // Age 61-70: forced 4% withdrawal rate
-          effectiveWithdrawalRate = 4;
+          // Age 61-70: forced 4% minimum withdrawal rate
+          effectiveWithdrawalRate = Math.max(withdrawalRateValue, 4);
           annualPensionWithdrawal = monthStartBalance * (effectiveWithdrawalRate / 100);
         } else {
-          // Before age 61: use percentage of balance strategy
+          // Before age 61: use user's chosen withdrawal rate
           annualPensionWithdrawal = monthStartBalance * (withdrawalRateValue / 100);
         }
       }
 
-      // [EARLY RETIREMENT PHASE] Calculate annual brokerage withdrawal
-      if (isBrokerageAccount && month >= earlyRetirementYearStartMonth && isInEarlyRetirementPhase) {
+      // [BRIDGING PHASE] Calculate annual brokerage withdrawal
+      if (isBrokerageAccount && month >= fireYearStartMonth && isInBridgingPhase) {
         const hypotheticalSalary = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januarysSeen) : 0;
-        annualEarlyRetirementWithdrawal = hypotheticalSalary * (salaryReplacementRateValue / 100);
+        const targetIncome = hypotheticalSalary * (salaryReplacementRateValue / 100);
+        // Reduce withdrawal by state pension income if eligible (state pension provides supplemental income)
+        const statePensionOffset = (includeStatePension && ageAtMonth >= statePensionAgeValue) ? statePensionAnnual : 0;
+        annualBridgingWithdrawal = Math.max(0, targetIncome - statePensionOffset);
       }
     }
 
     if (isJanuary) {
-      // [PENSION PHASE] Pension lump sum: withdraw 25% of balance (capped at 200k) at pensionLumpSumAge - ONE TIME ONLY
+      // [PENSION PHASE] Pension lump sum: withdraw up to 25% of balance (capped at user max) at pensionLumpSumAge - ONE TIME ONLY
       if (isPensionAccount && enablePensionLumpSum !== false && ageAtMonth >= pensionLumpSumAgeValue && ageAtMonth < (pensionLumpSumAgeValue + 1)) {
-        const lumpSumAmount = Math.min(monthStartBalance * 0.25, 200000);
+        const lumpSumAmount = Math.min(monthStartBalance * 0.25, pensionLumpSumMaxAmountValue);
         monthWithdrawal = lumpSumAmount;
         currentBalance -= monthWithdrawal;
       }
@@ -353,24 +429,66 @@ export function calculateAccountGrowth(
         // Also track as withdrawal for display in withdrawal column (not subtracted from balance, separate from recurring withdrawals)
         monthWithdrawal = pensionLumpSumAmount;
       }
+
+      // Windfall injections: one-off cash injections at a specific age into a specific account
+      if (windfalls && windfalls.length > 0) {
+        for (const wf of windfalls) {
+          if (wf.age === ageAtMonth && wf.destination === account.name && wf.amount > 0) {
+            lumpSumContribution += wf.amount;
+          }
+        }
+      }
     }
 
     // Apply recurring withdrawals spread across all 12 months
-    // [PENSION PHASE] Pension regular withdrawal: spread across 12 months
-    if (isPensionAccount && isInPensionPhase && annualPensionWithdrawal > 0) {
+    // [DRAWDOWN PHASE] Pension regular withdrawal: spread across 12 months
+    if (isPensionAccount && isInDrawdownPhase && annualPensionWithdrawal > 0) {
       monthWithdrawal = annualPensionWithdrawal / 12;
       currentBalance -= monthWithdrawal;
     }
-    // [EARLY RETIREMENT PHASE] Brokerage: spread across 12 months
-    else if (isBrokerageAccount && month >= earlyRetirementYearStartMonth && isInEarlyRetirementPhase && annualEarlyRetirementWithdrawal > 0) {
-      monthWithdrawal = annualEarlyRetirementWithdrawal / 12;
+    // [BRIDGING PHASE] Brokerage: spread across 12 months
+    else if (isBrokerageAccount && month >= fireYearStartMonth && isInBridgingPhase && annualBridgingWithdrawal > 0) {
+      monthWithdrawal = annualBridgingWithdrawal / 12;
       currentBalance -= monthWithdrawal;
+    }
+
+    // Proportionally reduce the cost basis for any withdrawal this month.
+    // Must be done BEFORE adding contributions so the ratio uses the pre-withdrawal cost basis.
+    // Per-portion gain ratios for ETF (exit tax) and stock (CGT) sub-balances
+    let etfGainRatio = 0;
+    let stockGainRatio = 0;
+    // Capture pre-withdrawal sub-balances for tax calculation
+    const preWithdrawalEtfBalance = etfBalance;
+    const preWithdrawalStockBalance = stockBalance;
+    if (isBrokerageAccount && monthWithdrawal > 0 && monthStartBalance > 0) {
+      // Reduce cost basis by the proportion of the balance that was withdrawn
+      costBasis = Math.max(0, costBasis - monthWithdrawal * (costBasis / monthStartBalance));
+
+      // ETF / Stock sub-balance gain ratios and proportional withdrawal
+      etfGainRatio = etfBalance > 0 ? Math.max(0, Math.min(1, (etfBalance - etfCostBasis) / etfBalance)) : 0;
+      stockGainRatio = stockBalance > 0 ? Math.max(0, Math.min(1, (stockBalance - stockCostBasis) / stockBalance)) : 0;
+
+      const totalSubBalance = etfBalance + stockBalance;
+      if (totalSubBalance > 0) {
+        const etfWithdrawalPortion = monthWithdrawal * (etfBalance / totalSubBalance);
+        const stockWithdrawalPortion = monthWithdrawal * (stockBalance / totalSubBalance);
+        // Reduce sub-balance cost bases proportionally
+        if (etfBalance > 0) {
+          etfCostBasis = Math.max(0, etfCostBasis - etfWithdrawalPortion * (etfCostBasis / etfBalance));
+          etfBalance -= etfWithdrawalPortion;
+        }
+        if (stockBalance > 0) {
+          stockCostBasis = Math.max(0, stockCostBasis - stockWithdrawalPortion * (stockCostBasis / stockBalance));
+          stockBalance -= stockWithdrawalPortion;
+        }
+      }
     }
 
     // Calculate monthly contribution
     let monthlyContribution = 0;
-    // [WORKING PHASE] Contributions are made during the working phase (before early retirement)
-    if (month < earlyRetirementYearStartMonth) {
+    // [WORKING PHASE] Contributions are made during the working phase (before FIRE)
+    // During a full career break (salaryPercent === 0), pension and salary-linked contributions are zero
+    if (month < fireYearStartMonth && !isOnFullCareerBreak) {
       if (account.isSalaryPercentage && currentSalary && annualSalaryIncrease !== undefined) {
         // For salary-based contributions (e.g., Pension with age brackets)
         let contributionPercentage = account.monthlyContribution;
@@ -384,9 +502,12 @@ export function calculateAccountGrowth(
         const contributionBase = isPensionAccount ? (salaryAtMonth / 12) : baseMonthlyNetSalary;
         monthlyContribution = contributionBase * (contributionPercentage / 100);
         
-        // Add employer contribution if present (Pension only, uses gross salary)
-        if (account.employerContributionPercent !== undefined && account.employerContributionPercent > 0) {
-          monthlyContribution += (salaryAtMonth / 12) * (account.employerContributionPercent / 100);
+        // Add employer contribution if present (Pension only, uses gross salary, age-bracket-based)
+        if (account.employerAgeBracketContributions) {
+          const employerPercent = getEmployerAgeBracketPercentage(ageAtStartOfCurrentYear, account.employerAgeBracketContributions);
+          if (employerPercent > 0) {
+            monthlyContribution += (salaryAtMonth / 12) * (employerPercent / 100);
+          }
         }
       } else {
         // Fixed monthly contribution
@@ -400,16 +521,17 @@ export function calculateAccountGrowth(
         const isSavingsOrBrokerage = account.name === 'Savings' || account.name === 'Brokerage';
         const annualBonus = isSavingsOrBrokerage && netBonusValue !== undefined ? netBonusValue : salaryAtMonth * (bonusPercent / 100);
         
-        let bonusContributionPercent = account.bonusContributionPercent;
-        
-        // Handle pension bonus checkbox: -1 means enabled, use age bracket percentage
-        if (account.bonusContributionPercent === -1 && account.ageBracketContributions) {
+        // Handle 'age-bracket' sentinel: resolve to the current age-bracket percentage
+        let bonusContributionPercent: number | undefined =
+          typeof account.bonusContributionPercent === 'number' ? account.bonusContributionPercent : undefined;
+
+        if (account.bonusContributionPercent === 'age-bracket' && account.ageBracketContributions) {
           // Use age at start of calendar year to defer bracket increases until January
           bonusContributionPercent = getAgeBracketPercentage(ageAtStartOfCurrentYear, account.ageBracketContributions);
         }
         
         // Only add bonus contribution if percentage is positive
-        if (bonusContributionPercent > 0) {
+        if (bonusContributionPercent !== undefined && bonusContributionPercent > 0) {
           const bonusContribution = annualBonus * (bonusContributionPercent / 100);
           monthlyContribution += bonusContribution;
         }
@@ -418,6 +540,18 @@ export function calculateAccountGrowth(
 
     // Add lump sum allocation to contributions
     monthlyContribution += lumpSumContribution;
+
+    // Increase brokerage cost basis by new contributions (they represent the cost of acquiring new units)
+    if (isBrokerageAccount && monthlyContribution > 0) {
+      costBasis += monthlyContribution;
+      // Split contribution between ETF and stock sub-balances using the allocation ratio
+      const etfContribution = monthlyContribution * etfAllocationPct;
+      const stockContribution = monthlyContribution * (1 - etfAllocationPct);
+      etfCostBasis += etfContribution;
+      stockCostBasis += stockContribution;
+      etfBalance += etfContribution;
+      stockBalance += stockContribution;
+    }
 
     // Apply interest
     const monthInterest = currentBalance * monthlyRate;
@@ -432,13 +566,38 @@ export function calculateAccountGrowth(
     
     currentBalance += netMonthInterest + monthlyContribution;
 
+    // Apply growth to ETF/stock sub-balances (they don't have DIRT, same rate as parent)
+    if (isBrokerageAccount) {
+      etfBalance += etfBalance * monthlyRate;
+      stockBalance += stockBalance * monthlyRate;
+    }
+
+    // Deemed disposal: every 8 years, unrealised ETF gains are taxed at exit tax rate
+    let monthDeemedDisposalTax = 0;
+    if (isBrokerageAccount && etfBalance > 0) {
+      deemedDisposalMonthCounter++;
+      if (deemedDisposalMonthCounter >= deemedDisposalPeriodMonths) {
+        const etfGain = Math.max(0, etfBalance - etfCostBasis);
+        if (etfGain > 0) {
+          const ddResult = calculateExitTax(etfGain, 1); // gain is already isolated
+          monthDeemedDisposalTax = ddResult.exitTax;
+          etfBalance -= monthDeemedDisposalTax;
+          currentBalance -= monthDeemedDisposalTax;
+          // Reset cost basis to current ETF balance (all gain has been crystallised)
+          etfCostBasis = etfBalance;
+          cumulativeDeemedDisposalTax += monthDeemedDisposalTax;
+        }
+        deemedDisposalMonthCounter = 0; // restart 8-year clock
+      }
+    }
+
     // Format month/year as 'FEB 2026'
     const monthLabel = monthDate.toLocaleString('en-US', { month: 'short', year: 'numeric' }).toUpperCase();
 
     // Calculate withdrawal tax based on account type and phase
     let withdrawalTax = 0;
     let withdrawalNetAmount = monthWithdrawal;
-    let withdrawalPhase: 'lumpSum' | 'earlyRetirement' | 'pensionPhase' | undefined;
+    let withdrawalPhase: 'lumpSum' | 'bridging' | 'drawdown' | undefined;
 
     // Determine withdrawal phase and apply account-specific tax
     if (monthWithdrawal > 0) {
@@ -458,29 +617,35 @@ export function calculateAccountGrowth(
         withdrawalNetAmount = monthWithdrawal;
       }
       // Pension phase withdrawal (regular pension withdrawals)
-      else if (isPensionAccount && isInPensionPhase) {
-        withdrawalPhase = 'pensionPhase';
+      else if (isPensionAccount && isInDrawdownPhase) {
+        withdrawalPhase = 'drawdown';
         // Pension withdrawals: PAYE + USC + PRSI (if age < 66) + €245 age credit
-        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, true, ageAtMonth);
+        const taxResult = calculatePensionWithdrawalTax(monthWithdrawal, true, ageAtMonth, taxBandMultiplier);
         withdrawalTax = taxResult.totalTax;
         withdrawalNetAmount = taxResult.netWithdrawal;
       }
       // Brokerage early retirement withdrawal
-      else if (isBrokerageAccount && isInEarlyRetirementPhase) {
-        withdrawalPhase = 'earlyRetirement';
-        // Brokerage withdrawals: 33% CGT
-        const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal);
-        withdrawalTax = taxResult.cgt;
+      else if (isBrokerageAccount && isInBridgingPhase) {
+        withdrawalPhase = 'bridging';
+        // Brokerage withdrawals: blended exit tax (ETF) + CGT (stocks) on gain portions
+        const remainingCgtExemption = Math.max(0, CGT_ANNUAL_EXEMPTION - cgtExemptionUsedThisYear);
+        const taxResult = calculateBrokerageWithdrawalTax(monthWithdrawal, preWithdrawalEtfBalance, preWithdrawalStockBalance, etfGainRatio, stockGainRatio, remainingCgtExemption);
+        withdrawalTax = taxResult.totalTax;
         withdrawalNetAmount = taxResult.netWithdrawal;
+        cumulativeExitTaxOnWithdrawals += taxResult.etfExitTax;
+        cgtExemptionUsedThisYear += taxResult.cgtExemptionUsed;
       }
       // House deposit withdrawal (from Brokerage or Savings)
       else if (enableHouseWithdrawal && houseWithdrawalAge !== undefined && ageAtMonth >= houseWithdrawalAge && ageAtMonth < (houseWithdrawalAge + 1)) {
         if (isBrokerageAccount) {
-          withdrawalPhase = 'earlyRetirement'; // Treat house withdrawal from brokerage as early retirement withdrawal
-          // Brokerage withdrawals: 33% CGT
-          const taxResult = calculateBrokerageCapitalGainsTax(monthWithdrawal);
-          withdrawalTax = taxResult.cgt;
+          withdrawalPhase = 'bridging'; // Treat house withdrawal from brokerage as bridging withdrawal
+          // Brokerage withdrawals: blended exit tax (ETF) + CGT (stocks) on gain portions
+          const remainingCgtExemption = Math.max(0, CGT_ANNUAL_EXEMPTION - cgtExemptionUsedThisYear);
+          const taxResult = calculateBrokerageWithdrawalTax(monthWithdrawal, preWithdrawalEtfBalance, preWithdrawalStockBalance, etfGainRatio, stockGainRatio, remainingCgtExemption);
+          withdrawalTax = taxResult.totalTax;
           withdrawalNetAmount = taxResult.netWithdrawal;
+          cumulativeExitTaxOnWithdrawals += taxResult.etfExitTax;
+          cgtExemptionUsedThisYear += taxResult.cgtExemptionUsed;
         } else {
           // Savings account house withdrawal (no tax on savings)
           withdrawalPhase = undefined;
@@ -491,6 +656,9 @@ export function calculateAccountGrowth(
     }
 
 
+
+    // Compute monthly state pension income for this month
+    const monthStatePensionIncome = (includeStatePension && ageAtMonth >= statePensionAgeValue) ? statePensionMonthly : 0;
 
     allMonthlyData.push({
       month: month + 1,
@@ -507,6 +675,9 @@ export function calculateAccountGrowth(
       withdrawalPhase,
       withdrawalTax,
       withdrawalNetAmount,
+      costBasis: isBrokerageAccount ? costBasis : undefined,
+      deemedDisposalTax: monthDeemedDisposalTax > 0 ? monthDeemedDisposalTax : undefined,
+      statePensionIncome: monthStatePensionIncome > 0 ? monthStatePensionIncome : undefined,
     });
 
     // Advance to next month
@@ -547,6 +718,7 @@ export function calculateAccountGrowth(
     const yearContributions = renumberedMonthlyData.reduce((sum, m) => sum + m.contribution, 0);
     const yearInterest = renumberedMonthlyData.reduce((sum, m) => sum + m.interest, 0);
     const yearInterestTax = renumberedMonthlyData.reduce((sum, m) => sum + (m.interestTax || 0), 0);
+    const yearDeemedDisposalTax = renumberedMonthlyData.reduce((sum, m) => sum + (m.deemedDisposalTax || 0), 0);
     const yearWithdrawal = renumberedMonthlyData.reduce((sum, m) => sum + m.withdrawal, 0);
     const yearSalary = (renumberedMonthlyData[0]?.salary ?? 0) * 12; // Annual salary (convert from monthly)
     
@@ -566,6 +738,7 @@ export function calculateAccountGrowth(
       contributions: yearContributions,
       interestEarned: yearInterest,
       interestTaxPaid: yearInterestTax,
+      deemedDisposalTaxPaid: yearDeemedDisposalTax > 0 ? yearDeemedDisposalTax : undefined,
       endingBalance: yearEndingBalance,
       monthlyData: renumberedMonthlyData,
       withdrawal: yearWithdrawal,
@@ -575,7 +748,8 @@ export function calculateAccountGrowth(
   // Calculate totals
   const totalContributions = yearlyData.reduce((sum, yd) => sum + yd.contributions, 0);
   const totalWithdrawals = allMonthlyData.reduce((sum, m) => sum + m.withdrawal, 0);
-  const totalInterest = currentBalance - account.currentBalance - totalContributions + totalWithdrawals;
+  // Deemed disposal tax reduces the balance like a withdrawal but isn't tracked as one
+  const totalInterest = currentBalance - account.currentBalance - totalContributions + totalWithdrawals + cumulativeDeemedDisposalTax;
 
   return {
     accountName: account.name,
@@ -583,39 +757,169 @@ export function calculateAccountGrowth(
     totalContributions,
     totalInterest,
     finalBalance: currentBalance,
+    totalCostBasis: isBrokerageAccount ? costBasis : undefined,
+    totalDeemedDisposalTax: isBrokerageAccount && cumulativeDeemedDisposalTax > 0 ? cumulativeDeemedDisposalTax : undefined,
+    totalExitTax: isBrokerageAccount && cumulativeExitTaxOnWithdrawals > 0 ? cumulativeExitTaxOnWithdrawals : undefined,
   };
+}
+
+/**
+ * Lightweight estimation of pension balance at a given target age.
+ * Only tracks balance (no breakdown arrays) to determine the lump sum amount.
+ */
+function estimatePensionBalanceAtAge(
+  account: AccountInput,
+  targetLumpSumAge: number,
+  currentAge: number,
+  currentSalary: number | undefined,
+  annualSalaryIncrease: number | undefined,
+  monthsUntilNextBirthday: number | undefined,
+  dateOfBirth: Date | undefined,
+  bonusPercent: number | undefined,
+  _taxInputs?: TaxInputs,
+  _pensionAgeBracketContributions?: AgeBracketContributions,
+  fireAge?: number,
+): number {
+  const monthlyRate = account.expectedReturn / 100 / 12;
+  const firstYearMonths = monthsUntilNextBirthday || 12;
+  const fireAgeValue = fireAge ?? 50;
+
+  let balance = account.currentBalance;
+  let monthDate = new Date();
+  if (dateOfBirth) {
+    const now = new Date();
+    monthDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  let januarysSeen = monthDate.getMonth() === 0 ? 1 : 0;
+  let ageAtStartOfCurrentYear = currentAge;
+  let lastYearBracketUpdated = -1;
+
+  // Calculate months until we reach pension lump sum age
+  // We just need to iterate until we hit the lump sum age in January
+  const maxMonths = firstYearMonths + (targetLumpSumAge - currentAge + 2) * 12;
+
+  // Calculate the month when user reaches FIRE age for contribution cutoff
+  const monthReachFire = firstYearMonths + (fireAgeValue - currentAge - 1) * 12;
+  let tempDate = new Date(monthDate);
+  for (let i = 0; i < monthReachFire; i++) {
+    tempDate.setMonth(tempDate.getMonth() + 1);
+  }
+  const retirementCalendarMonth = tempDate.getMonth();
+  const monthsToNextJanuary = retirementCalendarMonth === 0 ? 12 : (12 - retirementCalendarMonth);
+  const fireYearStartMonth = monthReachFire + monthsToNextJanuary;
+
+  for (let month = 0; month < maxMonths; month++) {
+    if (month > 0 && monthDate.getMonth() === 0) {
+      januarysSeen++;
+    }
+
+    const birthdays = month >= firstYearMonths ? 1 + Math.floor((month - firstYearMonths) / 12) : 0;
+    const ageAtMonth = currentAge + birthdays;
+    const isJanuary = monthDate.getMonth() === 0;
+    const currentYear = monthDate.getFullYear();
+
+    if (isJanuary && currentYear !== lastYearBracketUpdated) {
+      ageAtStartOfCurrentYear = ageAtMonth;
+      lastYearBracketUpdated = currentYear;
+    }
+
+    // If we've reached the lump sum age in January, return the balance
+    if (ageAtMonth >= targetLumpSumAge && isJanuary && month > 0) {
+      return balance;
+    }
+
+    // Calculate salary at this point
+    let salaryAtMonth = currentSalary || 0;
+    if (currentSalary && annualSalaryIncrease !== undefined) {
+      salaryAtMonth = currentSalary * Math.pow(1 + annualSalaryIncrease / 100, januarysSeen);
+    }
+
+    // Calculate contributions (only during working phase)
+    let monthlyContribution = 0;
+    if (month < fireYearStartMonth) {
+      if (account.isSalaryPercentage && currentSalary && annualSalaryIncrease !== undefined) {
+        let contributionPercentage = account.monthlyContribution;
+        if (account.ageBracketContributions) {
+          contributionPercentage = getAgeBracketPercentage(ageAtStartOfCurrentYear, account.ageBracketContributions);
+        }
+        monthlyContribution = (salaryAtMonth / 12) * (contributionPercentage / 100);
+
+        // Add employer contribution
+        if (account.employerAgeBracketContributions) {
+          const employerPercent = getEmployerAgeBracketPercentage(ageAtStartOfCurrentYear, account.employerAgeBracketContributions);
+          if (employerPercent > 0) {
+            monthlyContribution += (salaryAtMonth / 12) * (employerPercent / 100);
+          }
+        }
+      } else {
+        monthlyContribution = account.monthlyContribution;
+      }
+
+      // Add bonus contribution (December only)
+      const isDecember = monthDate.getMonth() === 11;
+      if (isDecember && bonusPercent !== undefined && bonusPercent > 0 && account.bonusContributionPercent !== undefined) {
+        const annualBonus = salaryAtMonth * (bonusPercent / 100);
+        let bonusContributionPercent: number | undefined =
+          typeof account.bonusContributionPercent === 'number' ? account.bonusContributionPercent : undefined;
+        if (account.bonusContributionPercent === 'age-bracket' && account.ageBracketContributions) {
+          bonusContributionPercent = getAgeBracketPercentage(ageAtStartOfCurrentYear, account.ageBracketContributions);
+        }
+        if (bonusContributionPercent !== undefined && bonusContributionPercent > 0) {
+          monthlyContribution += annualBonus * (bonusContributionPercent / 100);
+        }
+      }
+    }
+
+    // Apply interest and contribution
+    const monthInterest = balance * monthlyRate;
+    balance += monthInterest + monthlyContribution;
+
+    monthDate.setMonth(monthDate.getMonth() + 1);
+  }
+
+  return balance;
 }
 
 /**
  * Calculate growth for all accounts in the portfolio
  */
-export function calculatePortfolioGrowth(
-  accounts: AccountInput[],
-  timeHorizon: number,
-  currentAge: number,
-  currentSalary?: number,
-  annualSalaryIncrease?: number,
-  monthsUntilNextBirthday?: number,
-  dateOfBirth?: Date,
-  pensionAge?: number,
-  withdrawalRate?: number,
-  earlyRetirementAge?: number,
-  salaryReplacementRate?: number,
-  lumpSumToBrokerageRate?: number,
-  bonusPercent?: number,
-  houseWithdrawalAge?: number,
-  enableHouseWithdrawal?: boolean,
-  houseDepositCalculation?: HouseDepositCalculation,
-  houseDepositFromBrokerageRate?: number,
-  enablePensionLumpSum?: boolean,
-  taxInputs?: TaxInputs,
-  pensionLumpSumAge?: number,
-  mortgageExemption?: boolean
-): PortfolioResults {
+export function calculatePortfolioGrowth(options: PortfolioGrowthOptions): PortfolioResults {
+  const {
+    accounts,
+    timeHorizon,
+    currentAge,
+    currentSalary,
+    annualSalaryIncrease,
+    monthsUntilNextBirthday,
+    dateOfBirth,
+    pensionAge,
+    withdrawalRate,
+    fireAge,
+    salaryReplacementRate,
+    lumpSumToBrokerageRate,
+    bonusPercent,
+    houseWithdrawalAge,
+    enableHouseWithdrawal,
+    houseDepositCalculation,
+    houseDepositFromBrokerageRate,
+    enablePensionLumpSum,
+    taxInputs,
+    pensionLumpSumAge,
+    mortgageExemption,
+    pensionLumpSumMaxAmount,
+    includeStatePension,
+    statePensionAge,
+    statePensionWeeklyAmount,
+    prsiContributionsToDate,
+    careerBreaks,
+    windfalls,
+  } = options;
   const pensionAgeValue = pensionAge ?? 65;
   const pensionLumpSumAgeValue = pensionLumpSumAge ?? 50;
-  const earlyRetirementAgeValue = earlyRetirementAge ?? 50;
+  const fireAgeValue = fireAge ?? 50;
   const lumpSumToBrokerageRateValue = lumpSumToBrokerageRate ?? 80;
+  const pensionLumpSumMaxAmountValue = pensionLumpSumMaxAmount ?? Infinity;
 
   // Extract pension account's age bracket contributions for use in tax calculations
   const pensionAccount = accounts.find((a) => a.name === 'Pension');
@@ -630,84 +934,76 @@ export function calculatePortfolioGrowth(
       currentSalary,
       bonusPercent,
       pensionPercent,
-      taxInputs.bikValue || 0
+      taxInputs.bikValue || 0,
+      taxInputs.claimRentRelief,
+      taxInputs.claimMedicalInsurance,
     );
     netBonusValue = netBonusResult.bonusNetSalary;
   }
 
-  // First, calculate pension account to determine lump sum amount
+  // Estimate pension balance at lump sum age to determine lump sum amount (lightweight, no full breakdown)
   let lumpSumAmount = 0;
-  if (pensionAccount) {
-    const pensionResult = calculateAccountGrowth(
+  if (pensionAccount && enablePensionLumpSum !== false) {
+    const estimatedBalance = estimatePensionBalanceAtAge(
       pensionAccount,
-      timeHorizon,
+      pensionLumpSumAgeValue,
       currentAge,
       currentSalary,
       annualSalaryIncrease,
       monthsUntilNextBirthday,
       dateOfBirth,
-      pensionAge,
-      withdrawalRate,
-      earlyRetirementAge,
-      salaryReplacementRate,
-      undefined,
       bonusPercent,
-      houseWithdrawalAge,
-      enableHouseWithdrawal,
-      houseDepositCalculation,
-      houseDepositFromBrokerageRate,
-      enablePensionLumpSum,
       taxInputs,
       pensionAgeBracketContributions,
-      netBonusValue,
-      pensionLumpSumAge
+      fireAge,
     );
-    
-    // Find the lump sum amount from the pension monthly data
-    // Look for the first month when age >= pensionLumpSumAgeValue
-    const firstYearMonths = monthsUntilNextBirthday || 12;
-    const totalMonths = firstYearMonths + (timeHorizon - 1) * 12;
-    
-    for (let month = 0; month < totalMonths; month++) {
-      const birthdays = month >= firstYearMonths ? 1 + Math.floor((month - firstYearMonths) / 12) : 0;
-      const ageAtMonth = currentAge + birthdays;
-      const monthIndexInYear = month >= firstYearMonths ? month - (firstYearMonths + (Math.floor((month - firstYearMonths) / 12)) * 12) : month;
-      const isFirstMonthOfYear = monthIndexInYear === 0;
-      
-      if (ageAtMonth >= pensionLumpSumAgeValue && isFirstMonthOfYear) {
-        // Find this month's data in yearly breakdown and monthly data
-        let yearIndex = 0;
-        if (month >= firstYearMonths) {
-          yearIndex = 1 + Math.floor((month - firstYearMonths) / 12);
-        }
-        
-        if (yearIndex < pensionResult.yearlyData.length) {
-          const yearData = pensionResult.yearlyData[yearIndex];
-          const monthZeroIndex = 0; // First month of the year
-          if (monthZeroIndex < yearData.monthlyData.length) {
-            const monthData = yearData.monthlyData[monthZeroIndex];
-            lumpSumAmount = Math.min(monthData.startingBalance * 0.25, 200000);
-          }
-        }
-        break;
-      }
-    }
+    lumpSumAmount = Math.min(estimatedBalance * 0.25, pensionLumpSumMaxAmountValue);
   }
+
+  // Apply pension lump sum tax tiers and compute net amount for distribution
+  let lumpSumTaxBreakdown: PensionLumpSumTaxBreakdown | undefined;
+  let netLumpSumForDistribution = 0;
+  if (lumpSumAmount > 0 && enablePensionLumpSum !== false) {
+    const taxResult = calculatePensionLumpSumTax(lumpSumAmount);
+    netLumpSumForDistribution = taxResult.netLumpSum;
+    lumpSumTaxBreakdown = {
+      grossLumpSum: lumpSumAmount,
+      ...taxResult,
+    };
+  }
+
+  // Compute the effective state pension amount based on PRSI contribution eligibility.
+  // If the user hasn't accumulated enough contributions for the full rate, scale the amount
+  // proportionally rather than always paying the full configured weekly amount.
+  const rawStatePensionWeekly = statePensionWeeklyAmount ?? 299.30;
+  const effectiveStatePensionWeekly = (() => {
+    if (!includeStatePension) return rawStatePensionWeekly;
+    const prsiSummary = calculatePrsiSummary({
+      currentAge,
+      fireAge: fireAgeValue,
+      priorContributions: typeof prsiContributionsToDate === 'number' ? prsiContributionsToDate : 0,
+      careerBreaks: careerBreaks ?? [],
+      pensionAge: pensionAgeValue,
+      statePensionAge: statePensionAge ?? 66,
+      statePensionWeeklyAmount: rawStatePensionWeekly,
+    });
+    return prsiSummary.estimatedWeeklyStatePension;
+  })();
 
   // Calculate all accounts with lump sum information
   const accountResults = accounts.map((account) => {
     let lumpSumAllocation = 0;
     
-    // Determine lump sum allocation for this account
-    if (lumpSumAmount > 0 && account.name !== 'Pension') {
+    // Determine lump sum allocation for this account (use net after-tax amount)
+    if (netLumpSumForDistribution > 0 && account.name !== 'Pension') {
       if (account.name === 'Brokerage') {
-        lumpSumAllocation = lumpSumAmount * (lumpSumToBrokerageRateValue / 100);
+        lumpSumAllocation = netLumpSumForDistribution * (lumpSumToBrokerageRateValue / 100);
       } else if (account.name === 'Savings') {
-        lumpSumAllocation = lumpSumAmount * ((100 - lumpSumToBrokerageRateValue) / 100);
+        lumpSumAllocation = netLumpSumForDistribution * ((100 - lumpSumToBrokerageRateValue) / 100);
       }
     }
     
-    return calculateAccountGrowth(
+    return calculateAccountGrowth({
       account,
       timeHorizon,
       currentAge,
@@ -717,9 +1013,9 @@ export function calculatePortfolioGrowth(
       dateOfBirth,
       pensionAge,
       withdrawalRate,
-      earlyRetirementAge,
+      fireAge,
       salaryReplacementRate,
-      lumpSumAllocation,
+      pensionLumpSumAmount: lumpSumAllocation,
       bonusPercent,
       houseWithdrawalAge,
       enableHouseWithdrawal,
@@ -729,8 +1025,14 @@ export function calculatePortfolioGrowth(
       taxInputs,
       pensionAgeBracketContributions,
       netBonusValue,
-      pensionLumpSumAge
-    );
+      pensionLumpSumAge,
+      pensionLumpSumMaxAmount: pensionLumpSumMaxAmountValue,
+      includeStatePension,
+      statePensionAge,
+      statePensionWeeklyAmount: effectiveStatePensionWeekly,
+      careerBreaks,
+      windfalls,
+    });
   });
 
   const totalFinalBalance = accountResults.reduce(
@@ -753,7 +1055,7 @@ export function calculatePortfolioGrowth(
   const monthDate = dateOfBirth ? new Date(new Date().getFullYear(), new Date().getMonth(), 1) : new Date();
   const startingMonthIsJanuary = monthDate.getMonth() === 0;
   const januariesToTargetAge = startingMonthIsJanuary ? timeHorizon + 1 : timeHorizon;
-  const januariesToEarlyRetirement = startingMonthIsJanuary ? (earlyRetirementAgeValue - currentAge) + 1 : (earlyRetirementAgeValue - currentAge);
+  const januariesToEarlyRetirement = startingMonthIsJanuary ? (fireAgeValue - currentAge) + 1 : (fireAgeValue - currentAge);
   
   const salaryAtTargetAge = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januariesToTargetAge) : 0;
   const salaryAtEarlyRetirement = currentSalary ? currentSalary * Math.pow(1 + (annualSalaryIncrease || 0) / 100, januariesToEarlyRetirement) : 0;
@@ -763,9 +1065,9 @@ export function calculatePortfolioGrowth(
   const bonusSalary = bonusPercent !== undefined && bonusPercent > 0 ? finalSalary * (bonusPercent / 100) : 0;
 
   // Extract milestone snapshots
-  const earlyRetirementSnapshot = extractMilestoneSnapshot(accountResults, earlyRetirementAgeValue);
+  const fireSnapshot = extractMilestoneSnapshot(accountResults, fireAgeValue);
   const houseWithdrawalAgeSnapshot = houseWithdrawalAge && enableHouseWithdrawal ? extractMilestoneSnapshot(accountResults, houseWithdrawalAge) : undefined;
-  const pensionAgeSnapshot = extractMilestoneSnapshot(accountResults, pensionAgeValue);
+  const pensionDrawdownSnapshot = extractMilestoneSnapshot(accountResults, pensionAgeValue);
 
   return {
     accountResults,
@@ -775,7 +1077,7 @@ export function calculatePortfolioGrowth(
     finalSalary,
     bonusSalary,
     monthsUntilNextBirthday: monthsUntilNextBirthday || 12,
-    earlyRetirementAge: earlyRetirementAgeValue,
+    fireAge: fireAgeValue,
     pensionAge: pensionAgeValue,
     enablePensionLumpSum,
     pensionLumpSumAge,
@@ -783,63 +1085,178 @@ export function calculatePortfolioGrowth(
     enableHouseWithdrawal,
     houseDepositCalculation,
     mortgageExemption,
-    earlyRetirementSnapshot,
+    fireSnapshot,
     houseWithdrawalAgeSnapshot,
-    pensionAgeSnapshot,
+    pensionDrawdownSnapshot,
     taxInputs,
     enableTaxCalculation: true,
+    lumpSumTaxBreakdown,
   };
 }
 
+export interface CombinedYearData {
+  year: number;
+  age: number;
+  Savings: number;
+  Pension: number;
+  Brokerage: number;
+  Total: number;
+  /** Cumulative contributions across all accounts */
+  Principal: number;
+  /** Cumulative interest across all accounts */
+  Interest: number;
+  /** This year's contributions (non-cumulative) */
+  yearContributions: number;
+  /** This year's interest earned (non-cumulative) */
+  yearInterest: number;
+  /** This year's withdrawals (non-cumulative) */
+  yearWithdrawals: number;
+  /** This year's net income (salary net of tax during working, withdrawal net of tax during retirement) */
+  netIncome: number;
+  /** Salary at this year */
+  salary: number;
+  /** Phase at this age */
+  phase: 'working' | 'bridging' | 'drawdown';
+  /** Annual Irish state pension income (if eligible) */
+  statePensionIncome: number;
+}
+
 /**
- * Combine yearly data across all accounts for charting
+ * Combine yearly data across all accounts for charting.
+ * Uses O(n) running accumulators instead of O(n²) re-summation.
  */
-export function combineYearlyData(accountResults: AccountResults[]) {
+export function combineYearlyData(
+  accountResults: AccountResults[],
+  fireAge: number,
+  pensionAge: number,
+  taxInputs?: import('../types').TaxInputs,
+): CombinedYearData[] {
   const timeHorizon = accountResults[0]?.yearlyData.length || 0;
-  const combined = [];
+  const combined: CombinedYearData[] = [];
+
+  // Running accumulators per account (O(n) instead of O(n²))
+  const cumulativeContributions = new Map<string, number>();
+  const cumulativeInterest = new Map<string, number>();
+  accountResults.forEach((r) => {
+    cumulativeContributions.set(r.accountName, 0);
+    cumulativeInterest.set(r.accountName, 0);
+  });
+
+  // Pre-compute indexation rate (0 = no indexation)
+  const taxBandIndexationRate = taxInputs?.taxBandIndexation ?? 0;
 
   for (let year = 0; year < timeHorizon; year++) {
-    const dataPoint: any = { year };
+    const age = accountResults[0]?.yearlyData[year]?.age ?? 0;
 
-    // Use yearlyData directly since it now starts at year=0
-    const age = accountResults[0]?.yearlyData[year]?.age;
-    if (age) {
-      dataPoint.age = age;
-    }
-    
+    // Multiplier for this year: indexed thresholds grow from the base (year 0 = 2026)
+    const taxBandMultiplier = taxBandIndexationRate > 0
+      ? Math.pow(1 + taxBandIndexationRate / 100, year)
+      : 1;
+
+    let totalEndingBalance = 0;
     let totalPrincipal = 0;
     let totalInterest = 0;
-    let totalEndingBalance = 0;
-    
+    let yearContributions = 0;
+    let yearInterest = 0;
+    let yearWithdrawals = 0;
+    let netIncome = 0;
+    let salary = 0;
+
+    const dataPoint: Record<string, number> = {};
+
     accountResults.forEach((result) => {
-      const accountName = result.accountName;
-      const yearData = result.yearlyData[year];
-      const endingBalance = yearData?.endingBalance || 0;
-      
-      dataPoint[accountName] = endingBalance;
+      const name = result.accountName;
+      const yd = result.yearlyData[year];
+      const endingBalance = yd?.endingBalance || 0;
+
+      dataPoint[name] = endingBalance;
       totalEndingBalance += endingBalance;
-      
-      // Calculate cumulative contributions and interest for this account
-      // Principal = sum of all contributions up to this year
-      // Interest = sum of all interest earned up to this year
-      let cumulativeContributions = 0;
-      let cumulativeInterest = 0;
-      for (let y = 0; y <= year; y++) {
-        cumulativeContributions += result.yearlyData[y]?.contributions || 0;
-        cumulativeInterest += result.yearlyData[y]?.interestEarned || 0;
-      }
-      totalPrincipal += cumulativeContributions;
-      totalInterest += cumulativeInterest;
+
+      // Update running accumulators
+      const prevC = cumulativeContributions.get(name) || 0;
+      const prevI = cumulativeInterest.get(name) || 0;
+      const thisC = yd?.contributions || 0;
+      const thisI = yd?.interestEarned || 0;
+      cumulativeContributions.set(name, prevC + thisC);
+      cumulativeInterest.set(name, prevI + thisI);
+
+      totalPrincipal += prevC + thisC;
+      totalInterest += prevI + thisI;
+      yearContributions += thisC;
+      yearInterest += thisI;
+      yearWithdrawals += yd?.withdrawal || 0;
+
+      // Salary from any account that has it (they all share the same salary)
+      if (yd?.salary) salary = yd.salary;
     });
 
-    // Calculate total
-    dataPoint.Total = totalEndingBalance;
-    
-    // Calculate principal and interest for the total
-    dataPoint.Principal = totalPrincipal;
-    dataPoint.Interest = totalInterest;
+    // Aggregate annual state pension income from first account's monthly data
+    let annualStatePensionIncome = 0;
+    const firstYdForPension = accountResults[0]?.yearlyData[year];
+    if (firstYdForPension?.monthlyData) {
+      firstYdForPension.monthlyData.forEach((m: MonthlyBreakdown) => {
+        annualStatePensionIncome += m.statePensionIncome || 0;
+      });
+    }
 
-    combined.push(dataPoint);
+    // Compute net income to match the table's computeAnnuals logic:
+    // - Working: sum of monthlyNetSalary from first account
+    // - Early retirement: brokerage annual withdrawal run through CGT calculator (+ state pension net of PAYE)
+    // - Pension: pension annual withdrawal run through pension withdrawal tax calculator (incl. state pension)
+    const phase = getPhaseType(age, fireAge, pensionAge);
+    if (phase === 'bridging') {
+      const brokerage = accountResults.find((r) => r.accountName === 'Brokerage');
+      const brokerageYd = brokerage?.yearlyData[year];
+      const annualWithdrawal = brokerageYd?.withdrawal || 0;
+      if (annualWithdrawal > 0) {
+        // Read pre-computed withdrawalTax (which already uses the cost-basis gain ratio)
+        const annualTax = (brokerageYd?.monthlyData ?? []).reduce(
+          (s: number, m: MonthlyBreakdown) => s + (m.withdrawalTax || 0), 0
+        );
+        netIncome = annualWithdrawal - annualTax;
+      }
+      // Add state pension net of PAYE/USC (state pension is taxable income)
+      if (annualStatePensionIncome > 0) {
+        const spTaxR = calculatePensionWithdrawalTax(annualStatePensionIncome, true, age, taxBandMultiplier);
+        netIncome += spTaxR.netWithdrawal;
+      }
+    } else if (phase === 'drawdown') {
+      const pension = accountResults.find((r) => r.accountName === 'Pension');
+      const pensionYd = pension?.yearlyData[year];
+      const annualWithdrawal = pensionYd?.withdrawal || 0;
+      // Calculate tax on combined pension withdrawal + state pension so progressive bands apply correctly
+      const totalTaxableIncome = annualWithdrawal + annualStatePensionIncome;
+      if (totalTaxableIncome > 0) {
+        const taxR = calculatePensionWithdrawalTax(totalTaxableIncome, true, age, taxBandMultiplier);
+        netIncome = taxR.netWithdrawal;
+      }
+    } else {
+      // Working phase: sum monthlyNetSalary from the first account
+      const firstYd = accountResults[0]?.yearlyData[year];
+      if (firstYd?.monthlyData) {
+        firstYd.monthlyData.forEach((m: MonthlyBreakdown) => {
+          netIncome += m.monthlyNetSalary || 0;
+        });
+      }
+    }
+
+    combined.push({
+      year,
+      age,
+      Savings: dataPoint['Savings'] || 0,
+      Pension: dataPoint['Pension'] || 0,
+      Brokerage: dataPoint['Brokerage'] || 0,
+      Total: totalEndingBalance,
+      Principal: totalPrincipal,
+      Interest: totalInterest,
+      yearContributions,
+      yearInterest,
+      yearWithdrawals,
+      netIncome,
+      salary,
+      phase: getPhaseType(age, fireAge, pensionAge),
+      statePensionIncome: annualStatePensionIncome,
+    });
   }
 
   return combined;
