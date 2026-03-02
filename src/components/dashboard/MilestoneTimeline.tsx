@@ -116,7 +116,7 @@ export function MilestoneTimeline({ results }: MilestoneTimelineProps) {
                       >
                         <div className="px-3 pb-3 space-y-3">
                           {/* Summary stats */}
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             <div>
                               <p className="text-xs text-muted-foreground">Contributions</p>
                               <p className="text-sm font-semibold tabular-nums">{formatCurrency(milestone.snapshot.totalContributions)}</p>

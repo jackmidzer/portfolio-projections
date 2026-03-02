@@ -30,6 +30,13 @@ const TAB_LABELS: Record<ChartTab, string> = {
   flows: 'Annual Flows',
 };
 
+const TAB_LABELS_SHORT: Record<ChartTab, string> = {
+  growth: 'Growth',
+  income: 'Income',
+  deposits: 'Deposits',
+  flows: 'Flows',
+};
+
 interface ProjectionChartProps {
   results: PortfolioResults;
   currentAge: number;
@@ -258,51 +265,54 @@ export function ProjectionChart({
   return (
     <Card data-chart-container>
       <CardHeader className="pb-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-base">Growth Over Time</CardTitle>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            <div className="flex items-center gap-1.5">
-              <Switch
-                id="event-markers-toggle"
-                checked={showEventMarkers}
-                onCheckedChange={setShowEventMarkers}
-                className="scale-75 origin-right"
-              />
-              <Label htmlFor="event-markers-toggle" className="text-xs text-muted-foreground cursor-pointer select-none">
-                Events
-              </Label>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base">Growth Over Time</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Switch
+                  id="event-markers-toggle"
+                  checked={showEventMarkers}
+                  onCheckedChange={setShowEventMarkers}
+                  className="scale-75 origin-right"
+                />
+                <Label htmlFor="event-markers-toggle" className="text-xs text-muted-foreground cursor-pointer select-none">
+                  Events
+                </Label>
+              </div>
+              {(activeTab === 'deposits' || activeTab === 'flows') && (
+                <select
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  value={activeTab === 'deposits' ? depositsAccount : flowsAccount}
+                  onChange={(e) => {
+                    const val = e.target.value as AccountFilter;
+                    if (activeTab === 'deposits') setDepositsAccount(val);
+                    else setFlowsAccount(val);
+                  }}
+                >
+                  <option value="all">All Accounts</option>
+                  {accountNames.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              )}
             </div>
-            {(activeTab === 'deposits' || activeTab === 'flows') && (
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                value={activeTab === 'deposits' ? depositsAccount : flowsAccount}
-                onChange={(e) => {
-                  const val = e.target.value as AccountFilter;
-                  if (activeTab === 'deposits') setDepositsAccount(val);
-                  else setFlowsAccount(val);
-                }}
-              >
-                <option value="all">All Accounts</option>
-                {accountNames.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            )}
-            <Tabs
-              value={activeTab}
-              onValueChange={(v) => {
-                setActiveTab(v as ChartTab);
-              }}
-            >
-              <TabsList className="h-8">
-                {(Object.keys(TAB_LABELS) as ChartTab[]).map((key) => (
-                  <TabsTrigger key={key} value={key} className="px-2.5 text-xs">
-                    {TAB_LABELS[key]}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
           </div>
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => {
+              setActiveTab(v as ChartTab);
+            }}
+          >
+            <TabsList className="w-full h-8">
+              {(Object.keys(TAB_LABELS) as ChartTab[]).map((key) => (
+                <TabsTrigger key={key} value={key} className="flex-1 px-1.5 text-xs">
+                  <span className="sm:hidden">{TAB_LABELS_SHORT[key]}</span>
+                  <span className="hidden sm:inline">{TAB_LABELS[key]}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
       </CardHeader>
 

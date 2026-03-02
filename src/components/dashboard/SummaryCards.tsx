@@ -65,7 +65,7 @@ export function SummaryCards({ results, showRealValues, inflationRate = 2.5, cur
                 <Icon className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">{label}</span>
               </div>
-              <p className="text-lg font-bold tabular-nums">
+              <p className="text-base sm:text-lg font-bold tabular-nums">
                 {formatCurrency(values[key])}
               </p>
             </CardContent>
