@@ -40,9 +40,12 @@ export function exportProjectionCsv(accountResults: AccountResults[]): void {
     }
   }
 
+  // Wrap a single CSV field value in double-quotes and escape any internal double-quotes
+  const escapeField = (field: string): string => `"${field.replace(/"/g, '""')}"`;
+
   const csvContent = [
-    headers.join(','),
-    ...rows.map((r) => r.join(',')),
+    headers.map(escapeField).join(','),
+    ...rows.map((r) => r.map(escapeField).join(',')),
   ].join('\n');
 
   downloadFile(csvContent, 'text/csv', `portfolio-projection-${todayISO()}.csv`);

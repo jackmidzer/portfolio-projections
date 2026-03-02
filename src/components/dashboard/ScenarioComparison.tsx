@@ -28,7 +28,7 @@ export function ScenarioComparison({
   onDelete,
   showRealValues,
   inflationRate = 2.5,
-  currentAge = 28,
+  currentAge,
 }: ScenarioComparisonProps) {
   const duplicateScenario = useProjectionStore(s => s.duplicateScenario);
   const loadScenario = useProjectionStore(s => s.loadScenario);
@@ -48,8 +48,10 @@ export function ScenarioComparison({
     setShowSaveInput(false);
   };
 
+  const startAge = currentResults.accountResults[0]?.yearlyData[0]?.age;
   const endAge = currentResults.accountResults[0]?.yearlyData.slice(-1)[0]?.age ?? 75;
-  const yearsToEnd = endAge - currentAge;
+  const effectiveCurrentAge = currentAge ?? startAge ?? 0;
+  const yearsToEnd = endAge - effectiveCurrentAge;
 
   const adj = (value: number) =>
     showRealValues ? deflate(value, yearsToEnd, inflationRate) : value;

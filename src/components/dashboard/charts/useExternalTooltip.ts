@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useId } from 'react';
 import type { Chart, TooltipModel } from 'chart.js';
 import { formatCompactCurrency } from '@/utils/formatters';
 import type { CombinedYearData } from '@/utils/calculations';
@@ -28,13 +28,14 @@ function el(tag: string, classes?: string): HTMLElement {
  */
 export function useExternalTooltip({ combined, isFirstYearProRated, proRatedMonths, showPercentages = true }: ExternalTooltipProps) {
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const tooltipId = useId();
 
   // Create the tooltip element once on mount
   useEffect(() => {
-    let container = document.getElementById('chartjs-tooltip') as HTMLDivElement | null;
+    let container = document.getElementById(tooltipId) as HTMLDivElement | null;
     if (!container) {
       container = document.createElement('div');
-      container.id = 'chartjs-tooltip';
+      container.id = tooltipId;
       container.className = 'chartjs-tooltip-container';
       Object.assign(container.style, {
         position: 'absolute',

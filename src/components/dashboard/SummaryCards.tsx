@@ -20,16 +20,17 @@ const stats = [
   { key: 'salary', label: 'Final Salary', icon: Briefcase },
 ] as const;
 
-export function SummaryCards({ results, showRealValues, inflationRate = 2.5, currentAge = 28 }: SummaryCardsProps) {
+export function SummaryCards({ results, showRealValues, inflationRate = 2.5, currentAge }: SummaryCardsProps) {
   const initialBalance = results.accountResults.reduce(
     (sum, r) => sum + r.yearlyData[0].startingBalance, 0
   );
 
   const startAge = results.accountResults[0]?.yearlyData[0]?.age;
   const endAge = results.accountResults[0]?.yearlyData.slice(-1)[0]?.age;
+  const effectiveCurrentAge = currentAge ?? startAge;
 
   // Deflation helper – deflates to present value if showRealValues is on
-  const yearsToEnd = endAge != null ? endAge - currentAge : 0;
+  const yearsToEnd = endAge != null && effectiveCurrentAge != null ? endAge - effectiveCurrentAge : 0;
   const adj = (value: number, years?: number) =>
     showRealValues ? deflate(value, years ?? yearsToEnd, inflationRate) : value;
 
