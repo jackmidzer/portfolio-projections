@@ -49,6 +49,9 @@ export const DIRT_RATE = 0.33; // 33% on savings interest
 // Additional tax credit available for pension withdrawals during pension phase
 export const PENSION_AGE_TAX_CREDIT = 245; // €245 age credit
 
+// Pension Lump Sum
+export const PENSION_LUMP_SUM_MAX_FRACTION = 0.25; // max 25% of fund at retirement
+
 // Pension Lump Sum Tax Thresholds
 // Irish Revenue rules for tax-free/taxed portions of pension retirement lump sums
 export const PENSION_LUMP_SUM_TAX_FREE_THRESHOLD = 200000;    // First €200,000 is tax-free
