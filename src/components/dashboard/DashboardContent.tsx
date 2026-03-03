@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart3, CalendarClock, Table2, Receipt, HelpCircle, Download, FileSpreadsheet, Printer, Image, GitCompareArrows, Activity } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -26,7 +26,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorFallback } from '@/components/ErrorFallback';
 import { useProjectionStore } from '@/store/useProjectionStore';
+import { useShallow } from 'zustand/react/shallow';
 import { exportProjectionCsv, exportPdf, exportChartPng } from '@/utils/exportCsv';
+import { parseNumeric } from '@/utils/parseNumeric';
 
 const ProjectionChart = lazy(() => import('./ProjectionChart').then(m => ({ default: m.ProjectionChart })));
 
@@ -43,43 +45,71 @@ const fadeInUp = {
 };
 
 export function DashboardContent() {
-  const results = useProjectionStore(s => s.results);
-  const taxCalculationResult = useProjectionStore(s => s.taxCalculationResult);
-  const accounts = useProjectionStore(s => s.accounts);
-  const getCurrentAge = useProjectionStore(s => s.getCurrentAge);
-  const targetAge = useProjectionStore(s => s.targetAge);
-  const enableHouseWithdrawal = useProjectionStore(s => s.enableHouseWithdrawal);
-  const houseWithdrawalAge = useProjectionStore(s => s.houseWithdrawalAge);
-  const enablePensionLumpSum = useProjectionStore(s => s.enablePensionLumpSum);
-  const pensionLumpSumAge = useProjectionStore(s => s.pensionLumpSumAge);
-  const pensionLumpSumMaxAmount = useProjectionStore(s => s.pensionLumpSumMaxAmount);
-  const includeStatePension = useProjectionStore(s => s.includeStatePension);
-  const statePensionAge = useProjectionStore(s => s.statePensionAge);
-  const statePensionWeeklyAmount = useProjectionStore(s => s.statePensionWeeklyAmount);
-  const withdrawalRate = useProjectionStore(s => s.withdrawalRate);
-  const showRealValues = useProjectionStore(s => s.showRealValues);
-  const toggleRealValues = useProjectionStore(s => s.toggleRealValues);
-  const inflationRate = useProjectionStore(s => s.inflationRate);
-  const scenarios = useProjectionStore(s => s.scenarios);
-  const visibleScenarioIds = useProjectionStore(s => s.visibleScenarioIds);
-  const toggleScenarioVisibility = useProjectionStore(s => s.toggleScenarioVisibility);
-  const deleteScenario = useProjectionStore(s => s.deleteScenario);
-
+  const {
+    results,
+    taxCalculationResult,
+    accounts,
+    getCurrentAge,
+    targetAge,
+    enableHouseWithdrawal,
+    houseWithdrawalAge,
+    enablePensionLumpSum,
+    pensionLumpSumAge,
+    pensionLumpSumMaxAmount,
+    includeStatePension,
+    statePensionAge,
+    statePensionWeeklyAmount,
+    withdrawalRate,
+    showRealValues,
+    toggleRealValues,
+    inflationRate,
+    scenarios,
+    visibleScenarioIds,
+    toggleScenarioVisibility,
+    deleteScenario,
+  } = useProjectionStore(
+    useShallow(s => ({
+      results: s.results,
+      taxCalculationResult: s.taxCalculationResult,
+      accounts: s.accounts,
+      getCurrentAge: s.getCurrentAge,
+      targetAge: s.targetAge,
+      enableHouseWithdrawal: s.enableHouseWithdrawal,
+      houseWithdrawalAge: s.houseWithdrawalAge,
+      enablePensionLumpSum: s.enablePensionLumpSum,
+      pensionLumpSumAge: s.pensionLumpSumAge,
+      pensionLumpSumMaxAmount: s.pensionLumpSumMaxAmount,
+      includeStatePension: s.includeStatePension,
+      statePensionAge: s.statePensionAge,
+      statePensionWeeklyAmount: s.statePensionWeeklyAmount,
+      withdrawalRate: s.withdrawalRate,
+      showRealValues: s.showRealValues,
+      toggleRealValues: s.toggleRealValues,
+      inflationRate: s.inflationRate,
+      scenarios: s.scenarios,
+      visibleScenarioIds: s.visibleScenarioIds,
+      toggleScenarioVisibility: s.toggleScenarioVisibility,
+      deleteScenario: s.deleteScenario,
+    }))
+  );
 
   if (!results) return null;
 
   const currentAge = getCurrentAge();
   const numCurrentAge = typeof currentAge === 'number' ? currentAge : 28;
-  const numTargetAge = typeof targetAge === 'number' ? targetAge : 75;
-  const numInflationRate = typeof inflationRate === 'number' ? inflationRate : 2.5;
+  const numTargetAge = parseNumeric(targetAge, 75);
+  const numInflationRate = parseNumeric(inflationRate, 2.5);
   const brokerage = accounts.find(a => a.name === 'Brokerage');
   const etfAllocationPercent = brokerage?.etfAllocationPercent ?? 50;
 
-  // Visible saved scenarios with results
-  const visibleScenarios = scenarios.filter(s => visibleScenarioIds.includes(s.id) && s.results);
+  // Visible saved scenarios with results (memoised)
+  const visibleScenarios = useMemo(
+    () => scenarios.filter(s => visibleScenarioIds.includes(s.id) && s.results),
+    [scenarios, visibleScenarioIds],
+  );
 
-  // Shared props for event-aware components
-  const eventProps = {
+  // Shared props for event-aware components (memoised)
+  const eventProps = useMemo(() => ({
     accounts,
     currentAge: numCurrentAge,
     targetAge: numTargetAge,
@@ -92,7 +122,7 @@ export function DashboardContent() {
     statePensionAge: typeof statePensionAge === 'number' ? statePensionAge : undefined,
     statePensionWeeklyAmount: typeof statePensionWeeklyAmount === 'number' ? statePensionWeeklyAmount : undefined,
     withdrawalRate: typeof withdrawalRate === 'number' ? withdrawalRate : undefined,
-  };
+  }), [accounts, numCurrentAge, numTargetAge, enableHouseWithdrawal, houseWithdrawalAge, enablePensionLumpSum, pensionLumpSumAge, pensionLumpSumMaxAmount, includeStatePension, statePensionAge, statePensionWeeklyAmount, withdrawalRate]);
 
   return (
     <motion.div
