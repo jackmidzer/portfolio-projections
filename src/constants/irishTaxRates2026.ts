@@ -77,15 +77,26 @@ export function getTaxBands() {
   return PAYE_TAX_BANDS;
 }
 
+// Caches for indexed bands — avoids re-creating arrays on every call.
+// In Monte Carlo simulations these are called hundreds of thousands of times
+// with only ~30 distinct multiplier values.
+const indexedTaxBandsCache = new Map<number, typeof PAYE_TAX_BANDS>();
+const indexedUSCRatesCache = new Map<number, typeof USC_RATES>();
+
 /**
  * Get PAYE tax bands scaled by a cumulative threshold multiplier.
  * Used for tax band indexation over multi-year projections.
  * Infinite thresholds (top band) are left unchanged.
  */
 export function getIndexedTaxBands(multiplier: number) {
-  return PAYE_TAX_BANDS.map((b) =>
-    b.threshold === Infinity ? b : { ...b, threshold: b.threshold * multiplier },
-  );
+  let cached = indexedTaxBandsCache.get(multiplier);
+  if (!cached) {
+    cached = PAYE_TAX_BANDS.map((b) =>
+      b.threshold === Infinity ? b : { ...b, threshold: b.threshold * multiplier },
+    );
+    indexedTaxBandsCache.set(multiplier, cached);
+  }
+  return cached;
 }
 
 /**
@@ -94,9 +105,14 @@ export function getIndexedTaxBands(multiplier: number) {
  * Infinite thresholds (top band) are left unchanged.
  */
 export function getIndexedUSCRates(multiplier: number) {
-  return USC_RATES.map((b) =>
-    b.threshold === Infinity ? b : { ...b, threshold: b.threshold * multiplier },
-  );
+  let cached = indexedUSCRatesCache.get(multiplier);
+  if (!cached) {
+    cached = USC_RATES.map((b) =>
+      b.threshold === Infinity ? b : { ...b, threshold: b.threshold * multiplier },
+    );
+    indexedUSCRatesCache.set(multiplier, cached);
+  }
+  return cached;
 }
 
 /**

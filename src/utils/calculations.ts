@@ -115,7 +115,7 @@ interface SalaryContext {
 /**
  * Resolve the effective salary for a given month, accounting for career breaks.
  */
-function resolveSalaryForMonth(
+export function resolveSalaryForMonth(
   currentSalary: number | undefined,
   annualSalaryIncrease: number | undefined,
   januarysSeen: number,

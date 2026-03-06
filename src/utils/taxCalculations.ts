@@ -15,6 +15,10 @@ import {
   PENSION_LUMP_SUM_STANDARD_RATE_THRESHOLD,
   PENSION_LUMP_SUM_STANDARD_RATE,
   PENSION_LUMP_SUM_MARGINAL_RATE,
+  PERSONAL_TAX_CREDIT,
+  EARNED_INCOME_CREDIT,
+  MEDICAL_INSURANCE_CREDIT,
+  RENT_RELIEF_CREDIT,
   getTaxBands,
   getIndexedTaxBands,
   getIndexedUSCRates,
@@ -757,4 +761,145 @@ export function calculatePrsiSummary(params: {
     estimatedWeeklyStatePension,
     estimatedAnnualStatePension,
   };
+}
+
+// ─── Lightweight tax helpers for Monte Carlo simulations ─────────────────────
+// These return numeric totals only, avoiding the allocation of band-detail
+// arrays and credit-breakdown objects that the full versions produce.
+// Used exclusively in the MC hot loop where only the total tax number matters.
+
+/**
+ * Lightweight net-salary calculation: returns only totalTax and netSalary.
+ * Same logic as calculateNetSalary but skips allocating TaxCalculationResult,
+ * band detail arrays, and credit breakdown objects.
+ */
+export function calculateNetSalaryLite(input: TaxCalculationInput): { totalTax: number; netSalary: number } {
+  const { grossSalary, pensionContribution, bikValue, claimRentRelief = true, claimMedicalInsurance = true, taxBandMultiplier = 1 } = input;
+
+  const grossIncomeWithBIK = grossSalary + bikValue;
+  const taxableIncome = calculateTaxableIncome(grossIncomeWithBIK, pensionContribution);
+
+  // Inline PAYE
+  const taxBands = taxBandMultiplier !== 1 ? getIndexedTaxBands(taxBandMultiplier) : getTaxBands();
+  let payeTax = 0;
+  let prev = 0;
+  for (const band of taxBands) {
+    const bandIncome = Math.min(taxableIncome, band.threshold) - prev;
+    if (bandIncome > 0) { payeTax += bandIncome * band.rate; } else { break; }
+    prev = band.threshold;
+  }
+  const totalCredits = PERSONAL_TAX_CREDIT + EARNED_INCOME_CREDIT
+    + (claimMedicalInsurance ? MEDICAL_INSURANCE_CREDIT : 0)
+    + (claimRentRelief ? RENT_RELIEF_CREDIT : 0);
+  payeTax = Math.max(0, payeTax - totalCredits);
+
+  // Inline USC
+  const uscRates = taxBandMultiplier !== 1 ? getIndexedUSCRates(taxBandMultiplier) : USC_RATES;
+  let usc = 0;
+  prev = 0;
+  for (const band of uscRates) {
+    const bandIncome = Math.min(grossIncomeWithBIK, band.threshold) - prev;
+    if (bandIncome > 0) { usc += bandIncome * band.rate; } else { break; }
+    prev = band.threshold;
+  }
+
+  // PRSI
+  const prsi = grossIncomeWithBIK * PRSI_SETTINGS.employeeRate;
+
+  const totalTax = payeTax + usc + prsi;
+  return { totalTax, netSalary: grossSalary - pensionContribution - totalTax };
+}
+
+/**
+ * Lightweight bonus tax burden: returns only the marginal tax from the bonus.
+ * Same result as calculateBonusTaxBurden but uses inline PAYE/USC loops.
+ */
+export function calculateBonusTaxBurdenLite(
+  grossSalary: number,
+  bonusPercent: number,
+  pensionContributionPercent: number,
+  bikValue: number = 0,
+  claimRentRelief = true,
+  claimMedicalInsurance = true,
+  taxBandMultiplier = 1,
+): number {
+  if (bonusPercent <= 0) return 0;
+
+  const bonusAmount = grossSalary * (bonusPercent / 100);
+  const pensionContributionAmount = (grossSalary * pensionContributionPercent) / 100;
+  const bonusPensionContribution = (bonusAmount * pensionContributionPercent) / 100;
+
+  const salaryGross = grossSalary + bikValue;
+  const combinedGross = salaryGross + bonusAmount;
+  const salaryTaxable = calculateTaxableIncome(salaryGross, pensionContributionAmount);
+  const combinedTaxable = calculateTaxableIncome(combinedGross, pensionContributionAmount + bonusPensionContribution);
+
+  const taxBands = taxBandMultiplier !== 1 ? getIndexedTaxBands(taxBandMultiplier) : getTaxBands();
+  const totalCredits = PERSONAL_TAX_CREDIT + EARNED_INCOME_CREDIT
+    + (claimMedicalInsurance ? MEDICAL_INSURANCE_CREDIT : 0)
+    + (claimRentRelief ? RENT_RELIEF_CREDIT : 0);
+
+  // PAYE on salary only vs salary+bonus
+  let salaryPaye = 0, combinedPaye = 0, prev = 0;
+  for (const band of taxBands) {
+    const si = Math.min(salaryTaxable, band.threshold) - prev;
+    const ci = Math.min(combinedTaxable, band.threshold) - prev;
+    if (si > 0) salaryPaye += si * band.rate;
+    if (ci > 0) combinedPaye += ci * band.rate;
+    if (ci <= 0) break;
+    prev = band.threshold;
+  }
+  salaryPaye = Math.max(0, salaryPaye - totalCredits);
+  combinedPaye = Math.max(0, combinedPaye - totalCredits);
+
+  // USC on salary only vs salary+bonus
+  const uscRates = taxBandMultiplier !== 1 ? getIndexedUSCRates(taxBandMultiplier) : USC_RATES;
+  let salaryUsc = 0, combinedUsc = 0;
+  prev = 0;
+  for (const band of uscRates) {
+    const si = Math.min(salaryGross, band.threshold) - prev;
+    const ci = Math.min(combinedGross, band.threshold) - prev;
+    if (si > 0) salaryUsc += si * band.rate;
+    if (ci > 0) combinedUsc += ci * band.rate;
+    if (ci <= 0) break;
+    prev = band.threshold;
+  }
+
+  const salaryPrsi = salaryGross * PRSI_SETTINGS.employeeRate;
+  const combinedPrsi = combinedGross * PRSI_SETTINGS.employeeRate;
+
+  return Math.max(0, (combinedPaye + combinedUsc + combinedPrsi) - (salaryPaye + salaryUsc + salaryPrsi));
+}
+
+/**
+ * Lightweight pension withdrawal tax: returns only totalTax and netWithdrawal.
+ */
+export function calculatePensionWithdrawalTaxLite(
+  withdrawal: number, isInPensionPhase: boolean, age: number, taxBandMultiplier = 1,
+): { totalTax: number; netWithdrawal: number } {
+  const taxBands = taxBandMultiplier !== 1 ? getIndexedTaxBands(taxBandMultiplier) : getTaxBands();
+  let payeTax = 0, prev = 0;
+  for (const band of taxBands) {
+    const bandIncome = Math.min(withdrawal, band.threshold) - prev;
+    if (bandIncome > 0) { payeTax += bandIncome * band.rate; } else { break; }
+    prev = band.threshold;
+  }
+  const totalCredits = PERSONAL_TAX_CREDIT + EARNED_INCOME_CREDIT + MEDICAL_INSURANCE_CREDIT + RENT_RELIEF_CREDIT;
+  payeTax = Math.max(0, payeTax - totalCredits);
+
+  const uscRates = taxBandMultiplier !== 1 ? getIndexedUSCRates(taxBandMultiplier) : USC_RATES;
+  let usc = 0;
+  prev = 0;
+  for (const band of uscRates) {
+    const bandIncome = Math.min(withdrawal, band.threshold) - prev;
+    if (bandIncome > 0) { usc += bandIncome * band.rate; } else { break; }
+    prev = band.threshold;
+  }
+
+  const prsi = age < 66 ? withdrawal * PRSI_SETTINGS.employeeRate : 0;
+  let taxCredit = 0;
+  if (isInPensionPhase && age >= 65) taxCredit = PENSION_AGE_TAX_CREDIT;
+
+  const totalTax = Math.max(0, payeTax + usc + prsi - taxCredit);
+  return { totalTax, netWithdrawal: withdrawal - totalTax };
 }
