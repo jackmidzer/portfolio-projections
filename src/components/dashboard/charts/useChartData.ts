@@ -12,11 +12,39 @@ import type { PhaseBandsOptions } from './phaseBandsPlugin';
 import { useThemeKey } from '@/hooks/useThemeKey';
 import type { MonteCarloPercentiles } from '@/store/useProjectionStore';
 
+export type MCViewMode = 'percentiles' | 'samples' | 'both';
+
+/** Deterministic distinct colour per sample index using golden-angle hue spacing. */
+function sampleColor(index: number): string {
+  const hue = (index * 137.508) % 360; // golden angle
+  return `hsl(${hue}, 75%, 50%)`;
+}
+
+/** Select `count` items from `arr`, starting at the median and fanning outward. */
+function fanOutFromMedian<T>(arr: T[], count: number): T[] {
+  if (arr.length === 0 || count <= 0) return [];
+  const n = Math.min(count, arr.length);
+  const mid = Math.floor(arr.length / 2);
+  const result: T[] = [arr[mid]];
+  let lo = mid - 1;
+  let hi = mid + 1;
+  while (result.length < n) {
+    if (hi < arr.length) result.push(arr[hi++]);
+    if (result.length < n && lo >= 0) result.push(arr[lo--]);
+  }
+  return result;
+}
+
 interface UseChartDataOptions {
   showRealValues?: boolean;
   inflationRate?: number;
   currentAge?: number;
   monteCarloPercentiles?: MonteCarloPercentiles | null;
+  monteCarloIncomePercentiles?: MonteCarloPercentiles | null;
+  monteCarloSamplePaths?: number[][] | null;
+  monteCarloSampleIncomePaths?: number[][] | null;
+  mcViewMode?: MCViewMode;
+  mcSampleCount?: number;
 }
 
 /**
@@ -24,7 +52,7 @@ interface UseChartDataOptions {
  * for all four chart views, plus shared milestone annotations and phase config.
  */
 export function useChartData(results: PortfolioResults, options?: UseChartDataOptions) {
-  const { showRealValues = false, inflationRate = 2.5, currentAge = 28, monteCarloPercentiles = null } = options ?? {};
+  const { showRealValues = false, inflationRate = 2.5, currentAge = 28, monteCarloPercentiles = null, monteCarloIncomePercentiles = null, monteCarloSamplePaths = null, monteCarloSampleIncomePaths = null, mcViewMode = 'both', mcSampleCount = 5 } = options ?? {};
   // Re-compute colors when dark/light mode changes
   const themeKey = useThemeKey();
 
@@ -124,9 +152,14 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
     // Also include the deterministic total for reference
     const totalData = combined.map((d) => adj(d.Savings + d.Pension + d.Brokerage, d.age));
 
+    const showPercentiles = mcViewMode === 'percentiles' || mcViewMode === 'both';
+    const showSamples = mcViewMode === 'samples' || mcViewMode === 'both';
+    const visibleSamplePaths = showSamples ? fanOutFromMedian(monteCarloSamplePaths ?? [], mcSampleCount) : [];
+
     return {
       labels: ages,
       datasets: [
+        ...(showPercentiles ? [
         {
           label: '90th Percentile',
           data: p90Data,
@@ -191,6 +224,7 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
           borderDash: [4, 2],
           order: 5,
         },
+        ] : []),
         {
           label: 'Deterministic',
           data: totalData,
@@ -204,9 +238,159 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
           borderDash: [6, 4],
           order: 1,
         },
+        // Sample simulation paths (thin lines showing year-to-year volatility)
+        ...visibleSamplePaths.map((path, i) => {
+          const pathByAge = new Map<number, number>();
+          if (monteCarloPercentiles) {
+            const mcAges = monteCarloPercentiles.ages;
+            for (let j = 0; j < mcAges.length; j++) pathByAge.set(mcAges[j], path[j]);
+          }
+          return {
+            label: `Sample ${i + 1}`,
+            data: ages.map((a) => { const v = pathByAge.get(a); return v != null ? adj(v, a) : null; }),
+            borderColor: sampleColor(i),
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0,
+            cubicInterpolationMode: 'default' as const,
+            pointRadius: 0,
+            pointHitRadius: 6,
+            borderWidth: 1.5,
+            order: -1,
+            hidden: false,
+          };
+        }),
       ],
     };
-  }, [monteCarloPercentiles, combined, ages, showRealValues, inflationRate, currentAge]);
+  }, [monteCarloPercentiles, monteCarloSamplePaths, combined, ages, showRealValues, inflationRate, currentAge, mcViewMode, mcSampleCount]);
+
+  // ── 1c. Monte Carlo Income chart (standalone) ───────────────────────────────
+  const monteCarloIncomeChartData: ChartData<'line'> | null = useMemo(() => {
+    if (!monteCarloIncomePercentiles) return null;
+    const { p10, p25, p50, p75, p90, ages: mcAges } = monteCarloIncomePercentiles;
+    const mcByAge = new Map<number, { p10: number; p25: number; p50: number; p75: number; p90: number }>();
+    for (let i = 0; i < mcAges.length; i++) {
+      mcByAge.set(mcAges[i], { p10: p10[i], p25: p25[i], p50: p50[i], p75: p75[i], p90: p90[i] });
+    }
+    const p10Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p10, a) : null; });
+    const p25Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p25, a) : null; });
+    const p50Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p50, a) : null; });
+    const p75Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p75, a) : null; });
+    const p90Data = ages.map((a) => { const d = mcByAge.get(a); return d ? adj(d.p90, a) : null; });
+    // Deterministic net income for reference
+    const incomeData = combined.map((d) => adj(d.netIncome, d.age));
+
+    const showPercentiles = mcViewMode === 'percentiles' || mcViewMode === 'both';
+    const showSamples = mcViewMode === 'samples' || mcViewMode === 'both';
+    const visibleSamplePaths = showSamples ? fanOutFromMedian(monteCarloSampleIncomePaths ?? [], mcSampleCount) : [];
+
+    return {
+      labels: ages,
+      datasets: [
+        ...(showPercentiles ? [
+        {
+          label: '90th Percentile',
+          data: p90Data,
+          borderColor: 'hsla(160, 60%, 40%, 0.5)',
+          backgroundColor: 'hsla(160, 60%, 40%, 0.06)',
+          fill: '+4',
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1.5,
+          borderDash: [4, 2],
+          order: 4,
+        },
+        {
+          label: '75th Percentile',
+          data: p75Data,
+          borderColor: 'hsla(160, 60%, 40%, 0.35)',
+          backgroundColor: 'hsla(160, 60%, 40%, 0.10)',
+          fill: '+2',
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1,
+          borderDash: [2, 2],
+          order: 3,
+        },
+        {
+          label: 'Median (P50)',
+          data: p50Data,
+          borderColor: 'hsl(160, 60%, 40%)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 2.5,
+          order: 0,
+        },
+        {
+          label: '25th Percentile',
+          data: p25Data,
+          borderColor: 'hsla(160, 60%, 40%, 0.35)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1,
+          borderDash: [2, 2],
+          order: 2,
+        },
+        {
+          label: '10th Percentile',
+          data: p10Data,
+          borderColor: 'hsla(160, 60%, 40%, 0.5)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1.5,
+          borderDash: [4, 2],
+          order: 5,
+        },
+        ] : []),
+        {
+          label: 'Deterministic',
+          data: incomeData,
+          borderColor: 'hsl(220, 14%, 55%)',
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHitRadius: 8,
+          borderWidth: 1.5,
+          borderDash: [6, 4],
+          order: 1,
+        },
+        // Sample simulation paths (thin lines showing year-to-year volatility)
+        ...visibleSamplePaths.map((path, i) => {
+          const pathByAge = new Map<number, number>();
+          if (monteCarloIncomePercentiles) {
+            const mcAges = monteCarloIncomePercentiles.ages;
+            for (let j = 0; j < mcAges.length; j++) pathByAge.set(mcAges[j], path[j]);
+          }
+          return {
+            label: `Sample ${i + 1}`,
+            data: ages.map((a) => { const v = pathByAge.get(a); return v != null ? adj(v, a) : null; }),
+            borderColor: sampleColor(i),
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0,
+            cubicInterpolationMode: 'default' as const,
+            pointRadius: 0,
+            pointHitRadius: 6,
+            borderWidth: 1.5,
+            order: -1,
+            hidden: false,
+          };
+        }),
+      ],
+    };
+  }, [monteCarloIncomePercentiles, monteCarloSampleIncomePaths, combined, ages, showRealValues, inflationRate, currentAge, mcViewMode, mcSampleCount]);
 
   // ── 2. Contributions vs Growth (stacked area) ───────────────────────────────
   const contributionsGrowthData: ChartData<'line'> = useMemo(
@@ -394,6 +578,7 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
     phaseBands,
     portfolioGrowthData,
     monteCarloChartData,
+    monteCarloIncomeChartData,
     contributionsGrowthData,
     annualFlowsData,
     incomeTimelineData,

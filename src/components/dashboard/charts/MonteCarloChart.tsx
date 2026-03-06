@@ -14,6 +14,7 @@ interface MonteCarloChartProps {
   phaseBands: PhaseBandsOptions;
   ageRange?: [number, number];
   isLoading?: boolean;
+  tooltipId?: string;
 }
 
 /** Simple helper to create a DOM element with classes */
@@ -27,14 +28,14 @@ function el(tag: string, classes?: string): HTMLElement {
  * External tooltip handler for the Monte Carlo chart.
  * Shows P10, Median, P90, and Deterministic values at the hovered age.
  */
-function useMonteCarloTooltip(combined: CombinedYearData[]) {
+function useMonteCarloTooltip(combined: CombinedYearData[], tooltipId = 'mc-chartjs-tooltip') {
   const tooltipRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    let container = document.getElementById('mc-chartjs-tooltip') as HTMLDivElement | null;
+    let container = document.getElementById(tooltipId) as HTMLDivElement | null;
     if (!container) {
       container = document.createElement('div');
-      container.id = 'mc-chartjs-tooltip';
+      container.id = tooltipId;
       Object.assign(container.style, {
         position: 'absolute',
         pointerEvents: 'none',
@@ -78,8 +79,10 @@ function useMonteCarloTooltip(combined: CombinedYearData[]) {
       header.textContent = `Age ${age ?? ''}`;
       card.appendChild(header);
 
-      // Collect data points — one per dataset
-      const items = (tooltip.dataPoints || []).map((pt) => ({
+      // Collect data points — one per dataset (exclude sample paths)
+      const items = (tooltip.dataPoints || [])
+        .filter((pt) => !pt.dataset.label?.startsWith('Sample '))
+        .map((pt) => ({
         color: pt.dataset.borderColor as string,
         label: pt.dataset.label || '',
         value: pt.parsed.y ?? (pt.parsed as any),
@@ -150,12 +153,13 @@ export function MonteCarloChart({
   phaseBands,
   ageRange,
   isLoading = false,
+  tooltipId,
 }: MonteCarloChartProps) {
   const themeKey = useThemeKey();
 
   const { slicedData, slicedCombined, slicedPhaseBands } = useSlicedChartData({ data, combined, phaseBands, ageRange });
 
-  const tooltipHandler = useMonteCarloTooltip(slicedCombined);
+  const tooltipHandler = useMonteCarloTooltip(slicedCombined, tooltipId);
 
   const options = useMemo<ChartOptions<'line'>>(() => {
     const base = getBaseOptions();
@@ -176,6 +180,7 @@ export function MonteCarloChart({
             ...(base.plugins?.legend as any)?.labels,
             usePointStyle: true,
             pointStyle: 'line',
+            filter: (item: any) => !item.text?.startsWith('Sample '),
           },
         },
       },
