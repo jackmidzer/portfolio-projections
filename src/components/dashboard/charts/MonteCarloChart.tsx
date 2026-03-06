@@ -79,8 +79,10 @@ function useMonteCarloTooltip(combined: CombinedYearData[], tooltipId = 'mc-char
       header.textContent = `Age ${age ?? ''}`;
       card.appendChild(header);
 
-      // Collect data points — one per dataset
-      const items = (tooltip.dataPoints || []).map((pt) => ({
+      // Collect data points — one per dataset (exclude sample paths)
+      const items = (tooltip.dataPoints || [])
+        .filter((pt) => !pt.dataset.label?.startsWith('Sample '))
+        .map((pt) => ({
         color: pt.dataset.borderColor as string,
         label: pt.dataset.label || '',
         value: pt.parsed.y ?? (pt.parsed as any),
@@ -178,6 +180,7 @@ export function MonteCarloChart({
             ...(base.plugins?.legend as any)?.labels,
             usePointStyle: true,
             pointStyle: 'line',
+            filter: (item: any) => !item.text?.startsWith('Sample '),
           },
         },
       },

@@ -140,8 +140,8 @@ export const defaultFormInputs: FormInputs = {
 
   // Monte Carlo
   monteCarloEnabled: false,
-  monteCarloSimulations: 500,
-  returnVolatility: 2,
+  monteCarloSimulations: 1000,
+  returnVolatility: 14,
 };
 
 // ─── Slice Interface ─────────────────────────────────────────────────

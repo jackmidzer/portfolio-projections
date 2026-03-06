@@ -12,12 +12,39 @@ import type { PhaseBandsOptions } from './phaseBandsPlugin';
 import { useThemeKey } from '@/hooks/useThemeKey';
 import type { MonteCarloPercentiles } from '@/store/useProjectionStore';
 
+export type MCViewMode = 'percentiles' | 'samples' | 'both';
+
+/** Deterministic distinct colour per sample index using golden-angle hue spacing. */
+function sampleColor(index: number): string {
+  const hue = (index * 137.508) % 360; // golden angle
+  return `hsl(${hue}, 75%, 50%)`;
+}
+
+/** Select `count` items from `arr`, starting at the median and fanning outward. */
+function fanOutFromMedian<T>(arr: T[], count: number): T[] {
+  if (arr.length === 0 || count <= 0) return [];
+  const n = Math.min(count, arr.length);
+  const mid = Math.floor(arr.length / 2);
+  const result: T[] = [arr[mid]];
+  let lo = mid - 1;
+  let hi = mid + 1;
+  while (result.length < n) {
+    if (hi < arr.length) result.push(arr[hi++]);
+    if (result.length < n && lo >= 0) result.push(arr[lo--]);
+  }
+  return result;
+}
+
 interface UseChartDataOptions {
   showRealValues?: boolean;
   inflationRate?: number;
   currentAge?: number;
   monteCarloPercentiles?: MonteCarloPercentiles | null;
   monteCarloIncomePercentiles?: MonteCarloPercentiles | null;
+  monteCarloSamplePaths?: number[][] | null;
+  monteCarloSampleIncomePaths?: number[][] | null;
+  mcViewMode?: MCViewMode;
+  mcSampleCount?: number;
 }
 
 /**
@@ -25,7 +52,7 @@ interface UseChartDataOptions {
  * for all four chart views, plus shared milestone annotations and phase config.
  */
 export function useChartData(results: PortfolioResults, options?: UseChartDataOptions) {
-  const { showRealValues = false, inflationRate = 2.5, currentAge = 28, monteCarloPercentiles = null, monteCarloIncomePercentiles = null } = options ?? {};
+  const { showRealValues = false, inflationRate = 2.5, currentAge = 28, monteCarloPercentiles = null, monteCarloIncomePercentiles = null, monteCarloSamplePaths = null, monteCarloSampleIncomePaths = null, mcViewMode = 'both', mcSampleCount = 5 } = options ?? {};
   // Re-compute colors when dark/light mode changes
   const themeKey = useThemeKey();
 
@@ -125,9 +152,14 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
     // Also include the deterministic total for reference
     const totalData = combined.map((d) => adj(d.Savings + d.Pension + d.Brokerage, d.age));
 
+    const showPercentiles = mcViewMode === 'percentiles' || mcViewMode === 'both';
+    const showSamples = mcViewMode === 'samples' || mcViewMode === 'both';
+    const visibleSamplePaths = showSamples ? fanOutFromMedian(monteCarloSamplePaths ?? [], mcSampleCount) : [];
+
     return {
       labels: ages,
       datasets: [
+        ...(showPercentiles ? [
         {
           label: '90th Percentile',
           data: p90Data,
@@ -192,6 +224,7 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
           borderDash: [4, 2],
           order: 5,
         },
+        ] : []),
         {
           label: 'Deterministic',
           data: totalData,
@@ -205,9 +238,31 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
           borderDash: [6, 4],
           order: 1,
         },
+        // Sample simulation paths (thin lines showing year-to-year volatility)
+        ...visibleSamplePaths.map((path, i) => {
+          const pathByAge = new Map<number, number>();
+          if (monteCarloPercentiles) {
+            const mcAges = monteCarloPercentiles.ages;
+            for (let j = 0; j < mcAges.length; j++) pathByAge.set(mcAges[j], path[j]);
+          }
+          return {
+            label: `Sample ${i + 1}`,
+            data: ages.map((a) => { const v = pathByAge.get(a); return v != null ? adj(v, a) : null; }),
+            borderColor: sampleColor(i),
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0,
+            cubicInterpolationMode: 'default' as const,
+            pointRadius: 0,
+            pointHitRadius: 6,
+            borderWidth: 1.5,
+            order: -1,
+            hidden: false,
+          };
+        }),
       ],
     };
-  }, [monteCarloPercentiles, combined, ages, showRealValues, inflationRate, currentAge]);
+  }, [monteCarloPercentiles, monteCarloSamplePaths, combined, ages, showRealValues, inflationRate, currentAge, mcViewMode, mcSampleCount]);
 
   // ── 1c. Monte Carlo Income chart (standalone) ───────────────────────────────
   const monteCarloIncomeChartData: ChartData<'line'> | null = useMemo(() => {
@@ -225,9 +280,14 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
     // Deterministic net income for reference
     const incomeData = combined.map((d) => adj(d.netIncome, d.age));
 
+    const showPercentiles = mcViewMode === 'percentiles' || mcViewMode === 'both';
+    const showSamples = mcViewMode === 'samples' || mcViewMode === 'both';
+    const visibleSamplePaths = showSamples ? fanOutFromMedian(monteCarloSampleIncomePaths ?? [], mcSampleCount) : [];
+
     return {
       labels: ages,
       datasets: [
+        ...(showPercentiles ? [
         {
           label: '90th Percentile',
           data: p90Data,
@@ -292,6 +352,7 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
           borderDash: [4, 2],
           order: 5,
         },
+        ] : []),
         {
           label: 'Deterministic',
           data: incomeData,
@@ -305,9 +366,31 @@ export function useChartData(results: PortfolioResults, options?: UseChartDataOp
           borderDash: [6, 4],
           order: 1,
         },
+        // Sample simulation paths (thin lines showing year-to-year volatility)
+        ...visibleSamplePaths.map((path, i) => {
+          const pathByAge = new Map<number, number>();
+          if (monteCarloIncomePercentiles) {
+            const mcAges = monteCarloIncomePercentiles.ages;
+            for (let j = 0; j < mcAges.length; j++) pathByAge.set(mcAges[j], path[j]);
+          }
+          return {
+            label: `Sample ${i + 1}`,
+            data: ages.map((a) => { const v = pathByAge.get(a); return v != null ? adj(v, a) : null; }),
+            borderColor: sampleColor(i),
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0,
+            cubicInterpolationMode: 'default' as const,
+            pointRadius: 0,
+            pointHitRadius: 6,
+            borderWidth: 1.5,
+            order: -1,
+            hidden: false,
+          };
+        }),
       ],
     };
-  }, [monteCarloIncomePercentiles, combined, ages, showRealValues, inflationRate, currentAge]);
+  }, [monteCarloIncomePercentiles, monteCarloSampleIncomePaths, combined, ages, showRealValues, inflationRate, currentAge, mcViewMode, mcSampleCount]);
 
   // ── 2. Contributions vs Growth (stacked area) ───────────────────────────────
   const contributionsGrowthData: ChartData<'line'> = useMemo(

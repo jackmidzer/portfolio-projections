@@ -28,6 +28,12 @@ export interface MCWorkerResponse {
     p90: number[];
     ages: number[];
   };
+  samplePaths: number[][];
+  sampleIncomePaths: number[][];
+  /** Fraction (0–1) of simulations that ended with a positive total balance */
+  successRate: number;
+  /** Raw count of simulations that ended with a positive total balance */
+  successCount: number;
 }
 
 export interface MCWorkerError {
@@ -53,6 +59,10 @@ self.onmessage = (event: MessageEvent<MCWorkerRequest>) => {
       type: 'result',
       percentiles: result.percentiles,
       incomePercentiles: result.incomePercentiles,
+      samplePaths: result.samplePaths,
+      sampleIncomePaths: result.sampleIncomePaths,
+      successRate: result.successRate,
+      successCount: result.successCount,
     } satisfies MCWorkerResponse);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

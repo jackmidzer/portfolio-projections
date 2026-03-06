@@ -15,6 +15,7 @@ export {
 export { phaseBandsPlugin } from './phaseBandsPlugin';
 export type { PhaseBandsOptions } from './phaseBandsPlugin';
 export { useChartData } from './useChartData';
+export type { MCViewMode } from './useChartData';
 export { useExternalTooltip } from './useExternalTooltip';
 export { PortfolioGrowthChart } from './PortfolioGrowthChart';
 export { MonteCarloChart } from './MonteCarloChart';

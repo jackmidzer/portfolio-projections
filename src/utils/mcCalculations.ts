@@ -70,6 +70,13 @@ export interface MCSimResult {
 export interface MCResult {
   percentiles: { p10: number[]; p25: number[]; p50: number[]; p75: number[]; p90: number[]; ages: number[] };
   incomePercentiles: { p10: number[]; p25: number[]; p50: number[]; p75: number[]; p90: number[]; ages: number[] };
+  /** A few individual simulation paths to visualise year-to-year volatility */
+  samplePaths: number[][];
+  sampleIncomePaths: number[][];
+  /** Fraction (0–1) of simulations that ended with a positive total balance */
+  successRate: number;
+  /** Raw count of simulations that ended with a positive total balance */
+  successCount: number;
 }
 
 // ─── Schedule builder ───────────────────────────────────────────────
@@ -676,14 +683,22 @@ function estimatePensionBalanceLite(
 
 /**
  * Run a single Monte Carlo simulation using the pre-computed schedule.
- * Only the monthly interest rate varies (derived from the sampled return).
+ * A new return is sampled per account per year (at each year boundary),
+ * capturing realistic year-to-year market volatility and sequence-of-returns risk.
  */
 function runMCSimulation(
   schedule: FullSchedule,
-  sampledMonthlyRates: number[], // one per account
+  accountExpectedReturns: number[], // expected annual return (%) per account
+  returnVolatility: number,         // annual standard deviation (%)
 ): MCSimResult {
   const { accounts: acctSchedules, numYears } = schedule;
   const numAccounts = acctSchedules.length;
+
+  // Sample initial year's returns
+  const sampledMonthlyRates: number[] = new Array(numAccounts);
+  for (let a = 0; a < numAccounts; a++) {
+    sampledMonthlyRates[a] = sampleReturn(accountExpectedReturns[a], returnVolatility) / 100 / 12;
+  }
 
   // Per-year accumulation (direct — no intermediate monthly arrays)
   const yearlyTotalBalances = new Float64Array(numYears);
@@ -727,7 +742,7 @@ function runMCSimulation(
     const sm = acctSchedules[0].months[month];
     const yearIdx = sm.yearIndex;
 
-    // Year boundary — flush previous year's net income
+    // Year boundary — flush previous year's net income & resample returns
     if (yearIdx !== currentYearIdx) {
       flushYearIncome(schedule, currentYearIdx, yearNetSalaryAccum, yearBrokerageWithdrawal, yearBrokerageWithdrawalTax, yearPensionWithdrawal, yearlyNetIncomes);
       yearNetSalaryAccum = 0;
@@ -735,6 +750,11 @@ function runMCSimulation(
       yearBrokerageWithdrawalTax = 0;
       yearPensionWithdrawal = 0;
       currentYearIdx = yearIdx;
+
+      // Resample a new annual return for each account at the start of each year
+      for (let a = 0; a < numAccounts; a++) {
+        sampledMonthlyRates[a] = sampleReturn(accountExpectedReturns[a], returnVolatility) / 100 / 12;
+      }
     }
 
     // Accumulate working-phase net salary (from first account schedule)
@@ -875,13 +895,10 @@ function runMCSimulation(
       for (let a = 0; a < numAccounts; a++) totalBal += balances[a];
       yearlyTotalBalances[yearIdx] = totalBal;
 
-      // Flush the current year's net income
-      flushYearIncome(schedule, yearIdx, yearNetSalaryAccum, yearBrokerageWithdrawal, yearBrokerageWithdrawalTax, yearPensionWithdrawal, yearlyNetIncomes);
-      yearNetSalaryAccum = 0;
-      yearBrokerageWithdrawal = 0;
-      yearBrokerageWithdrawalTax = 0;
-      yearPensionWithdrawal = 0;
-      currentYearIdx = yearIdx + 1;
+      // For the very last year, flush income here since no year-boundary block will run.
+      if (nextMonth >= totalMonths) {
+        flushYearIncome(schedule, yearIdx, yearNetSalaryAccum, yearBrokerageWithdrawal, yearBrokerageWithdrawalTax, yearPensionWithdrawal, yearlyNetIncomes);
+      }
     }
   }
 
@@ -976,18 +993,14 @@ export function runMonteCarloSimulation(
   const allTotals: number[][] = new Array(simulations);
   const allIncomes: number[][] = new Array(simulations);
 
-  for (let sim = 0; sim < simulations; sim++) {
-    // Sample one effective annual return per account per simulation
-    const sampledMonthlyRates: number[] = new Array(numAccounts);
-    for (let a = 0; a < numAccounts; a++) {
-      const sampledAnnual = sampleReturn(
-        baseOptions.accounts[a].expectedReturn,
-        returnVolatility,
-      );
-      sampledMonthlyRates[a] = sampledAnnual / 100 / 12;
-    }
+  // Extract expected returns once (used by each simulation for per-year resampling)
+  const accountExpectedReturns: number[] = new Array(numAccounts);
+  for (let a = 0; a < numAccounts; a++) {
+    accountExpectedReturns[a] = baseOptions.accounts[a].expectedReturn;
+  }
 
-    const result = runMCSimulation(schedule, sampledMonthlyRates);
+  for (let sim = 0; sim < simulations; sim++) {
+    const result = runMCSimulation(schedule, accountExpectedReturns, returnVolatility);
     allTotals[sim] = result.yearlyTotalBalances;
     allIncomes[sim] = result.yearlyNetIncomes;
   }
@@ -1029,8 +1042,28 @@ export function runMonteCarloSimulation(
     incP90[y] = percentile(incBuf, 90);
   }
 
+  // Pick sample paths spread across outcomes (by final-year balance)
+  const NUM_SAMPLES = 50;
+  const finalYearIdx = numYears - 1;
+  const indexed = allTotals.map((t, i) => ({ finalBal: t[finalYearIdx], idx: i }));
+  indexed.sort((a, b) => a.finalBal - b.finalBal);
+  const samplePaths: number[][] = [];
+  const sampleIncomePaths: number[][] = [];
+  for (let s = 0; s < NUM_SAMPLES; s++) {
+    const pick = Math.round((s / (NUM_SAMPLES - 1)) * (simulations - 1));
+    samplePaths.push(allTotals[indexed[pick].idx]);
+    sampleIncomePaths.push(allIncomes[indexed[pick].idx]);
+  }
+
+  const positiveCount = indexed.filter((t) => t.finalBal > 0).length;
+  const successRate = simulations > 0 ? positiveCount / simulations : 0;
+
   return {
     percentiles: { p10, p25, p50, p75, p90, ages },
     incomePercentiles: { p10: incP10, p25: incP25, p50: incP50, p75: incP75, p90: incP90, ages },
+    samplePaths,
+    sampleIncomePaths,
+    successRate,
+    successCount: positiveCount,
   };
 }
