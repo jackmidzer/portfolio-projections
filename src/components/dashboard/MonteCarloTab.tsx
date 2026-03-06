@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { Activity, Play, Loader2 } from 'lucide-react';
+import { Activity, Play, Loader2, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { NumberField } from '@/components/form/FormField';
@@ -26,6 +26,7 @@ export function MonteCarloTab({
   const returnVolatility = useProjectionStore(s => s.returnVolatility);
   const isMonteCarloRunning = useProjectionStore(s => s.isMonteCarloRunning);
   const monteCarloPercentiles = useProjectionStore(s => s.monteCarloPercentiles);
+  const monteCarloIncomePercentiles = useProjectionStore(s => s.monteCarloIncomePercentiles);
   const runMonteCarloSimulations = useProjectionStore(s => s.runMonteCarloSimulations);
   const updateField = useProjectionStore(s => s.updateField);
 
@@ -33,7 +34,8 @@ export function MonteCarloTab({
     combined,
     phaseBands,
     monteCarloChartData,
-  } = useChartData(results, { showRealValues, inflationRate, currentAge, monteCarloPercentiles });
+    monteCarloIncomeChartData,
+  } = useChartData(results, { showRealValues, inflationRate, currentAge, monteCarloPercentiles, monteCarloIncomePercentiles });
 
   const ages = useMemo(() => combined.map(d => d.age), [combined]);
   const minAge = ages[0] ?? 0;
@@ -109,13 +111,13 @@ export function MonteCarloTab({
         </CardContent>
       </Card>
 
-      {/* Chart card */}
+      {/* Portfolio Balance Chart card */}
       {(monteCarloChartData || isMonteCarloRunning) && (
         <Card data-chart-container>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-purple-500" />
-              P10 / P25 / Median / P75 / P90
+              Portfolio Balance — P10 / P25 / Median / P75 / P90
             </CardTitle>
           </CardHeader>
           <CardContent className="px-2 pb-4 pt-0 sm:px-4">
@@ -127,6 +129,7 @@ export function MonteCarloTab({
                   phaseBands={phaseBands}
                   ageRange={chartAgeRange}
                   isLoading={isMonteCarloRunning}
+                  tooltipId="mc-balance-tooltip"
                 />
                 <AgeRangeSlider
                   ages={ages}
@@ -141,6 +144,58 @@ export function MonteCarloTab({
                 <div className="flex items-center gap-2.5">
                   <svg
                     className="h-5 w-5 animate-spin text-purple-500"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium text-muted-foreground">Running simulations…</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Income Chart card */}
+      {(monteCarloIncomeChartData || isMonteCarloRunning) && monteCarloChartData && (
+        <Card data-chart-container>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              Net Income — P10 / P25 / Median / P75 / P90
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-2 pb-4 pt-0 sm:px-4">
+            {monteCarloIncomeChartData ? (
+              <>
+                <MonteCarloChart
+                  data={monteCarloIncomeChartData}
+                  combined={combined}
+                  phaseBands={phaseBands}
+                  ageRange={chartAgeRange}
+                  isLoading={isMonteCarloRunning}
+                  tooltipId="mc-income-tooltip"
+                />
+                <AgeRangeSlider
+                  ages={ages}
+                  fireAge={results.fireAge}
+                  pensionAge={results.pensionAge}
+                  value={effectiveRange}
+                  onChange={handleRangeChange}
+                />
+              </>
+            ) : (
+              <div className="relative h-[240px] sm:h-[280px] lg:h-[320px] xl:h-[360px] w-full rounded-lg border border-dashed border-border flex flex-col items-center justify-center bg-muted/30">
+                <div className="flex items-center gap-2.5">
+                  <svg
+                    className="h-5 w-5 animate-spin text-emerald-500"
                     xmlns="http://www.w3.org/2000/svg"
                     fill="none"
                     viewBox="0 0 24 24"

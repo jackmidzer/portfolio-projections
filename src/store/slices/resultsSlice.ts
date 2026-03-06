@@ -81,6 +81,7 @@ export interface ResultsSlice {
   bonusTaxBurden: number;
   lastCalculatedBonusPercent: number;
   monteCarloPercentiles: MonteCarloPercentiles | null;
+  monteCarloIncomePercentiles: MonteCarloPercentiles | null;
   isMonteCarloRunning: boolean;
 
   calculate: () => Promise<{ errors: string[] }>;
@@ -103,6 +104,7 @@ export const createResultsSlice: StateCreator<RootLike, [], [], ResultsSlice> = 
   bonusTaxBurden: 0,
   lastCalculatedBonusPercent: 0,
   monteCarloPercentiles: null,
+  monteCarloIncomePercentiles: null,
   isMonteCarloRunning: false,
 
   // ─── Computed Helpers ──────────────────────────────────────────
@@ -317,6 +319,7 @@ export const createResultsSlice: StateCreator<RootLike, [], [], ResultsSlice> = 
     ).then((response) => {
       set({
         monteCarloPercentiles: response.percentiles,
+        monteCarloIncomePercentiles: response.incomePercentiles,
         isMonteCarloRunning: false,
       });
     }).catch((err) => {
