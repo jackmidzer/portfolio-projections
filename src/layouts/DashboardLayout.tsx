@@ -1,10 +1,14 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PanelLeftClose, PanelLeft, Menu, TrendingUp, Share2, Check, Calculator, RotateCcw } from 'lucide-react';
+import { PanelLeftClose, PanelLeft, Menu, TrendingUp, Share2, Check, Calculator, RotateCcw, Download, FileSpreadsheet, Printer, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { exportProjectionCsv, exportPdf, exportChartPng } from '@/utils/exportCsv';
 import { SidebarForm } from '@/components/form/SidebarForm';
 import { DashboardContent } from '@/components/dashboard/DashboardContent';
 import { NegativeBalanceBanner } from '@/components/dashboard/NegativeBalanceBanner';
@@ -22,6 +26,8 @@ export function DashboardLayout() {
   const isCalculating = useProjectionStore(s => s.isCalculating);
   const resetForm = useProjectionStore(s => s.resetForm);
   const validationErrors = useProjectionStore(s => s.validationErrors);
+  const showRealValues = useProjectionStore(s => s.showRealValues);
+  const toggleRealValues = useProjectionStore(s => s.toggleRealValues);
   const hasValidationErrors = Object.keys(validationErrors).length > 0;
   useAutoCalculate();
 
@@ -155,15 +161,50 @@ export function DashboardLayout() {
 
           <div className="flex items-center gap-2">
             {results && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={handleShare}
-                aria-label="Share projection"
-              >
-                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Share2 className="h-4 w-4" />}
-              </Button>
+              <>
+                <div className="flex items-center gap-1.5">
+                  <Switch
+                    id="real-nominal-toggle-nav"
+                    checked={showRealValues}
+                    onCheckedChange={toggleRealValues}
+                    className="scale-75 origin-right"
+                  />
+                  <Label htmlFor="real-nominal-toggle-nav" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+                    {showRealValues ? 'Real €' : 'Nominal €'}
+                  </Label>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="print:hidden">
+                      <Download className="h-4 w-4 mr-1.5" />
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => exportProjectionCsv(results.accountResults)}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Download CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={exportPdf}>
+                      <Printer className="h-4 w-4 mr-2" />
+                      Print / PDF Report
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportChartPng('[data-chart-container]')}>
+                      <Image className="h-4 w-4 mr-2" />
+                      Export Chart as PNG
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={handleShare}
+                  aria-label="Share projection"
+                >
+                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Share2 className="h-4 w-4" />}
+                </Button>
+              </>
             )}
             <ThemeToggle />
           </div>

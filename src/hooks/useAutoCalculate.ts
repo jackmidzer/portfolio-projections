@@ -54,7 +54,12 @@ export function useAutoCalculate() {
     const execute = async () => {
       if (!mounted) return;
       const { calculate } = useProjectionStore.getState();
-      await calculate();
+      const { errors } = await calculate();
+      if (!mounted || errors.length > 0) return;
+      const { monteCarloPercentiles, runMonteCarloSimulations } = useProjectionStore.getState();
+      if (monteCarloPercentiles) {
+        runMonteCarloSimulations();
+      }
     };
 
     const schedule = () => {

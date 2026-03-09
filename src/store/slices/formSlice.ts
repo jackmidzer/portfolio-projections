@@ -139,7 +139,7 @@ export const defaultFormInputs: FormInputs = {
   taxBandIndexation: 1.5,
 
   // Monte Carlo
-  monteCarloEnabled: false,
+  monteCarloEnabled: true,
   monteCarloSimulations: 1000,
   returnVolatility: 14,
 };
