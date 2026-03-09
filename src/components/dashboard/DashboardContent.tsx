@@ -1,16 +1,8 @@
 import { lazy, Suspense, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, CalendarClock, Table2, Receipt, HelpCircle, Download, FileSpreadsheet, Printer, Image, GitCompareArrows, Activity } from 'lucide-react';
+import { BarChart3, CalendarClock, Table2, Receipt, HelpCircle, GitCompareArrows, Activity } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+
 import { SummaryCards } from './SummaryCards';
 import { FIRECountdown } from './FIRECountdown';
 import { HouseDepositCard } from './HouseDepositCard';
@@ -27,7 +19,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ErrorFallback } from '@/components/ErrorFallback';
 import { useProjectionStore } from '@/store/useProjectionStore';
 import { useShallow } from 'zustand/react/shallow';
-import { exportProjectionCsv, exportPdf, exportChartPng } from '@/utils/exportCsv';
+
 import { parseNumeric } from '@/utils/parseNumeric';
 
 const ProjectionChart = lazy(() => import('./ProjectionChart').then(m => ({ default: m.ProjectionChart })));
@@ -61,7 +53,6 @@ export function DashboardContent() {
     statePensionWeeklyAmount,
     withdrawalRate,
     showRealValues,
-    toggleRealValues,
     inflationRate,
     scenarios,
     visibleScenarioIds,
@@ -84,7 +75,6 @@ export function DashboardContent() {
       statePensionWeeklyAmount: s.statePensionWeeklyAmount,
       withdrawalRate: s.withdrawalRate,
       showRealValues: s.showRealValues,
-      toggleRealValues: s.toggleRealValues,
       inflationRate: s.inflationRate,
       scenarios: s.scenarios,
       visibleScenarioIds: s.visibleScenarioIds,
@@ -133,43 +123,6 @@ export function DashboardContent() {
     >
       {/* Summary Cards – always visible */}
       <motion.div variants={fadeInUp}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <Switch
-                id="real-nominal-toggle"
-                checked={showRealValues}
-                onCheckedChange={toggleRealValues}
-                className="scale-75 origin-right"
-              />
-              <Label htmlFor="real-nominal-toggle" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
-                {showRealValues ? 'Real €' : 'Nominal €'}
-              </Label>
-            </div>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="print:hidden">
-                <Download className="h-4 w-4 mr-1.5" />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => exportProjectionCsv(results.accountResults)}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Download CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportPdf}>
-                <Printer className="h-4 w-4 mr-2" />
-                Print / PDF Report
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportChartPng('[data-chart-container]')}>
-                <Image className="h-4 w-4 mr-2" />
-                Export Chart as PNG
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
         <SummaryCards results={results} showRealValues={showRealValues} inflationRate={numInflationRate} currentAge={numCurrentAge} />
       </motion.div>
 
